@@ -52,8 +52,9 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
   const s = await initStore();
   s.set('settings', settings);
   
-  // Invalidate azure service so it gets re-created on the next fetch with new credentials
+  // Invalidate azure and confluence service so it gets re-created on the next fetch with new credentials
   azureService = null;
+  confluenceService = null;
   
   return { success: true };
 });
