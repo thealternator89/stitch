@@ -9,7 +9,7 @@ import { ConfluenceService } from './services/confluenceService';
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
-interface AppSettings {
+type AppSettings = {
   azureOrg?: string;
   azureProject?: string;
   azurePat?: string;
@@ -48,19 +48,21 @@ ipcMain.handle('get-settings', async () => {
   return s.get('settings');
 });
 
+function trimProperties(obj: Record<string, string | undefined>): Record<string, string | undefined> {
+  const out: Record<string, string> = {};
+  for (let key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      out[key] = obj[key]?.toString().trim();
+    }
+  }
+  return out;
+}
+
 ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
   const s = await initStore();
 
   // Trim and normalize saved settings to avoid whitespace-caused auth issues
-  const sanitizedSettings: AppSettings = {
-    azureOrg: settings.azureOrg?.toString().trim(),
-    azureProject: settings.azureProject?.toString().trim(),
-    azurePat: settings.azurePat?.toString().trim(),
-    copilotToken: settings.copilotToken?.toString().trim(),
-    confluenceUrl: settings.confluenceUrl?.toString().trim(),
-    confluenceUser: settings.confluenceUser?.toString().trim(),
-    confluenceToken: settings.confluenceToken?.toString().trim(),
-  };
+  const sanitizedSettings = trimProperties(settings);
 
   s.set('settings', sanitizedSettings);
 
@@ -74,9 +76,7 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
 async function getAzureService() {
   if (!azureService) {
     const s = await initStore();
-    const settings = s.get('settings') as AppSettings;
-    const azureOrg = settings?.azureOrg?.toString().trim() || '';
-    const azurePat = settings?.azurePat?.toString().trim() || '';
+    const { azureOrg, azurePat } = trimProperties(s.get('settings')) as AppSettings;
     if (!azureOrg || !azurePat) {
       throw new Error('Azure DevOps settings are missing.');
     }
@@ -96,10 +96,7 @@ ipcMain.handle('generate-test-cases', async (event, ticketData, additionalContex
 
 ipcMain.handle('fetch-confluence-page', async (event, pageId) => {
   const s = await initStore();
-  const settings = s.get('settings') as AppSettings;
-  const confluenceUrl = settings?.confluenceUrl?.toString().trim() || '';
-  const confluenceUser = settings?.confluenceUser?.toString().trim() || '';
-  const confluenceToken = settings?.confluenceToken?.toString().trim() || '';
+  const { confluenceUrl, confluenceUser, confluenceToken } = trimProperties(s.get('settings')) as AppSettings;
 
   if (!confluenceUrl || !confluenceToken) {
     throw new Error('Confluence URL and Token are required.');
