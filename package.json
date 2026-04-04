@@ -1,6 +1,6 @@
 {
-  "name": "devops-toolkit",
-  "productName": "devops-toolkit",
+  "name": "stitch",
+  "productName": "Stitch",
   "version": "1.0.1",
   "type": "commonjs",
   "description": "My Electron application description",

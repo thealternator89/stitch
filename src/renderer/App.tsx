@@ -10,8 +10,8 @@ const App: React.FC = () => {
     <Router>
       <div className="titlebar shadow-sm">
         <span className="titlebar-content">
-          <i className="fas fa-tools me-2 text-primary"></i>
-          DevOps Toolkit
+          <i className="fas fa-code-merge me-2 text-primary"></i>
+          Stitch
         </span>
       </div>
 

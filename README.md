@@ -1,4 +1,4 @@
-# DevOps Toolkit
+# Stitch
 
 An Electron-based desktop application for DevOps workflows, built with React and
 TypeScript using Electron Forge.

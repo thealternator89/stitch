@@ -74,7 +74,7 @@ const StoryWriter: React.FC = () => {
         const descriptionWithDisclaimer = [
           story.description,
           '',
-          'Generated with Devops Toolkit and GitHub Copilot.',
+          'Generated with Stitch and GitHub Copilot.',
           'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.'
         ].join('\n');
         
