@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addChildTask: (parentTicketId: string, title: string, description: string) => ipcRenderer.invoke('add-child-task', parentTicketId, title, description),
   createPBI: (parentTicketId: string, title: string, description: string, acceptanceCriteria: string) => ipcRenderer.invoke('create-pbi', parentTicketId, title, description, acceptanceCriteria),
   checkCopilotAuth: () => ipcRenderer.invoke('check-copilot-auth'),
+  getVersion: () => ipcRenderer.invoke('get-version'),
 });

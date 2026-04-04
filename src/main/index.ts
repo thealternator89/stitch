@@ -48,6 +48,10 @@ ipcMain.handle('get-settings', async () => {
   return s.get('settings');
 });
 
+ipcMain.handle('get-version', async () => {
+  return app.getVersion();
+});
+
 function trimProperties(obj: Record<string, string | undefined>): Record<string, string | undefined> {
   const out: Record<string, string> = {};
   for (let key in obj) {

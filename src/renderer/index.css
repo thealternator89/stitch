@@ -5,6 +5,12 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden; /* Prevent scrolling for the whole body */
+  user-select: none; /* Make all UI text non-selectable by default */
+}
+
+/* Allow selection in inputs, textareas and generated content */
+input, textarea, .markdown-content, .selectable-text {
+  user-select: text;
 }
 
 #root {
@@ -40,6 +46,19 @@ body {
   flex-grow: 1;
   overflow-y: auto;
   padding: 1rem;
+}
+
+.footer {
+  height: 24px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 1rem;
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
 /* Markdown Styling */
