@@ -12,7 +12,7 @@ jobs:
       matrix:
         os:
           - windows-latest
-          # - macos-latest  # Need to set up secrets first
+          - macos-latest
 
     steps:
       - name: Checkout Code
