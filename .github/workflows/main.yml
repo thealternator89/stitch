@@ -2,7 +2,7 @@ name: Build Windows App
 on:
   push:
     branches:
-      - main
+      - '**'
 
 jobs:
   build:
@@ -26,6 +26,18 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Set Version
+        shell: bash
+        run: |
+          VERSION=$(date +'%Y.%-m.%-d')
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            # Sanitize branch name: allow alpha and hyphens, others become underscores
+            BRANCH_LABEL=$(echo ${GITHUB_REF_NAME} | sed 's/[^a-zA-Z0-9-]/_/g' | tr '[:upper:]' '[:lower:]')
+            VERSION="${VERSION}-${BRANCH_LABEL}"
+          fi
+          echo "Setting version to: $VERSION"
+          npm version $VERSION --no-git-tag-version
 
       - name: Build Electron App
         run: npm run make
