@@ -83,8 +83,9 @@ export class CopilotService {
     }
   }
 
-  async generateTestCases(ticketData: any, additionalContext: string) {
+  async generateTestCases(ticketData: any, additionalContext: string, modelOverride: string) {
     try {
+      this.setModel(modelOverride);
       const session = await this.getSession();
 
       const prompt = `
@@ -117,8 +118,9 @@ export class CopilotService {
     }
   }
 
-  async generateStories(pageData: any, additionalContext: string) {
+  async generateStories(pageData: any, additionalContext: string, modelOverride: string) {
     try {
+      this.setModel(modelOverride);
       const session = await this.getSession();
 
       const prompt = `

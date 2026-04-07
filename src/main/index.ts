@@ -97,8 +97,8 @@ ipcMain.handle('fetch-ticket', async (event, ticketId) => {
   return service.fetchTicket(ticketId);
 });
 
-ipcMain.handle('generate-test-cases', async (event, ticketData, additionalContext) => {
-  return copilotService.generateTestCases(ticketData, additionalContext);
+ipcMain.handle('generate-test-cases', async (event, ticketData, additionalContext, modelOverride) => {
+  return copilotService.generateTestCases(ticketData, additionalContext, modelOverride);
 });
 
 ipcMain.handle('fetch-confluence-page', async (event, pageId) => {
@@ -115,8 +115,8 @@ ipcMain.handle('fetch-confluence-page', async (event, pageId) => {
   return confluenceService.fetchPage(pageId);
 });
 
-ipcMain.handle('generate-stories', async (event, pageData, additionalContext) => {
-  return copilotService.generateStories(pageData, additionalContext);
+ipcMain.handle('generate-stories', async (event, pageData, additionalContext, modelOverride) => {
+  return copilotService.generateStories(pageData, additionalContext, modelOverride);
 });
 
 ipcMain.handle('check-copilot-auth', async () => {

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useCopilotModels } from '../hooks/useCopilotModels';
+import ModelDropdown from '../components/ModelDropdown';
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -13,9 +15,7 @@ const Settings: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [authStatus, setAuthStatus] = useState<any>(null);
   const [checkingAuth, setCheckingAuth] = useState(false);
-  const [models, setModels] = useState<Array<{ id: string; name: string; billing?: { multiplier?: number } }>>([]);
-  const [selectedModel, setSelectedModel] = useState('');
-  const [loadingModels, setLoadingModels] = useState(false);
+  const { models, selectedModel, setSelectedModel, loadingModels } = useCopilotModels();
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -29,36 +29,13 @@ const Settings: React.FC = () => {
           setConfluenceUrl(settings.confluenceUrl || '');
           setConfluenceUser(settings.confluenceUser || '');
           setConfluenceToken(settings.confluenceToken || '');
-          if (settings.copilotModel) {
-            setSelectedModel(settings.copilotModel);
-          }
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
       }
     };
 
-    const loadModels = async () => {
-      try {
-        setLoadingModels(true);
-        const result = await (window as any).electronAPI.listCopilotModels();
-        const list: Array<{ id: string; name: string; billing?: { multiplier?: number } }> = result || [];
-        setModels(list);
-        // Apply default only if nothing was saved
-        setSelectedModel(prev => {
-          if (prev) return prev;
-          const fallback = list.find(m => m.id === 'gpt-4.1');
-          return fallback ? fallback.id : (list[0]?.id || '');
-        });
-      } catch (error) {
-        console.error('Failed to load Copilot models:', error);
-      } finally {
-        setLoadingModels(false);
-      }
-    };
-
     loadSettings();
-    loadModels();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -193,33 +170,14 @@ const Settings: React.FC = () => {
             </div>
             <div className="mb-4">
               <label className="form-label">Default Model</label>
-              <div className="dropdown w-25">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary dropdown-toggle text-start"
-                  data-bs-toggle="dropdown"
-                  aria-expanded="false"
-                  disabled={loadingModels}
-                >
-                  {loadingModels
-                    ? 'Loading models...'
-                    : models.find(m => m.id === selectedModel)?.name || (models.length === 0 ? 'No models available' : 'Select a model')}
-                </button>
-                <ul className="dropdown-menu">
-                  {models.map((model) => (
-                    <li key={model.id}>
-                      <button
-                        type="button"
-                        className={`dropdown-item d-flex justify-content-between align-items-center${selectedModel === model.id ? ' active' : ''}`}
-                        onClick={() => setSelectedModel(model.id)}
-                      >
-                        <span className="me-2 text-truncate">{model.name}</span>
-                        <span className="text-muted ms-2">{typeof model.billing?.multiplier === 'number' ? `×${model.billing.multiplier}` : ''}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ModelDropdown
+                models={models}
+                selectedModel={selectedModel}
+                onSelect={setSelectedModel}
+                loading={loadingModels}
+                className="w-25"
+                buttonVariant='outline-secondary'
+              />
             </div>
 
             <div className="mb-4 p-3 bg-light rounded border">

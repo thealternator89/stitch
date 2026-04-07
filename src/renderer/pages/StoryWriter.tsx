@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useCopilotModels } from '../hooks/useCopilotModels';
+import ModelDropdown from '../components/ModelDropdown';
 
 interface Story {
   title: string;
@@ -16,11 +18,13 @@ const StoryWriter: React.FC = () => {
   const [pageId, setPageId] = useState('');
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStarted, setGenerationStarted] = useState(false);
   const [pageData, setPageData] = useState<any>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [error, setError] = useState<string>('');
   const [featureId, setFeatureId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const { models, selectedModel, setSelectedModel, loadingModels } = useCopilotModels();
 
   const handleGenerate = async () => {
     if (!pageId) {
@@ -30,6 +34,7 @@ const StoryWriter: React.FC = () => {
 
     setError('');
     setIsGenerating(true);
+    setGenerationStarted(true);
     setStories([]);
     setPageData(null);
 
@@ -39,7 +44,7 @@ const StoryWriter: React.FC = () => {
       setPageData(fetchedPage);
 
       // 2. Generate Stories using Copilot SDK
-      const generatedResult = await (window as any).electronAPI.generateStories(fetchedPage, context);
+      const generatedResult = await (window as any).electronAPI.generateStories(fetchedPage, context, selectedModel);
       const mappedStories = generatedResult.map((s: Story) => ({ ...s, checked: true }));
       setStories(mappedStories);
     } catch (err: any) {
@@ -174,15 +179,26 @@ const StoryWriter: React.FC = () => {
           <div className="card shadow-sm h-100 min-vh-50">
             <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center">
               <h5 className="mb-0">Generated Stories</h5>
-              {stories.length > 0 && (
-                <button 
-                  className="btn btn-sm btn-outline-light" 
-                  onClick={() => navigator.clipboard.writeText(JSON.stringify(stories, null, 2))}
-                >
-                  <i className="fas fa-copy me-1"></i>
-                  Copy JSON
-                </button>
-              )}
+              <div className="d-flex align-items-center gap-2">
+                {!generationStarted &&
+                  <ModelDropdown
+                    models={models}
+                    selectedModel={selectedModel}
+                    onSelect={setSelectedModel}
+                    loading={loadingModels}
+                    className="w-25"
+                  />
+                }
+                {stories.length > 0 && (
+                  <button 
+                    className="btn btn-sm btn-outline-light" 
+                    onClick={() => navigator.clipboard.writeText(JSON.stringify(stories, null, 2))}
+                  >
+                    <i className="fas fa-copy me-1"></i>
+                    Copy JSON
+                  </button>
+                )}
+              </div>
             </div>
             <div className="card-body overflow-auto bg-light" style={{ maxHeight: '600px' }}>
               {stories.length > 0 ? (

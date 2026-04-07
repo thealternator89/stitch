@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useCopilotModels } from '../hooks/useCopilotModels';
+import ModelDropdown from '../components/ModelDropdown';
 
 const generateTicketOrCommentText = (testCases: string) => [
   'Test Cases:',
@@ -17,10 +19,12 @@ const TestCaseWriter: React.FC = () => {
   const [ticketId, setTicketId] = useState('');
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStarted, setGenerationStarted] = useState(false);
   const [ticketData, setTicketData] = useState<any>(null);
   const [testCases, setTestCases] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isPosting, setIsPosting] = useState(false);
+  const { models, selectedModel, setSelectedModel, loadingModels } = useCopilotModels();
 
   const handleAddComment = async () => {
     setIsPosting(true);
@@ -58,6 +62,7 @@ const TestCaseWriter: React.FC = () => {
 
     setError('');
     setIsGenerating(true);
+    setGenerationStarted(true);
     setTestCases('');
     setTicketData(null);
 
@@ -67,7 +72,7 @@ const TestCaseWriter: React.FC = () => {
       setTicketData(fetchedTicket);
 
       // 2. Generate Test Cases using Copilot SDK
-      const generatedResult = await (window as any).electronAPI.generateTestCases(fetchedTicket, context);
+      const generatedResult = await (window as any).electronAPI.generateTestCases(fetchedTicket, context, selectedModel);
       setTestCases(generatedResult);
     } catch (err: any) {
       console.error(err);
@@ -162,15 +167,26 @@ const TestCaseWriter: React.FC = () => {
           <div className="card shadow-sm h-100 min-vh-50">
             <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center">
               <h5 className="mb-0">Generated Test Cases</h5>
-              {testCases && (
-                <button 
-                  className="btn btn-sm btn-outline-light" 
-                  onClick={() => navigator.clipboard.writeText(testCases)}
-                >
-                  <i className="fas fa-copy me-1"></i>
-                  Copy
-                </button>
-              )}
+              <div className="d-flex align-items-center gap-2">
+                {!generationStarted &&
+                  <ModelDropdown
+                    models={models}
+                    selectedModel={selectedModel}
+                    onSelect={setSelectedModel}
+                    loading={loadingModels}
+                    className="w-25"
+                  />
+                }
+                {testCases && (
+                  <button 
+                    className="btn btn-sm btn-outline-light" 
+                    onClick={() => navigator.clipboard.writeText(testCases)}
+                  >
+                    <i className="fas fa-copy me-1"></i>
+                    Copy
+                  </button>
+                )}
+              </div>
             </div>
             <div className="card-body overflow-auto bg-light" style={{ maxHeight: '600px' }}>
               {testCases ? (
