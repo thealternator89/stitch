@@ -14,6 +14,7 @@ type AppSettings = {
   azureProject?: string;
   azurePat?: string;
   copilotToken?: string;
+  copilotModel?: string;
   confluenceUrl?: string;
   confluenceUser?: string;
   confluenceToken?: string;
@@ -70,6 +71,8 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
 
   s.set('settings', sanitizedSettings);
 
+  copilotService.setModel(sanitizedSettings.copilotModel || 'gpt-4.1');
+
   // Invalidate services so they get re-created on the next fetch with new credentials
   azureService = null;
   confluenceService = null;
@@ -118,6 +121,10 @@ ipcMain.handle('generate-stories', async (event, pageData, additionalContext) =>
 
 ipcMain.handle('check-copilot-auth', async () => {
   return copilotService.checkAuthStatus();
+});
+
+ipcMain.handle('list-copilot-models', async () => {
+  return copilotService.listModels();
 });
 
 ipcMain.handle('add-comment', async (event, ticketId, text) => {

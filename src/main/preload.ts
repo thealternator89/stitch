@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createPBI: (parentTicketId: string, title: string, description: string, acceptanceCriteria: string) => ipcRenderer.invoke('create-pbi', parentTicketId, title, description, acceptanceCriteria),
   checkCopilotAuth: () => ipcRenderer.invoke('check-copilot-auth'),
   getVersion: () => ipcRenderer.invoke('get-version'),
+  listCopilotModels: () => ipcRenderer.invoke('list-copilot-models'),
 });

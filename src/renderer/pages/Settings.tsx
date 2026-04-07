@@ -13,9 +13,11 @@ const Settings: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [authStatus, setAuthStatus] = useState<any>(null);
   const [checkingAuth, setCheckingAuth] = useState(false);
+  const [models, setModels] = useState<Array<{ id: string; name: string; billing?: { multiplier?: number } }>>([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [loadingModels, setLoadingModels] = useState(false);
 
   useEffect(() => {
-    // Load existing settings via IPC (to be implemented)
     const loadSettings = async () => {
       try {
         const settings = await (window as any).electronAPI.getSettings();
@@ -27,12 +29,36 @@ const Settings: React.FC = () => {
           setConfluenceUrl(settings.confluenceUrl || '');
           setConfluenceUser(settings.confluenceUser || '');
           setConfluenceToken(settings.confluenceToken || '');
+          if (settings.copilotModel) {
+            setSelectedModel(settings.copilotModel);
+          }
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
       }
     };
+
+    const loadModels = async () => {
+      try {
+        setLoadingModels(true);
+        const result = await (window as any).electronAPI.listCopilotModels();
+        const list: Array<{ id: string; name: string; billing?: { multiplier?: number } }> = result || [];
+        setModels(list);
+        // Apply default only if nothing was saved
+        setSelectedModel(prev => {
+          if (prev) return prev;
+          const fallback = list.find(m => m.id === 'gpt-4.1');
+          return fallback ? fallback.id : (list[0]?.id || '');
+        });
+      } catch (error) {
+        console.error('Failed to load Copilot models:', error);
+      } finally {
+        setLoadingModels(false);
+      }
+    };
+
     loadSettings();
+    loadModels();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -43,6 +69,7 @@ const Settings: React.FC = () => {
         azureProject: azureProject,
         azurePat: azurePat,
         copilotToken: copilotToken,
+        copilotModel: selectedModel,
         confluenceUrl: confluenceUrl,
         confluenceUser: confluenceUser,
         confluenceToken: confluenceToken
@@ -154,7 +181,7 @@ const Settings: React.FC = () => {
             </div>
 
             <h5 className="mb-3 border-bottom pb-2 mt-4">GitHub Copilot Configuration</h5>
-            <div className="mb-4">
+            <div className="mb-3">
               <label className="form-label">Copilot API Token</label>
               <input 
                 type="password" 
@@ -163,6 +190,36 @@ const Settings: React.FC = () => {
                 onChange={(e) => setCopilotToken(e.target.value)}
               />
               <div className="form-text">Your Copilot session or API token for authentication.</div>
+            </div>
+            <div className="mb-4">
+              <label className="form-label">Default Model</label>
+              <div className="dropdown w-25">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary dropdown-toggle text-start"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  disabled={loadingModels}
+                >
+                  {loadingModels
+                    ? 'Loading models...'
+                    : models.find(m => m.id === selectedModel)?.name || (models.length === 0 ? 'No models available' : 'Select a model')}
+                </button>
+                <ul className="dropdown-menu">
+                  {models.map((model) => (
+                    <li key={model.id}>
+                      <button
+                        type="button"
+                        className={`dropdown-item d-flex justify-content-between align-items-center${selectedModel === model.id ? ' active' : ''}`}
+                        onClick={() => setSelectedModel(model.id)}
+                      >
+                        <span className="me-2 text-truncate">{model.name}</span>
+                        <span className="text-muted ms-2">{typeof model.billing?.multiplier === 'number' ? `×${model.billing.multiplier}` : ''}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
             <div className="mb-4 p-3 bg-light rounded border">

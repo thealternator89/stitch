@@ -29,6 +29,15 @@ export class CopilotService {
   private client: any = null;
   private approveAll: any = null;
   private session: any = null;
+  private model: string = 'gpt-4.1';
+
+  setModel(model: string) {
+    if (model && model !== this.model) {
+      this.model = model;
+      // Invalidate the session so it will be re-created with the new model
+      this.session = null;
+    }
+  }
 
   private async ensureCopilotClient() {
     if (!this.client) {
@@ -43,9 +52,8 @@ export class CopilotService {
   private async getSession() {
     await this.ensureCopilotClient();
     if (!this.session) {
-      // TODO: make this configurable based on what we're trying to do
       this.session = await this.client.createSession({
-        model: 'gpt-4.1', // Lighter model to avoid timeouts
+        model: this.model,
         availableTools: [], // Don't allow any tools to ensure the agent doesn't write to disk etc.
         onPermissionRequest: this.approveAll
       });
@@ -61,6 +69,16 @@ export class CopilotService {
       return { authStatus, status };
     } catch (error) {
       console.error('Error checking Copilot auth status:', error);
+      throw error;
+    }
+  }
+
+  async listModels() {
+    try {
+      await this.ensureCopilotClient();
+      return await this.client.listModels();
+    } catch (error) {
+      console.error('Error listing Copilot models:', error);
       throw error;
     }
   }
@@ -91,8 +109,7 @@ export class CopilotService {
         DO NOT include any other text in your response other than the markdown table.
       `;
 
-      // Send message and wait for assistant to finish
-      const response = await session.sendAndWait({ prompt });
+      const response = await session.sendAndWait({ prompt }, 180000);
       return response?.data?.content || 'No content returned from Copilot.';
     } catch (error) {
       console.error('Error generating test cases:', error);
@@ -123,8 +140,7 @@ export class CopilotService {
         DO NOT include any other text (including markdown code block) in your response other than the JSON blob.
       `;
 
-      // Send message and wait for assistant to finish
-      const response = await session.sendAndWait({ prompt });
+      const response = await session.sendAndWait({ prompt }, 180000);
       const rawContent = response?.data?.content || '[]';
 
       try {
