@@ -1,24 +1,28 @@
 async function createCopilotClient() {
   // Eval to avoid webpack interfering with the import
-  const { CopilotClient, approveAll } = await eval('import("@github/copilot-sdk")');
+  const { CopilotClient, approveAll } = await eval(
+    'import("@github/copilot-sdk")',
+  );
 
   // Windows has weird redirection issues, where the wrapper exits causing stdio to drop
-  // To get around this, instead of launching `copilot` directly, we launch `node` with the 
+  // To get around this, instead of launching `copilot` directly, we launch `node` with the
   // `copilot` script as an argument. This seems to fix the issue.
   //
   // FIXME: Ideally once Copilot CLI or SDK come out of preview it will be working normally
   // and we can remove this
   if (process.platform === 'win32') {
     if (!process.env.NODE_PATH || !process.env.COPILOT_SCRIPT_PATH) {
-      throw new Error('On Windows, both NODE_PATH and COPILOT_SCRIPT_PATH environment variables are required to initialise the Copilot client.');
+      throw new Error(
+        'On Windows, both NODE_PATH and COPILOT_SCRIPT_PATH environment variables are required to initialise the Copilot client.',
+      );
     }
     return {
       client: new CopilotClient({
         cliPath: process.env.NODE_PATH,
         cliArgs: [process.env.COPILOT_SCRIPT_PATH],
-        useStdio: true
+        useStdio: true,
       }),
-      approveAll
+      approveAll,
     };
   }
 
@@ -55,7 +59,7 @@ export class CopilotService {
       this.session = await this.client.createSession({
         model: this.model,
         availableTools: [], // Don't allow any tools to ensure the agent doesn't write to disk etc.
-        onPermissionRequest: this.approveAll
+        onPermissionRequest: this.approveAll,
       });
     }
     return this.session;
@@ -83,7 +87,11 @@ export class CopilotService {
     }
   }
 
-  async generateTestCases(ticketData: any, additionalContext: string, modelOverride: string) {
+  async generateTestCases(
+    ticketData: any,
+    additionalContext: string,
+    modelOverride: string,
+  ) {
     try {
       this.setModel(modelOverride);
       const session = await this.getSession();
@@ -118,7 +126,11 @@ export class CopilotService {
     }
   }
 
-  async generateStories(pageData: any, additionalContext: string, modelOverride: string) {
+  async generateStories(
+    pageData: any,
+    additionalContext: string,
+    modelOverride: string,
+  ) {
     try {
       this.setModel(modelOverride);
       const session = await this.getSession();
@@ -151,8 +163,13 @@ export class CopilotService {
         const jsonString = jsonMatch ? jsonMatch[1] : rawContent.trim();
         return JSON.parse(jsonString);
       } catch (e) {
-        console.error('Failed to parse JSON from Copilot response:', rawContent);
-        throw new Error('Failed to parse stories from Copilot. The output was not valid JSON.');
+        console.error(
+          'Failed to parse JSON from Copilot response:',
+          rawContent,
+        );
+        throw new Error(
+          'Failed to parse stories from Copilot. The output was not valid JSON.',
+        );
       }
     } catch (error) {
       console.error('Error generating stories:', error);

@@ -5,14 +5,15 @@ import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 
-const generateTicketOrCommentText = (testCases: string) => [
-  'Test Cases:',
-  '',
-  testCases,
-  '',
-  'Generated with Stitch and GitHub Copilot.',
-  'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.'
-].join('\n');
+const generateTicketOrCommentText = (testCases: string) =>
+  [
+    'Test Cases:',
+    '',
+    testCases,
+    '',
+    'Generated with Stitch and GitHub Copilot.',
+    'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
+  ].join('\n');
 
 const TestCaseWriter: React.FC = () => {
   const navigate = useNavigate();
@@ -24,7 +25,8 @@ const TestCaseWriter: React.FC = () => {
   const [testCases, setTestCases] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isPosting, setIsPosting] = useState(false);
-  const { models, selectedModel, setSelectedModel, loadingModels } = useCopilotModels();
+  const { models, selectedModel, setSelectedModel, loadingModels } =
+    useCopilotModels();
 
   const handleAddComment = async () => {
     setIsPosting(true);
@@ -68,11 +70,15 @@ const TestCaseWriter: React.FC = () => {
 
     try {
       // 1. Fetch Ticket Data
-      const fetchedTicket = await (window as any).electronAPI.fetchTicket(ticketId);
+      const fetchedTicket = await (window as any).electronAPI.fetchTicket(
+        ticketId,
+      );
       setTicketData(fetchedTicket);
 
       // 2. Generate Test Cases using Copilot SDK
-      const generatedResult = await (window as any).electronAPI.generateTestCases(fetchedTicket, context, selectedModel);
+      const generatedResult = await (
+        window as any
+      ).electronAPI.generateTestCases(fetchedTicket, context, selectedModel);
       setTestCases(generatedResult);
     } catch (err: any) {
       console.error(err);
@@ -85,7 +91,10 @@ const TestCaseWriter: React.FC = () => {
   return (
     <div className="container mt-4">
       <div className="mb-4">
-        <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate('/')}>
+        <button
+          className="btn btn-outline-secondary btn-sm"
+          onClick={() => navigate('/')}
+        >
           <i className="fas fa-arrow-left me-2"></i>
           Back to Menu
         </button>
@@ -100,12 +109,12 @@ const TestCaseWriter: React.FC = () => {
             </div>
             <div className="card-body">
               {error && <div className="alert alert-danger">{error}</div>}
-              
+
               <div className="mb-3">
                 <label className="form-label">Ticket ID (Azure DevOps)</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   placeholder="e.g., 12345"
                   value={ticketId}
                   onChange={(e) => setTicketId(e.target.value)}
@@ -114,9 +123,11 @@ const TestCaseWriter: React.FC = () => {
               </div>
 
               <div className="mb-3">
-                <label className="form-label">Additional Context (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <label className="form-label">
+                  Additional Context (Optional)
+                </label>
+                <textarea
+                  className="form-control"
                   rows={4}
                   placeholder="e.g., focus on edge cases or accessibility requirements..."
                   value={context}
@@ -125,14 +136,18 @@ const TestCaseWriter: React.FC = () => {
                 />
               </div>
 
-              <button 
-                className="btn btn-primary w-100" 
+              <button
+                className="btn btn-primary w-100"
                 onClick={handleGenerate}
                 disabled={isGenerating}
               >
                 {isGenerating ? (
                   <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    <span
+                      className="spinner-border spinner-border-sm me-2"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
                     Generating...
                   </>
                 ) : (
@@ -152,8 +167,8 @@ const TestCaseWriter: React.FC = () => {
               </div>
               <div className="card-body">
                 <h6>{ticketData.title}</h6>
-                <div 
-                  className="text-muted small overflow-auto" 
+                <div
+                  className="text-muted small overflow-auto"
                   style={{ maxHeight: '200px' }}
                   dangerouslySetInnerHTML={{ __html: ticketData.description }}
                 />
@@ -168,7 +183,7 @@ const TestCaseWriter: React.FC = () => {
             <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center">
               <h5 className="mb-0">Generated Test Cases</h5>
               <div className="d-flex align-items-center gap-2">
-                {!generationStarted &&
+                {!generationStarted && (
                   <ModelDropdown
                     models={models}
                     selectedModel={selectedModel}
@@ -176,10 +191,10 @@ const TestCaseWriter: React.FC = () => {
                     loading={loadingModels}
                     className="w-25"
                   />
-                }
+                )}
                 {testCases && (
-                  <button 
-                    className="btn btn-sm btn-outline-light" 
+                  <button
+                    className="btn btn-sm btn-outline-light"
                     onClick={() => navigator.clipboard.writeText(testCases)}
                   >
                     <i className="fas fa-copy me-1"></i>
@@ -188,27 +203,38 @@ const TestCaseWriter: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="card-body overflow-auto bg-light" style={{ maxHeight: '600px' }}>
+            <div
+              className="card-body overflow-auto bg-light"
+              style={{ maxHeight: '600px' }}
+            >
               {testCases ? (
                 <div className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{testCases}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {testCases}
+                  </ReactMarkdown>
                 </div>
               ) : (
                 <div className="text-center py-5 text-muted">
                   {isGenerating ? (
                     <div className="py-5">
-                      <div className="spinner-grow text-primary" role="status"></div>
+                      <div
+                        className="spinner-grow text-primary"
+                        role="status"
+                      ></div>
                       <p className="mt-3">Asking Copilot to write tests...</p>
                     </div>
                   ) : (
-                    <p>Enter a ticket ID and click "Generate" to see the results here.</p>
+                    <p>
+                      Enter a ticket ID and click "Generate" to see the results
+                      here.
+                    </p>
                   )}
                 </div>
               )}
             </div>
             {testCases && (
               <div className="card-footer bg-light d-flex justify-content-end gap-2">
-                <button 
+                <button
                   className="btn btn-outline-primary"
                   onClick={handleAddComment}
                   disabled={isPosting}
@@ -216,7 +242,7 @@ const TestCaseWriter: React.FC = () => {
                   <i className="fas fa-comment me-2"></i>
                   Add Comment
                 </button>
-                <button 
+                <button
                   className="btn btn-primary"
                   onClick={handleAddTask}
                   disabled={isPosting}

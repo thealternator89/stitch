@@ -18,7 +18,7 @@ import { rendererConfig } from './webpack.renderer.config';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    icon: './assets/icon'
+    icon: './assets/icon',
   },
   rebuildConfig: {},
   makers: [
@@ -61,18 +61,18 @@ const config: ForgeConfig = {
   ],
   hooks: {
     packageAfterCopy: async (
-      forgeConfig, 
-      buildPath, 
-      electronVersion, 
-      platform, 
-      arch
+      forgeConfig,
+      buildPath,
+      electronVersion,
+      platform,
+      arch,
     ) => {
       console.log('Hook: Installing external dependencies...');
-      
+
       // 1. Use process.cwd() instead of __dirname for ESM compatibility
       const rootDir = process.cwd();
       const pkgPath = path.join(rootDir, 'package.json');
-      
+
       // 2. Read and parse your app's main package.json
       const appPkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 
@@ -83,20 +83,20 @@ const config: ForgeConfig = {
         private: true,
         dependencies: {
           // Explicitly type assert or safely access the dependency
-          '@github/copilot-sdk': appPkg.dependencies?.['@github/copilot-sdk']
-        }
+          '@github/copilot-sdk': appPkg.dependencies?.['@github/copilot-sdk'],
+        },
       };
-      
+
       fs.writeFileSync(buildPkgPath, JSON.stringify(buildPkg, null, 2));
 
       // 4. Run npm install inside the packaged folder
-      execSync('npm install --omit=dev', { 
-        cwd: buildPath, 
-        stdio: 'inherit' 
+      execSync('npm install --omit=dev', {
+        cwd: buildPath,
+        stdio: 'inherit',
       });
-      
+
       console.log('Hook: External dependencies installed successfully!');
-    }
+    },
   },
 };
 

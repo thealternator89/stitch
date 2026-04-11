@@ -46,21 +46,25 @@ export class ConfluenceService {
       const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
-          'Authorization': authHeader,
-          'Accept': 'application/json'
-        }
+          Authorization: authHeader,
+          Accept: 'application/json',
+        },
       });
 
       if (!response.ok) {
-        const bodyText = await response.text().catch(e => `(parse failed: ${e.message ?? 'unknown'})`);
-        throw new Error(`Failed to fetch Confluence page: ${response.status} ${response.statusText} ${bodyText}`);
+        const bodyText = await response
+          .text()
+          .catch((e) => `(parse failed: ${e.message ?? 'unknown'})`);
+        throw new Error(
+          `Failed to fetch Confluence page: ${response.status} ${response.statusText} ${bodyText}`,
+        );
       }
 
       const data = await response.json();
       return {
         id: data.id,
         title: data.title,
-        body: data.body?.storage?.value || ''
+        body: data.body?.storage?.value || '',
       };
     } catch (error) {
       console.error('Error fetching Confluence page:', error);
