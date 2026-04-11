@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo-full.png" alt="Stitch Logo" width="600" />
+</p>
+
 # Stitch
 
 An Electron-based desktop application for DevOps workflows, built with React and
