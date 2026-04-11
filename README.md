@@ -66,10 +66,32 @@ TypeScript using Electron Forge.
 npm install
 ```
 
+> **Note:** Running `npm install` automatically configures [Husky](https://typicode.github.io/husky/) to set up a git pre-commit hook.
+
 ### Running the Application (Development)
 
 ```bash
 npm start
+```
+
+### Development
+
+#### Code Formatting
+
+This project uses **Prettier** for consistent code style.
+
+- **Automatic**: A pre-commit hook (via `husky` and `lint-staged`) automatically formats your staged files before each commit.
+- **Manual**: You can format all supported files manually by running:
+  ```bash
+  npm run format
+  ```
+
+#### Linting
+
+To check for code quality and style issues:
+
+```bash
+npm run lint
 ```
 
 ### Packaging for Distribution
