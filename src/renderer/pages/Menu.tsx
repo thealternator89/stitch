@@ -1,16 +1,26 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import logo from '../../../assets/logo-full.png';
 
 const Menu: React.FC = () => {
   return (
-    <div className="container mt-5">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div></div>
+    <div className="container mt-4 position-relative">
+      <div className="position-absolute top-0 end-0">
         <Link to="/settings" className="btn btn-outline-secondary">
           <i className="fas fa-cog me-2"></i>
           Settings
         </Link>
       </div>
+
+      <div className="text-center mb-5 mt-2">
+        <img 
+          src={logo} 
+          alt="Stitch Logo" 
+          className="img-fluid" 
+          style={{ maxHeight: '240px' }} 
+        />
+      </div>
+
       <div className="row justify-content-center">
         <div className="col-md-4 mb-4">
           <div className="card shadow-sm h-100">
