@@ -18,7 +18,7 @@ type AppSettings = {
   confluenceUrl?: string;
   confluenceUser?: string;
   confluenceToken?: string;
-}
+};
 
 // Global store instance to be initialized dynamically
 let store: any;
@@ -53,7 +53,9 @@ ipcMain.handle('get-version', async () => {
   return app.getVersion();
 });
 
-function trimProperties(obj: Record<string, string | undefined>): Record<string, string | undefined> {
+function trimProperties(
+  obj: Record<string, string | undefined>,
+): Record<string, string | undefined> {
   const out: Record<string, string> = {};
   for (let key in obj) {
     if (obj.hasOwnProperty(key)) {
@@ -83,7 +85,9 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
 async function getAzureService() {
   if (!azureService) {
     const s = await initStore();
-    const { azureOrg, azurePat } = trimProperties(s.get('settings')) as AppSettings;
+    const { azureOrg, azurePat } = trimProperties(
+      s.get('settings'),
+    ) as AppSettings;
     if (!azureOrg || !azurePat) {
       throw new Error('Azure DevOps settings are missing.');
     }
@@ -97,27 +101,47 @@ ipcMain.handle('fetch-ticket', async (event, ticketId) => {
   return service.fetchTicket(ticketId);
 });
 
-ipcMain.handle('generate-test-cases', async (event, ticketData, additionalContext, modelOverride) => {
-  return copilotService.generateTestCases(ticketData, additionalContext, modelOverride);
-});
+ipcMain.handle(
+  'generate-test-cases',
+  async (event, ticketData, additionalContext, modelOverride) => {
+    return copilotService.generateTestCases(
+      ticketData,
+      additionalContext,
+      modelOverride,
+    );
+  },
+);
 
 ipcMain.handle('fetch-confluence-page', async (event, pageId) => {
   const s = await initStore();
-  const { confluenceUrl, confluenceUser, confluenceToken } = trimProperties(s.get('settings')) as AppSettings;
+  const { confluenceUrl, confluenceUser, confluenceToken } = trimProperties(
+    s.get('settings'),
+  ) as AppSettings;
 
   if (!confluenceUrl || !confluenceToken) {
     throw new Error('Confluence URL and Token are required.');
   }
 
   if (!confluenceService) {
-    confluenceService = new ConfluenceService(confluenceUrl, confluenceUser, confluenceToken);
+    confluenceService = new ConfluenceService(
+      confluenceUrl,
+      confluenceUser,
+      confluenceToken,
+    );
   }
   return confluenceService.fetchPage(pageId);
 });
 
-ipcMain.handle('generate-stories', async (event, pageData, additionalContext, modelOverride) => {
-  return copilotService.generateStories(pageData, additionalContext, modelOverride);
-});
+ipcMain.handle(
+  'generate-stories',
+  async (event, pageData, additionalContext, modelOverride) => {
+    return copilotService.generateStories(
+      pageData,
+      additionalContext,
+      modelOverride,
+    );
+  },
+);
 
 ipcMain.handle('check-copilot-auth', async () => {
   return copilotService.checkAuthStatus();
@@ -132,15 +156,26 @@ ipcMain.handle('add-comment', async (event, ticketId, text) => {
   return service.addComment(ticketId, text);
 });
 
-ipcMain.handle('add-child-task', async (event, parentTicketId, title, description) => {
-  const service = await getAzureService();
-  return service.addChildTask(parentTicketId, title, description);
-});
+ipcMain.handle(
+  'add-child-task',
+  async (event, parentTicketId, title, description) => {
+    const service = await getAzureService();
+    return service.addChildTask(parentTicketId, title, description);
+  },
+);
 
-ipcMain.handle('create-pbi', async (event, parentTicketId, title, description, acceptanceCriteria) => {
-  const service = await getAzureService();
-  return service.createProductBacklogItem(parentTicketId, title, description, acceptanceCriteria);
-});
+ipcMain.handle(
+  'create-pbi',
+  async (event, parentTicketId, title, description, acceptanceCriteria) => {
+    const service = await getAzureService();
+    return service.createProductBacklogItem(
+      parentTicketId,
+      title,
+      description,
+      acceptanceCriteria,
+    );
+  },
+);
 
 const createWindow = (): void => {
   // Create the browser window.
@@ -148,11 +183,14 @@ const createWindow = (): void => {
     height: 890,
     width: 1200,
     titleBarStyle: 'hidden',
-    titleBarOverlay: process.platform === 'win32' ? {
-      color: '#212529',
-      symbolColor: '#ffffff',
-      height: 44
-    } : false,
+    titleBarOverlay:
+      process.platform === 'win32'
+        ? {
+            color: '#212529',
+            symbolColor: '#ffffff',
+            height: 44,
+          }
+        : false,
     trafficLightPosition: { x: 15, y: 15 }, // Adjusted for 44px height
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,

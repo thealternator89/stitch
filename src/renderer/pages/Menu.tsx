@@ -13,11 +13,11 @@ const Menu: React.FC = () => {
       </div>
 
       <div className="text-center mb-5 mt-2">
-        <img 
-          src={logo} 
-          alt="Stitch Logo" 
-          className="img-fluid" 
-          style={{ maxHeight: '240px' }} 
+        <img
+          src={logo}
+          alt="Stitch Logo"
+          className="img-fluid"
+          style={{ maxHeight: '240px' }}
         />
       </div>
 
@@ -33,7 +33,10 @@ const Menu: React.FC = () => {
                 Create and manage test cases for your features.
               </p>
               <div className="mt-auto">
-                <Link to="/test-case-writer" className="btn btn-outline-primary w-100">
+                <Link
+                  to="/test-case-writer"
+                  className="btn btn-outline-primary w-100"
+                >
                   Open Tool
                 </Link>
               </div>
@@ -51,7 +54,10 @@ const Menu: React.FC = () => {
                 Generate stories from Confluence requirements.
               </p>
               <div className="mt-auto">
-                <Link to="/story-writer" className="btn btn-outline-primary w-100">
+                <Link
+                  to="/story-writer"
+                  className="btn btn-outline-primary w-100"
+                >
                   Open Tool
                 </Link>
               </div>

@@ -30,7 +30,8 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
     >
       {loading
         ? 'Loading models...'
-        : models.find(m => m.id === selectedModel)?.name || (models.length === 0 ? 'No models available' : 'Select a model')}
+        : models.find((m) => m.id === selectedModel)?.name ||
+          (models.length === 0 ? 'No models available' : 'Select a model')}
     </button>
     <ul className="dropdown-menu">
       {models.map((model) => (
