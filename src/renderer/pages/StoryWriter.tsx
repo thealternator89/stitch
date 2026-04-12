@@ -110,7 +110,7 @@ const StoryWriter: React.FC = () => {
   };
 
   return (
-    <div className="container mt-4">
+    <div className="container mt-4 p-3">
       <div className="mb-4">
         <button
           className="btn btn-outline-secondary btn-sm"

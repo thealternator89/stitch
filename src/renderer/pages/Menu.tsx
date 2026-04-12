@@ -4,7 +4,7 @@ import logo from '../../../assets/logo-full.png';
 
 const Menu: React.FC = () => {
   return (
-    <div className="container mt-4 position-relative">
+    <div className="container mt-4 position-relative p-3">
       <div className="position-absolute top-0 end-0">
         <Link to="/settings" className="btn btn-outline-secondary">
           <i className="fas fa-cog me-2"></i>
