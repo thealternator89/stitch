@@ -19,6 +19,11 @@ main (Node.js) process from the renderer (Chromium) process.
   - Built with React and TypeScript.
   - Uses `HashRouter` for navigation between tools.
   - Renders Markdown results using `react-markdown`.
+  - **UI Architecture**: Features a shared `PageLayout` component that
+    standardizes navigation with consistent, **sticky, edge-to-edge headers**.
+    The global content area padding has been moved from the root layout to
+    individual pages and the `PageLayout` component to allow for truly fixed
+    headers that fill the viewport.
 
 ## Configuration Management
 

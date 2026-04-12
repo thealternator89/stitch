@@ -9,6 +9,8 @@ TypeScript using Electron Forge.
 
 - **Menu Dashboard**: A central hub for all DevOps tools using a clean
   Bootstrap-based UI.
+- **Unified Navigation**: All tools feature a consistent, **fixed, edge-to-edge
+  header** with a back button and page title for better usability on long forms.
 - **Test Case Writer**:
   - Integration with **Azure DevOps** to fetch work item details (ID, Title,
     Description, Acceptance Criteria).
@@ -31,6 +33,8 @@ TypeScript using Electron Forge.
 - **Persistent Settings**: Securely store Azure DevOps credentials, Confluence
   tokens, and project configuration locally, select a **default Copilot model**,
   and actively **check the status** of local GitHub Copilot CLI authentication.
+  The settings page features a **fixed top panel** for quick access to save and
+  back actions.
 
 ## Tech Stack
 
