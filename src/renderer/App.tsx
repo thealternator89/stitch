@@ -11,7 +11,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchVersion = async () => {
       try {
-        const v = await (window as any).electronAPI.getVersion();
+        const v = await window.electronAPI.getVersion();
         setVersion(v);
       } catch (err) {
         console.error('Failed to get version:', err);
@@ -36,12 +36,12 @@ const App: React.FC = () => {
 
   const handleOpenIssues = (e: React.MouseEvent) => {
     e.preventDefault();
-    (window as any).electronAPI.openExternal(
+    window.electronAPI.openExternal(
       'https://github.com/thealternator89/stitch/issues',
     );
   };
 
-  const isWindows = (window as any).electronAPI.isWindows;
+  const isWindows = window.electronAPI.isWindows;
 
   return (
     <Router>

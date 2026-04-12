@@ -1,12 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { AppSettings, TicketData, ConfluencePageData } from '../types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
-  saveSettings: (settings: any) =>
+  saveSettings: (settings: AppSettings) =>
     ipcRenderer.invoke('save-settings', settings),
   fetchTicket: (id: string) => ipcRenderer.invoke('fetch-ticket', id),
   generateTestCases: (
-    ticketData: any,
+    ticketData: TicketData,
     context: string,
     modelOverride: string,
   ) =>
@@ -18,8 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ),
   fetchConfluencePage: (pageId: string) =>
     ipcRenderer.invoke('fetch-confluence-page', pageId),
-  generateStories: (pageData: any, context: string, modelOverride: string) =>
-    ipcRenderer.invoke('generate-stories', pageData, context, modelOverride),
+  generateStories: (
+    pageData: ConfluencePageData,
+    context: string,
+    modelOverride: string,
+  ) => ipcRenderer.invoke('generate-stories', pageData, context, modelOverride),
   addComment: (ticketId: string, text: string) =>
     ipcRenderer.invoke('add-comment', ticketId, text),
   addChildTask: (parentTicketId: string, title: string, description: string) =>

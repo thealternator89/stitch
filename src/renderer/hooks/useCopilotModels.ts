@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react';
-
-export interface CopilotModel {
-  id: string;
-  name: string;
-  billing: { multiplier: number };
-}
+import { CopilotModel } from '../../types';
 
 export function useCopilotModels() {
   const [models, setModels] = useState<CopilotModel[]>([]);
@@ -15,9 +10,9 @@ export function useCopilotModels() {
     const load = async () => {
       try {
         setLoadingModels(true);
-        const settings = await (window as any).electronAPI.getSettings();
+        const settings = await window.electronAPI.getSettings();
         const list: CopilotModel[] =
-          (await (window as any).electronAPI.listCopilotModels()) ?? [];
+          (await window.electronAPI.listCopilotModels()) ?? [];
         setModels(list);
         const defaultModel =
           settings?.copilotModel ??

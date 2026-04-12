@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
+import { TicketData } from '../../types';
 
 const generateTicketOrCommentText = (testCases: string) =>
   [
@@ -20,7 +21,7 @@ const TestCaseWriter: React.FC = () => {
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStarted, setGenerationStarted] = useState(false);
-  const [ticketData, setTicketData] = useState<any>(null);
+  const [ticketData, setTicketData] = useState<TicketData | null>(null);
   const [testCases, setTestCases] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isPosting, setIsPosting] = useState(false);
@@ -31,9 +32,9 @@ const TestCaseWriter: React.FC = () => {
     setIsPosting(true);
     try {
       const text = generateTicketOrCommentText(testCases);
-      await (window as any).electronAPI.addComment(ticketId, text);
+      await window.electronAPI.addComment(ticketId, text);
       alert('Comment added successfully!');
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to add comment.');
     } finally {
@@ -45,9 +46,9 @@ const TestCaseWriter: React.FC = () => {
     setIsPosting(true);
     try {
       const text = generateTicketOrCommentText(testCases);
-      await (window as any).electronAPI.addChildTask(ticketId, 'BA Test', text);
+      await window.electronAPI.addChildTask(ticketId, 'BA Test', text);
       alert('Task created successfully!');
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to create task.');
     } finally {
@@ -69,17 +70,17 @@ const TestCaseWriter: React.FC = () => {
 
     try {
       // 1. Fetch Ticket Data
-      const fetchedTicket = await (window as any).electronAPI.fetchTicket(
-        ticketId,
-      );
+      const fetchedTicket = await window.electronAPI.fetchTicket(ticketId);
       setTicketData(fetchedTicket);
 
       // 2. Generate Test Cases using Copilot SDK
-      const generatedResult = await (
-        window as any
-      ).electronAPI.generateTestCases(fetchedTicket, context, selectedModel);
+      const generatedResult = await window.electronAPI.generateTestCases(
+        fetchedTicket,
+        context,
+        selectedModel,
+      );
       setTestCases(generatedResult);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setError(err.message || 'An error occurred during generation.');
     } finally {

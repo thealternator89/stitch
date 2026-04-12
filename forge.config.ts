@@ -63,9 +63,9 @@ const config: ForgeConfig = {
     packageAfterCopy: async (
       forgeConfig,
       buildPath,
-      electronVersion,
-      platform,
-      arch,
+      _electronVersion,
+      _platform,
+      _arch,
     ) => {
       console.log('Hook: Installing external dependencies...');
 

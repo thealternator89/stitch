@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
+import { ConfluencePageData } from '../../types';
 
 interface Story {
   title: string;
@@ -18,7 +19,7 @@ const StoryWriter: React.FC = () => {
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStarted, setGenerationStarted] = useState(false);
-  const [pageData, setPageData] = useState<any>(null);
+  const [pageData, setPageData] = useState<ConfluencePageData | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [error, setError] = useState<string>('');
   const [featureId, setFeatureId] = useState('');
@@ -40,13 +41,11 @@ const StoryWriter: React.FC = () => {
 
     try {
       // 1. Fetch Page Data
-      const fetchedPage = await (window as any).electronAPI.fetchConfluencePage(
-        pageId,
-      );
+      const fetchedPage = await window.electronAPI.fetchConfluencePage(pageId);
       setPageData(fetchedPage);
 
       // 2. Generate Stories using Copilot SDK
-      const generatedResult = await (window as any).electronAPI.generateStories(
+      const generatedResult = await window.electronAPI.generateStories(
         fetchedPage,
         context,
         selectedModel,
@@ -56,7 +55,7 @@ const StoryWriter: React.FC = () => {
         checked: true,
       }));
       setStories(mappedStories);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setError(err.message || 'An error occurred during generation.');
     } finally {
@@ -92,7 +91,7 @@ const StoryWriter: React.FC = () => {
           'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
         ].join('\n');
 
-        await (window as any).electronAPI.createPBI(
+        await window.electronAPI.createPBI(
           featureId,
           story.title,
           descriptionWithDisclaimer,
@@ -100,7 +99,7 @@ const StoryWriter: React.FC = () => {
         );
       }
       alert(`Successfully created ${storiesToCreate.length} PBIs!`);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to create stories.');
     } finally {

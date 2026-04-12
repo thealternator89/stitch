@@ -1,3 +1,5 @@
+// Since we dynamically import the SDK, we need to use any - disable eslint rule
+/* eslint-disable @typescript-eslint/no-explicit-any */
 async function createCopilotClient() {
   // Eval to avoid webpack interfering with the import
   const { CopilotClient, approveAll } = await eval(
@@ -29,11 +31,13 @@ async function createCopilotClient() {
   return { client: new CopilotClient(), approveAll };
 }
 
+import { TicketData, ConfluencePageData, StoryData } from '../../types';
+
 export class CopilotService {
   private client: any = null;
   private approveAll: any = null;
   private session: any = null;
-  private model: string = 'gpt-4.1';
+  private model = 'gpt-4.1';
 
   setModel(model: string) {
     if (model && model !== this.model) {
@@ -88,7 +92,7 @@ export class CopilotService {
   }
 
   async generateTestCases(
-    ticketData: any,
+    ticketData: TicketData,
     additionalContext: string,
     modelOverride: string,
   ) {
@@ -127,10 +131,10 @@ export class CopilotService {
   }
 
   async generateStories(
-    pageData: any,
+    pageData: ConfluencePageData,
     additionalContext: string,
     modelOverride: string,
-  ) {
+  ): Promise<StoryData[]> {
     try {
       this.setModel(modelOverride);
       const session = await this.getSession();

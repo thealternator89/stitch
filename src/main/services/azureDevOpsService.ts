@@ -55,11 +55,7 @@ export class AzureDevOpsService {
         value: 'Markdown',
       },
     ];
-    return witApi.updateWorkItem(
-      undefined,
-      document as any,
-      parseInt(ticketId),
-    );
+    return witApi.updateWorkItem(undefined, document, parseInt(ticketId));
   }
 
   async addChildTask(
@@ -96,7 +92,7 @@ export class AzureDevOpsService {
       },
     ];
 
-    return witApi.createWorkItem(undefined, document as any, project, 'Task');
+    return witApi.createWorkItem(undefined, document, project, 'Task');
   }
 
   async createProductBacklogItem(
@@ -146,7 +142,7 @@ export class AzureDevOpsService {
 
     return witApi.createWorkItem(
       undefined,
-      document as any,
+      document,
       project,
       'Product Backlog Item',
     );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CopilotModel } from '../hooks/useCopilotModels';
+import { CopilotModel } from '../../types';
 
 interface ModelDropdownProps {
   models: CopilotModel[];

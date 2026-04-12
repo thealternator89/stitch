@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
+import { CopilotAuth } from '../../types';
 
 const Settings: React.FC = () => {
   const [azureOrg, setAzureOrg] = useState('');
@@ -13,7 +14,7 @@ const Settings: React.FC = () => {
   const [confluenceToken, setConfluenceToken] = useState('');
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto');
   const [statusMessage, setStatusMessage] = useState('');
-  const [authStatus, setAuthStatus] = useState<any>(null);
+  const [authStatus, setAuthStatus] = useState<CopilotAuth | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(false);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
@@ -21,7 +22,7 @@ const Settings: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const settings = await (window as any).electronAPI.getSettings();
+        const settings = await window.electronAPI.getSettings();
         if (settings) {
           setAzureOrg(settings.azureOrg || '');
           setAzureProject(settings.azureProject || '');
@@ -42,7 +43,7 @@ const Settings: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await (window as any).electronAPI.saveSettings({
+      await window.electronAPI.saveSettings({
         azureOrg: azureOrg,
         azureProject: azureProject,
         azurePat: azurePat,
@@ -67,9 +68,9 @@ const Settings: React.FC = () => {
     try {
       setCheckingAuth(true);
       setAuthStatus(null);
-      const res = await (window as any).electronAPI.checkCopilotAuth();
+      const res = await window.electronAPI.checkCopilotAuth();
       setAuthStatus(res);
-    } catch (error: any) {
+    } catch (error) {
       setAuthStatus({ error: error.message || 'Unknown error' });
     } finally {
       setCheckingAuth(false);
