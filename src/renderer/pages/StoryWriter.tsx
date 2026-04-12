@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
+import PageLayout from '../components/PageLayout';
 
 interface Story {
   title: string;
@@ -14,7 +14,6 @@ interface Story {
 }
 
 const StoryWriter: React.FC = () => {
-  const navigate = useNavigate();
   const [pageId, setPageId] = useState('');
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -110,17 +109,7 @@ const StoryWriter: React.FC = () => {
   };
 
   return (
-    <div className="container mt-4 p-3">
-      <div className="mb-4">
-        <button
-          className="btn btn-outline-secondary btn-sm"
-          onClick={() => navigate('/')}
-        >
-          <i className="fas fa-arrow-left me-2"></i>
-          Back to Menu
-        </button>
-      </div>
-
+    <PageLayout title="Story Writer" maxWidth="1400px">
       <div className="row">
         {/* Left Column: Input Form */}
         <div className="col-md-4">
@@ -337,7 +326,7 @@ const StoryWriter: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 };
 
