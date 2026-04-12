@@ -6,9 +6,12 @@ main (Node.js) process from the renderer (Chromium) process.
 ## Process Model
 
 - **Main Process (`src/main/index.ts`):**
-  - Manages application lifecycle.
+  - Manages application lifecycle and implements a custom, hidden title bar for
+    better native integration across OS platforms.
   - Handles sensitive API integrations (Azure DevOps, GitHub Copilot).
   - Manages persistent state using `electron-store`.
+  - Ensures proper resource cleanup (e.g., Copilot sessions) on application
+    quit.
 - **Preload Script (`src/main/preload.ts`):**
   - Exposes a secure `electronAPI` bridge to the renderer.
   - Provides methods for settings management and tool-specific backend actions.
@@ -32,18 +35,32 @@ locally on the machine.
 
 - **Library:** `azure-devops-node-api`
 - **Method:** Uses Personal Access Tokens (PAT) via the Work Item Tracking API.
-- **Scope:** Fetches work item details (ID, Title, Description, Acceptance
-  Criteria), and allows pushing generated test cases back to Azure DevOps as
-  Comments or Child Tasks.
+- **Scope:**
+  - Fetches work item details (ID, Title, Description, Acceptance Criteria).
+  - Pushes AI-generated content as **Comments** (updating `System.History`).
+  - Creates new **Tasks** linked to a parent ID via `Hierarchy-Reverse`
+    relationships.
+  - Creates new **Product Backlog Items (PBIs)** linked to a Feature ID.
+
+### Confluence
+
+- **Service:** `ConfluenceService`
+- **Integration:** Directly interacts with the Confluence Cloud REST API using
+  internal `fetch` calls.
+- **Authentication:** Supports Basic Auth (Email/API Token) or Bearer Auth.
+- **Usage:** Fetches `body.storage` for a specific Page ID to provide context
+  for story generation.
 
 ### GitHub Copilot
 
 - **Library:** `@github/copilot-sdk`
 - **Authentication:** Relies on the machine's local GitHub CLI authentication
-  (`gh auth login`). The application can check the active connection and auth
-  status using the SDK.
-- **Generation:** Uses a conversation session to pass ticket context and custom
-  prompts to generate structured test cases.
+  (`gh auth login`). The application checks the active connection and auth
+  status via the SDK.
+- **Model Selection:** Supports listing available models (e.g., GPT-4o, Claude
+  3.5 Sonnet) and allowing users to choose a model for each generation session.
+- **Generation:** Uses a conversation session to pass context (Azure tickets or
+  Confluence requirements) and custom prompts to generate structured output.
 
 ## Technical Decisions
 
@@ -64,9 +81,16 @@ support modern ESM-only libraries like `electron-store` and
 
 - `get-settings`: Returns the current application configuration.
 - `save-settings`: Updates and persists configuration.
+- `get-version`: Returns the application version.
+- `open-external`: Opens a URL in the default browser.
 - `fetch-ticket`: Retrieves work item data from Azure DevOps.
-- `generate-test-cases`: Interfaces with Copilot to produce Markdown test plans.
+- `fetch-confluence-page`: Retrieves documentation content from Confluence.
+- `generate-test-cases`: Interfaces with Copilot to produce Markdown test
+  plans. Supports `modelOverride`.
+- `generate-stories`: Interfaces with Copilot to produce structured JSON
+  stories. Supports `modelOverride`.
 - `check-copilot-auth`: Checks Copilot CLI authentication and connection status.
+- `list-copilot-models`: Retrieves available GitHub Copilot models.
 - `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
-- `add-child-task`: Creates a new linked task in Azure DevOps with the given
-  details.
+- `add-child-task`: Creates a new linked Task in Azure DevOps.
+- `create-pbi`: Creates a new linked PBI in Azure DevOps.

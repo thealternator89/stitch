@@ -13,20 +13,24 @@ TypeScript using Electron Forge.
   - Integration with **Azure DevOps** to fetch work item details (ID, Title,
     Description, Acceptance Criteria).
   - Ability to seamlessly write generated test cases back to Azure DevOps as
-    **Comments** or new **Child Tasks**.
+    **Comments** or new **Child Tasks** (created as linked 'Task' items with an
+    AI disclaimer).
   - Integration with **GitHub Copilot SDK** to automatically generate
-    comprehensive test cases based on ticket context.
+    comprehensive test cases based on ticket context, with the ability to
+    **select specific models** (e.g., GPT-4o, Claude 3.5 Sonnet).
   - Markdown support with GFM (tables, lists, etc.) for rendered results.
 - **Story Writer**:
   - Integration with **Confluence REST API** to read requirements directly from
     documentation pages.
   - Prompts **GitHub Copilot SDK** to generate structured JSON containing user
-    stories with Titles, Descriptions, and Acceptance Criteria.
-  - Ability to seamlessly write the generated stories back to Azure DevOps as
-    new **Product Backlog Items (PBIs)** linked under a specific Feature.
+    stories with Titles, Descriptions, and Acceptance Criteria, using your
+    **chosen AI model**.
+  - Ability to selectively choose generated stories and write them back to Azure
+    DevOps as new **Product Backlog Items (PBIs)** linked under a specific
+    Feature.
 - **Persistent Settings**: Securely store Azure DevOps credentials, Confluence
-  tokens, and project configuration locally, and actively check the status of
-  local GitHub Copilot CLI authentication.
+  tokens, and project configuration locally, select a **default Copilot model**,
+  and actively **check the status** of local GitHub Copilot CLI authentication.
 
 ## Tech Stack
 
