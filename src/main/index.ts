@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme } from 'electron';
 import { AzureDevOpsService } from './services/azureDevOpsService';
 import { CopilotService } from './services/copilotService';
 import { ConfluenceService } from './services/confluenceService';
@@ -18,6 +18,7 @@ type AppSettings = {
   confluenceUrl?: string;
   confluenceUser?: string;
   confluenceToken?: string;
+  theme?: 'auto' | 'light' | 'dark';
 };
 
 // Global store instance to be initialized dynamically
@@ -73,11 +74,15 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
   const s = await initStore();
 
   // Trim and normalize saved settings to avoid whitespace-caused auth issues
-  const sanitizedSettings = trimProperties(settings);
+  const sanitizedSettings = trimProperties(settings) as AppSettings;
 
   s.set('settings', sanitizedSettings);
 
   copilotService.setModel(sanitizedSettings.copilotModel || 'gpt-4.1');
+
+  // Apply theme immediately
+  const theme = sanitizedSettings.theme ?? 'auto';
+  nativeTheme.themeSource = theme === 'auto' ? 'system' : theme;
 
   // Invalidate services so they get re-created on the next fetch with new credentials
   azureService = null;
@@ -211,7 +216,13 @@ const createWindow = (): void => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on('ready', createWindow);
+app.on('ready', async () => {
+  const s = await initStore();
+  const settings = (s.get('settings') ?? {}) as AppSettings;
+  const theme = settings.theme ?? 'auto';
+  nativeTheme.themeSource = theme === 'auto' ? 'system' : theme;
+  createWindow();
+});
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

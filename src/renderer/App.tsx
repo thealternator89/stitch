@@ -20,6 +20,20 @@ const App: React.FC = () => {
     fetchVersion();
   }, []);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const updateTheme = () => {
+      document.documentElement.setAttribute(
+        'data-bs-theme',
+        mediaQuery.matches ? 'dark' : 'light',
+      );
+    };
+
+    updateTheme();
+    mediaQuery.addEventListener('change', updateTheme);
+    return () => mediaQuery.removeEventListener('change', updateTheme);
+  }, []);
+
   const handleOpenIssues = (e: React.MouseEvent) => {
     e.preventDefault();
     (window as any).electronAPI.openExternal(

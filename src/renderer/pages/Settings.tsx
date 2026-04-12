@@ -12,6 +12,7 @@ const Settings: React.FC = () => {
   const [confluenceUrl, setConfluenceUrl] = useState('');
   const [confluenceUser, setConfluenceUser] = useState('');
   const [confluenceToken, setConfluenceToken] = useState('');
+  const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto');
   const [statusMessage, setStatusMessage] = useState('');
   const [authStatus, setAuthStatus] = useState<any>(null);
   const [checkingAuth, setCheckingAuth] = useState(false);
@@ -30,6 +31,7 @@ const Settings: React.FC = () => {
           setConfluenceUrl(settings.confluenceUrl || '');
           setConfluenceUser(settings.confluenceUser || '');
           setConfluenceToken(settings.confluenceToken || '');
+          setTheme(settings.theme || 'auto');
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -50,6 +52,7 @@ const Settings: React.FC = () => {
         confluenceUrl: confluenceUrl,
         confluenceUser: confluenceUser,
         confluenceToken: confluenceToken,
+        theme: theme,
       });
       setStatusMessage('Settings saved successfully!');
       setTimeout(() => setStatusMessage(''), 3000);
@@ -98,7 +101,42 @@ const Settings: React.FC = () => {
           )}
 
           <form onSubmit={handleSave}>
-            <h5 className="mb-3 border-bottom pb-2">
+            <h5 className="mb-3 border-bottom pb-2">Appearance</h5>
+            <div className="mb-4">
+              <label className="form-label d-block">Theme</label>
+              <div
+                className="btn-group"
+                role="group"
+                aria-label="Theme selection"
+              >
+                <button
+                  type="button"
+                  className={`btn ${theme === 'auto' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                  onClick={() => setTheme('auto')}
+                >
+                  <i className="fas fa-circle-half-stroke me-2"></i>
+                  Auto
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${theme === 'light' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                  onClick={() => setTheme('light')}
+                >
+                  <i className="fas fa-sun me-2"></i>
+                  Light
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${theme === 'dark' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                  onClick={() => setTheme('dark')}
+                >
+                  <i className="fas fa-moon me-2"></i>
+                  Dark
+                </button>
+              </div>
+            </div>
+
+            <h5 className="mb-3 border-bottom pb-2 mt-4">
               Azure DevOps Configuration
             </h5>
             <div className="mb-3">
@@ -198,7 +236,7 @@ const Settings: React.FC = () => {
               />
             </div>
 
-            <div className="mb-4 p-3 bg-light rounded border">
+            <div className="mb-4 p-3 rounded border">
               <div className="d-flex justify-content-between align-items-center mb-2">
                 <h6 className="mb-0">Copilot CLI Status</h6>
                 <button

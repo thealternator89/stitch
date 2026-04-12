@@ -66,8 +66,8 @@ const Menu: React.FC = () => {
         </div>
         {/* Placeholder for future tools */}
         <div className="col-md-4 mb-4">
-          <div className="card shadow-sm h-100 border-dashed bg-light">
-            <div className="card-body d-flex flex-column justify-content-center align-items-center text-muted">
+          <div className="card shadow-sm h-100 border-dashed">
+            <div className="card-body d-flex flex-column justify-content-center align-items-center opacity-50">
               <i className="fas fa-plus-circle fa-2x mb-2"></i>
               <p className="card-text">More tools coming soon...</p>
             </div>

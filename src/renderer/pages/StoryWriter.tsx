@@ -231,14 +231,14 @@ const StoryWriter: React.FC = () => {
               </div>
             </div>
             <div
-              className="card-body overflow-auto bg-light"
+              className="card-body overflow-auto"
               style={{ maxHeight: '600px' }}
             >
               {stories.length > 0 ? (
                 <div className="stories-list">
                   {stories.map((story, index) => (
                     <div key={index} className="card shadow-sm mb-3">
-                      <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                      <div className="card-header d-flex justify-content-between align-items-center">
                         <h6 className="mb-0 text-primary">{story.title}</h6>
                         <div className="form-check m-0">
                           <input
@@ -257,7 +257,7 @@ const StoryWriter: React.FC = () => {
                         </div>
                         <div className="mb-3">
                           <strong>Acceptance Criteria:</strong>
-                          <div className="markdown-content mt-2 bg-light p-2 rounded border">
+                          <div className="markdown-content mt-2 p-2 rounded border">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {story.acceptanceCriteria}
                             </ReactMarkdown>
@@ -266,7 +266,7 @@ const StoryWriter: React.FC = () => {
                         {story.notes && (
                           <div>
                             <strong>Notes:</strong>
-                            <p className="text-muted small mb-0">
+                            <p className="opacity-75 small mb-0">
                               {story.notes}
                             </p>
                           </div>
@@ -276,7 +276,7 @@ const StoryWriter: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-5 text-muted">
+                <div className="text-center py-5 opacity-75">
                   {isGenerating ? (
                     <div className="py-5">
                       <div
@@ -295,7 +295,7 @@ const StoryWriter: React.FC = () => {
               )}
             </div>
             {stories.length > 0 && (
-              <div className="card-footer bg-light">
+              <div className="card-footer">
                 <div className="d-flex justify-content-between align-items-center">
                   <div className="input-group" style={{ maxWidth: '300px' }}>
                     <span className="input-group-text border-primary bg-primary text-white">

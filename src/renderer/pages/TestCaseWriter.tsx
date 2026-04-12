@@ -204,7 +204,7 @@ const TestCaseWriter: React.FC = () => {
               </div>
             </div>
             <div
-              className="card-body overflow-auto bg-light"
+              className="card-body overflow-auto"
               style={{ maxHeight: '600px' }}
             >
               {testCases ? (
@@ -233,7 +233,7 @@ const TestCaseWriter: React.FC = () => {
               )}
             </div>
             {testCases && (
-              <div className="card-footer bg-light d-flex justify-content-end gap-2">
+              <div className="card-footer d-flex justify-content-end gap-2">
                 <button
                   className="btn btn-outline-primary"
                   onClick={handleAddComment}
