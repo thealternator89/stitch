@@ -157,26 +157,10 @@ ipcMain.handle('add-comment', async (event, ticketId, text) => {
   return service.addComment(ticketId, text);
 });
 
-ipcMain.handle(
-  'add-child-task',
-  async (event, parentTicketId, title, description) => {
-    const service = await getAzureService();
-    return service.addChildTask(parentTicketId, title, description);
-  },
-);
-
-ipcMain.handle(
-  'create-pbi',
-  async (event, parentTicketId, title, description, acceptanceCriteria) => {
-    const service = await getAzureService();
-    return service.createProductBacklogItem(
-      parentTicketId,
-      title,
-      description,
-      acceptanceCriteria,
-    );
-  },
-);
+ipcMain.handle('create-ticket', async (event, type, parentTicketId, data) => {
+  const service = await getAzureService();
+  return service.createTicket(type, parentTicketId, data);
+});
 
 const createWindow = (): void => {
   // Create the browser window.

@@ -11,7 +11,7 @@ export type AppSettings = {
 };
 
 export interface TicketData {
-  id: string;
+  id?: string;
   title: string;
   description: string;
   acceptanceCriteria?: string;

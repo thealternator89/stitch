@@ -91,11 +91,14 @@ const StoryWriter: React.FC = () => {
           'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
         ].join('\n');
 
-        await window.electronAPI.createPBI(
+        await window.electronAPI.createTicket(
+          'Product Backlog Item',
           featureId,
-          story.title,
-          descriptionWithDisclaimer,
-          story.acceptanceCriteria,
+          {
+            title: story.title,
+            description: descriptionWithDisclaimer,
+            acceptanceCriteria: story.acceptanceCriteria,
+          },
         );
       }
       alert(`Successfully created ${storiesToCreate.length} PBIs!`);
