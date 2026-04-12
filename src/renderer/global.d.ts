@@ -7,12 +7,6 @@ import {
   CopilotModel,
 } from '../types';
 
-type WorkItem = {
-  id: string;
-  title: string;
-  description: string;
-  acceptanceCriteria: string;
-};
 export interface IElectronAPI {
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: AppSettings) => Promise<void>;
@@ -33,13 +27,13 @@ export interface IElectronAPI {
     parentTicketId: string,
     title: string,
     description: string,
-  ) => Promise<WorkItem>;
+  ) => Promise<TicketData>;
   createPBI: (
     parentTicketId: string,
     title: string,
     description: string,
     acceptanceCriteria: string,
-  ) => Promise<WorkItem>;
+  ) => Promise<TicketData>;
   checkCopilotAuth: () => Promise<CopilotAuth>;
   getVersion: () => Promise<string>;
   listCopilotModels: () => Promise<CopilotModel[]>;
