@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
-import { ConfluencePageData } from '../../types';
+import { DocPageData } from '../../types';
 
 interface Story {
   title: string;
@@ -19,7 +19,7 @@ const StoryWriter: React.FC = () => {
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStarted, setGenerationStarted] = useState(false);
-  const [pageData, setPageData] = useState<ConfluencePageData | null>(null);
+  const [pageData, setPageData] = useState<DocPageData | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [error, setError] = useState<string>('');
   const [featureId, setFeatureId] = useState('');
@@ -91,11 +91,14 @@ const StoryWriter: React.FC = () => {
           'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
         ].join('\n');
 
-        await window.electronAPI.createPBI(
+        await window.electronAPI.createTicket(
+          'Product Backlog Item',
           featureId,
-          story.title,
-          descriptionWithDisclaimer,
-          story.acceptanceCriteria,
+          {
+            title: story.title,
+            description: descriptionWithDisclaimer,
+            acceptanceCriteria: story.acceptanceCriteria,
+          },
         );
       }
       alert(`Successfully created ${storiesToCreate.length} PBIs!`);

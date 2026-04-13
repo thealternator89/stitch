@@ -46,7 +46,10 @@ const TestCaseWriter: React.FC = () => {
     setIsPosting(true);
     try {
       const text = generateTicketOrCommentText(testCases);
-      await window.electronAPI.addChildTask(ticketId, 'BA Test', text);
+      await window.electronAPI.createTicket('Task', ticketId, {
+        title: 'BA Test',
+        description: text,
+      });
       alert('Task created successfully!');
     } catch (err) {
       console.error(err);

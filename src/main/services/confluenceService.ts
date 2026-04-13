@@ -1,4 +1,7 @@
-export class ConfluenceService {
+import { DocumentationProvider } from './providers/DocumentationProvider';
+import { DocPageData } from '../../types';
+
+export class ConfluenceService implements DocumentationProvider {
   private url: string;
   private user: string;
   private token: string;
@@ -17,7 +20,7 @@ export class ConfluenceService {
     return { header: `Bearer ${this.token}`, scheme: 'Bearer' };
   }
 
-  async fetchPage(pageId: string) {
+  async fetchPage(pageId: string): Promise<DocPageData> {
     if (!this.url || !this.token) {
       throw new Error('ConfluenceService is missing base URL or token.');
     }

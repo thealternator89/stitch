@@ -11,13 +11,13 @@ export type AppSettings = {
 };
 
 export interface TicketData {
-  id: string;
+  id?: string;
   title: string;
   description: string;
   acceptanceCriteria?: string;
 }
 
-export interface ConfluencePageData {
+export interface DocPageData {
   id: string;
   title: string;
   body: string;

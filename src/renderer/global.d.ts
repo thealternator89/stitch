@@ -1,7 +1,7 @@
 import {
   AppSettings,
   TicketData,
-  ConfluencePageData,
+  DocPageData,
   StoryData,
   CopilotAuth,
   CopilotModel,
@@ -16,24 +16,19 @@ export interface IElectronAPI {
     context: string,
     modelOverride: string,
   ) => Promise<string>;
-  fetchConfluencePage: (pageId: string) => Promise<ConfluencePageData>;
+  fetchConfluencePage: (pageId: string) => Promise<DocPageData>;
   generateStories: (
-    pageData: ConfluencePageData,
+    pageData: DocPageData,
     context: string,
     modelOverride: string,
   ) => Promise<StoryData[]>;
   addComment: (ticketId: string, text: string) => Promise<void>;
-  addChildTask: (
+  createTicket: (
+    type: string,
     parentTicketId: string,
-    title: string,
-    description: string,
-  ) => Promise<TicketData>;
-  createPBI: (
-    parentTicketId: string,
-    title: string,
-    description: string,
-    acceptanceCriteria: string,
-  ) => Promise<TicketData>;
+    data: TicketData,
+  ) => Promise<void>;
+
   checkCopilotAuth: () => Promise<CopilotAuth>;
   getVersion: () => Promise<string>;
   listCopilotModels: () => Promise<CopilotModel[]>;

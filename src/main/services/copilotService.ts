@@ -31,7 +31,7 @@ async function createCopilotClient() {
   return { client: new CopilotClient(), approveAll };
 }
 
-import { TicketData, ConfluencePageData, StoryData } from '../../types';
+import { TicketData, DocPageData, StoryData } from '../../types';
 
 export class CopilotService {
   private client: any = null;
@@ -131,9 +131,9 @@ export class CopilotService {
   }
 
   async generateStories(
-    pageData: ConfluencePageData,
-    additionalContext: string,
-    modelOverride: string,
+    pageData: DocPageData,
+    additionalContext?: string,
+    modelOverride?: string,
   ): Promise<StoryData[]> {
     try {
       this.setModel(modelOverride);

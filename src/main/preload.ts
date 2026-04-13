@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { AppSettings, TicketData, ConfluencePageData } from '../types';
+import { AppSettings, TicketData, DocPageData } from '../types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -20,27 +20,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchConfluencePage: (pageId: string) =>
     ipcRenderer.invoke('fetch-confluence-page', pageId),
   generateStories: (
-    pageData: ConfluencePageData,
+    pageData: DocPageData,
     context: string,
     modelOverride: string,
   ) => ipcRenderer.invoke('generate-stories', pageData, context, modelOverride),
   addComment: (ticketId: string, text: string) =>
     ipcRenderer.invoke('add-comment', ticketId, text),
-  addChildTask: (parentTicketId: string, title: string, description: string) =>
-    ipcRenderer.invoke('add-child-task', parentTicketId, title, description),
-  createPBI: (
-    parentTicketId: string,
-    title: string,
-    description: string,
-    acceptanceCriteria: string,
-  ) =>
-    ipcRenderer.invoke(
-      'create-pbi',
-      parentTicketId,
-      title,
-      description,
-      acceptanceCriteria,
-    ),
+  createTicket: (type: string, parentTicketId: string, data: TicketData) =>
+    ipcRenderer.invoke('create-ticket', type, parentTicketId, data),
   checkCopilotAuth: () => ipcRenderer.invoke('check-copilot-auth'),
   getVersion: () => ipcRenderer.invoke('get-version'),
   listCopilotModels: () => ipcRenderer.invoke('list-copilot-models'),

@@ -1,7 +1,9 @@
 import * as azdev from 'azure-devops-node-api';
 import { IWorkItemTrackingApi } from 'azure-devops-node-api/WorkItemTrackingApi';
+import { IssueTrackerProvider } from './providers/IssueTrackerProvider';
+import { TicketData } from '../../types';
 
-export class AzureDevOpsService {
+export class AzureDevOpsService implements IssueTrackerProvider {
   private witApi: IWorkItemTrackingApi | null = null;
 
   constructor(
@@ -18,22 +20,21 @@ export class AzureDevOpsService {
     return this.witApi;
   }
 
-  async fetchTicket(ticketId: string) {
+  async fetchTicket(ticketId: string): Promise<TicketData> {
     const witApi = await this.getApi();
 
     try {
       const workItem = await witApi.getWorkItem(parseInt(ticketId));
-      if (!workItem || !workItem.fields) {
+      if (!workItem || !workItem.fields || workItem.id === undefined) {
         throw new Error('Work item not found.');
       }
 
       return {
-        id: workItem.id,
+        id: workItem.id.toString(),
         title: workItem.fields['System.Title'],
         description: workItem.fields['System.Description'],
         acceptanceCriteria:
           workItem.fields['Microsoft.VSTS.Common.AcceptanceCriteria'],
-        project: workItem.fields['System.TeamProject'],
       };
     } catch (error) {
       console.error('Error fetching ticket:', error);
@@ -41,7 +42,7 @@ export class AzureDevOpsService {
     }
   }
 
-  async addComment(ticketId: string, text: string) {
+  async addComment(ticketId: string, text: string): Promise<void> {
     const witApi = await this.getApi();
     const document = [
       {
@@ -55,14 +56,14 @@ export class AzureDevOpsService {
         value: 'Markdown',
       },
     ];
-    return witApi.updateWorkItem(undefined, document, parseInt(ticketId));
+    await witApi.updateWorkItem(undefined, document, parseInt(ticketId));
   }
 
-  async addChildTask(
+  async createTicket(
+    type: string,
     parentTicketId: string,
-    title: string,
-    description: string,
-  ) {
+    data: TicketData,
+  ): Promise<void> {
     const witApi = await this.getApi();
 
     const parentWorkItem = await witApi.getWorkItem(parseInt(parentTicketId));
@@ -74,8 +75,12 @@ export class AzureDevOpsService {
     const parentUrl = parentWorkItem.url;
 
     const document = [
-      { op: 'add', path: '/fields/System.Title', value: title },
-      { op: 'add', path: '/fields/System.Description', value: description },
+      { op: 'add', path: '/fields/System.Title', value: data.title },
+      {
+        op: 'add',
+        path: '/fields/System.Description',
+        value: data.description,
+      },
       {
         op: 'add',
         path: '/multilineFieldsFormat/System.Description',
@@ -87,64 +92,24 @@ export class AzureDevOpsService {
         value: {
           rel: 'System.LinkTypes.Hierarchy-Reverse',
           url: parentUrl,
-          attributes: { comment: 'Added via Copilot test case generation' },
+          attributes: { comment: 'Created via Stitch' },
         },
       },
     ];
 
-    return witApi.createWorkItem(undefined, document, project, 'Task');
-  }
-
-  async createProductBacklogItem(
-    parentTicketId: string,
-    title: string,
-    description: string,
-    acceptanceCriteria: string,
-  ) {
-    const witApi = await this.getApi();
-
-    const parentWorkItem = await witApi.getWorkItem(parseInt(parentTicketId));
-    if (!parentWorkItem || !parentWorkItem.fields) {
-      throw new Error('Parent work item not found.');
-    }
-
-    const project = parentWorkItem.fields['System.TeamProject'];
-    const parentUrl = parentWorkItem.url;
-
-    const document = [
-      { op: 'add', path: '/fields/System.Title', value: title },
-      { op: 'add', path: '/fields/System.Description', value: description },
-      {
-        op: 'add',
-        path: '/multilineFieldsFormat/System.Description',
-        value: 'Markdown',
-      },
-      {
+    if (data.acceptanceCriteria) {
+      document.push({
         op: 'add',
         path: '/fields/Microsoft.VSTS.Common.AcceptanceCriteria',
-        value: acceptanceCriteria,
-      },
-      {
+        value: data.acceptanceCriteria,
+      });
+      document.push({
         op: 'add',
         path: '/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria',
         value: 'Markdown',
-      },
-      {
-        op: 'add',
-        path: '/relations/-',
-        value: {
-          rel: 'System.LinkTypes.Hierarchy-Reverse',
-          url: parentUrl,
-          attributes: { comment: 'Added via Copilot story generation' },
-        },
-      },
-    ];
+      });
+    }
 
-    return witApi.createWorkItem(
-      undefined,
-      document,
-      project,
-      'Product Backlog Item',
-    );
+    await witApi.createWorkItem(undefined, document, project, type);
   }
 }
