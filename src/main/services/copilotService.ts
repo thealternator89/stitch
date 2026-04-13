@@ -166,7 +166,7 @@ export class CopilotService {
         const jsonMatch = rawContent.match(/```json\s*([\s\S]*?)\s*```/);
         const jsonString = jsonMatch ? jsonMatch[1] : rawContent.trim();
         return JSON.parse(jsonString);
-      } catch (e) {
+      } catch (_e) {
         console.error(
           'Failed to parse JSON from Copilot response:',
           rawContent,

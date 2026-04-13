@@ -9,3 +9,10 @@ updates:
         patterns:
           - "eslint*"
           - "@typescript-eslint/*"
+    ignore:
+      - dependency-name: "eslint"
+        versions: [">= 10.0.0"]
+      - dependency-name: "@typescript-eslint/*"
+        versions: [">= 9.0.0"]
+      - dependency-name: "eslint-plugin-import"
+        versions: [">= 3.0.0"]
