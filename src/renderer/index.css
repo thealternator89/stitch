@@ -52,7 +52,7 @@ textarea,
 
 /* Compensate for Windows title bar overlay buttons (min/max/close) */
 .titlebar.is-windows .titlebar-actions {
-  right: 140px;
+  right: 150px;
 }
 
 .titlebar-btn {

@@ -171,7 +171,7 @@ const createWindow = (): void => {
     titleBarOverlay:
       process.platform === 'win32'
         ? {
-            color: '#212529',
+            color: '#133865',
             symbolColor: '#ffffff',
             height: 44,
           }
