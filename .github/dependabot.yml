@@ -9,6 +9,9 @@ updates:
         patterns:
           - "eslint*"
           - "@typescript-eslint/*"
+      react-packages:
+        patterns:
+          - "react*"
     ignore:
       - dependency-name: "eslint"
         versions: [">= 10.0.0"]
