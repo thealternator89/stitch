@@ -5,6 +5,7 @@ import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
 import { TicketData } from '../../types';
+import { useToast } from '../contexts/ToastContext';
 
 const generateTicketOrCommentText = (testCases: string) =>
   [
@@ -27,16 +28,17 @@ const TestCaseWriter: React.FC = () => {
   const [isPosting, setIsPosting] = useState(false);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
+  const { showToast } = useToast();
 
   const handleAddComment = async () => {
     setIsPosting(true);
     try {
       const text = generateTicketOrCommentText(testCases);
       await window.electronAPI.addComment(ticketId, text);
-      alert('Comment added successfully!');
+      showToast('Comment added successfully!', 'success');
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Failed to add comment.');
+      showToast(err.message || 'Failed to add comment.', 'danger');
     } finally {
       setIsPosting(false);
     }
@@ -50,10 +52,10 @@ const TestCaseWriter: React.FC = () => {
         title: 'BA Test',
         description: text,
       });
-      alert('Task created successfully!');
+      showToast('Task created successfully!', 'success');
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Failed to create task.');
+      showToast(err.message || 'Failed to create task.', 'danger');
     } finally {
       setIsPosting(false);
     }

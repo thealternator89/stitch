@@ -4,6 +4,7 @@ import Menu from './pages/Menu';
 import TestCaseWriter from './pages/TestCaseWriter';
 import StoryWriter from './pages/StoryWriter';
 import Settings from './pages/Settings';
+import { ToastProvider } from './contexts/ToastContext';
 
 const App: React.FC = () => {
   const [version, setVersion] = useState<string>('');
@@ -44,36 +45,38 @@ const App: React.FC = () => {
   const isWindows = window.electronAPI.isWindows;
 
   return (
-    <Router>
-      <div className={`titlebar shadow-sm ${isWindows ? 'is-windows' : ''}`}>
-        <span className="titlebar-content">
-          <i className="fas fa-code-merge me-2 text-primary"></i>
-          Stitch
-        </span>
-        <div className="titlebar-actions no-drag">
-          <button
-            className="btn btn-outline-light btn-sm titlebar-btn"
-            onClick={handleOpenIssues}
-            title="Report an Issue"
-          >
-            <i className="fas fa-bug"></i>
-          </button>
+    <ToastProvider>
+      <Router>
+        <div className={`titlebar shadow-sm ${isWindows ? 'is-windows' : ''}`}>
+          <span className="titlebar-content">
+            <i className="fas fa-code-merge me-2 text-primary"></i>
+            Stitch
+          </span>
+          <div className="titlebar-actions no-drag">
+            <button
+              className="btn btn-outline-light btn-sm titlebar-btn"
+              onClick={handleOpenIssues}
+              title="Report an Issue"
+            >
+              <i className="fas fa-bug"></i>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="main-content">
-        <Routes>
-          <Route path="/" element={<Menu />} />
-          <Route path="/test-case-writer" element={<TestCaseWriter />} />
-          <Route path="/story-writer" element={<StoryWriter />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </div>
+        <div className="main-content">
+          <Routes>
+            <Route path="/" element={<Menu />} />
+            <Route path="/test-case-writer" element={<TestCaseWriter />} />
+            <Route path="/story-writer" element={<StoryWriter />} />
+            <Route path="/settings" element={<Settings />} />
+          </Routes>
+        </div>
 
-      <div className="footer">
-        <span className="me-2 text-muted">Version {version}</span>
-      </div>
-    </Router>
+        <div className="footer">
+          <span className="me-2 text-muted">Version {version}</span>
+        </div>
+      </Router>
+    </ToastProvider>
   );
 };
 

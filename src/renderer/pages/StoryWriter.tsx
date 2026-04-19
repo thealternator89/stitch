@@ -5,6 +5,7 @@ import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
 import { DocPageData } from '../../types';
+import { useToast } from '../contexts/ToastContext';
 
 interface Story {
   title: string;
@@ -26,6 +27,7 @@ const StoryWriter: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
+  const { showToast } = useToast();
 
   const handleGenerate = async () => {
     if (!pageId) {
@@ -71,13 +73,13 @@ const StoryWriter: React.FC = () => {
 
   const handleCreateStories = async () => {
     if (!featureId) {
-      alert('Please enter a Feature ID.');
+      showToast('Please enter a Feature ID.', 'warning');
       return;
     }
 
     const storiesToCreate = stories.filter((s) => s.checked);
     if (storiesToCreate.length === 0) {
-      alert('Please check at least one story to create.');
+      showToast('Please check at least one story to create.', 'warning');
       return;
     }
 
@@ -101,10 +103,13 @@ const StoryWriter: React.FC = () => {
           },
         );
       }
-      alert(`Successfully created ${storiesToCreate.length} PBIs!`);
+      showToast(
+        `Successfully created ${storiesToCreate.length} PBIs!`,
+        'success',
+      );
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Failed to create stories.');
+      showToast(err.message || 'Failed to create stories.', 'danger');
     } finally {
       setIsCreating(false);
     }
