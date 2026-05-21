@@ -114,6 +114,9 @@ ipcMain.handle(
       ticketData,
       additionalContext,
       modelOverride,
+      (line: string) => {
+        event.sender.send('test-case-line', line);
+      },
     );
   },
 );

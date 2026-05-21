@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       context,
       modelOverride,
     ),
+  onTestCaseLine: (callback: (line: string) => void) => {
+    const listener = (_event: unknown, line: string) => callback(line);
+    ipcRenderer.on('test-case-line', listener);
+    return () => {
+      ipcRenderer.removeListener('test-case-line', listener);
+    };
+  },
   fetchConfluencePage: (pageId: string) =>
     ipcRenderer.invoke('fetch-confluence-page', pageId),
   generateStories: (

@@ -101,9 +101,11 @@ export class CopilotService {
   private async sendAndCollectStream(
     session: any,
     prompt: string,
+    onLineOrTimeout?: ((line: string) => void) | number,
     timeoutMs = 180000,
   ): Promise<string> {
     const chunks: string[] = [];
+    let buffer = '';
     let lastAssistantMessage: any = null;
     let resolvePromise: (value: string) => void;
     let rejectPromise: (reason: any) => void;
@@ -113,16 +115,40 @@ export class CopilotService {
       rejectPromise = reject;
     });
 
+    let onLine: ((line: string) => void) | undefined;
+    let actualTimeout = timeoutMs;
+
+    if (typeof onLineOrTimeout === 'number') {
+      actualTimeout = onLineOrTimeout;
+    } else {
+      onLine = onLineOrTimeout;
+    }
+
     let timeoutId: NodeJS.Timeout | undefined;
 
     const unsubscribe = session.on((event: any) => {
       if (event.type === 'assistant.message_delta') {
-        if (event.data?.deltaContent) {
-          chunks.push(event.data.deltaContent);
+        const delta = event.data?.deltaContent;
+        if (delta) {
+          chunks.push(delta);
+          if (onLine) {
+            buffer += delta;
+            let newlineIndex;
+            while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+              const line = buffer.slice(0, newlineIndex);
+              buffer = buffer.slice(newlineIndex + 1);
+              if (line.trim()) {
+                onLine(line);
+              }
+            }
+          }
         }
       } else if (event.type === 'assistant.message') {
         lastAssistantMessage = event;
       } else if (event.type === 'session.idle') {
+        if (onLine && buffer.trim()) {
+          onLine(buffer);
+        }
         const fullContent =
           chunks.join('') || lastAssistantMessage?.data?.content || '';
         resolvePromise(fullContent);
@@ -143,9 +169,9 @@ export class CopilotService {
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
           reject(
-            new Error(`Timeout after ${timeoutMs}ms waiting for response`),
+            new Error(`Timeout after ${actualTimeout}ms waiting for response`),
           );
-        }, timeoutMs);
+        }, actualTimeout);
       });
 
       return await Promise.race([completionPromise, timeoutPromise]);
@@ -161,6 +187,7 @@ export class CopilotService {
     ticketData: TicketData,
     additionalContext: string,
     modelOverride: string,
+    onLine?: (line: string) => void,
   ) {
     try {
       this.setModel(modelOverride);
@@ -176,21 +203,25 @@ export class CopilotService {
         
         Additional Context: ${additionalContext || 'None provided'}
         
-        Please format the output in a Markdown table, including:
-        - Test Case ID
-        - Description
-        - Pre-conditions
-        - Steps
-        - Expected Result
-        - Priority
+        Please format the output as JSON Lines (JSONL), where each line is a valid JSON object.
+        Do NOT wrap the JSON objects inside a JSON array. Each line MUST be a standalone JSON object.
+        
+        Each JSON object must have exactly the following keys:
+        - "id": (string) Test Case ID (e.g., "TC01")
+        - "description": (string) Brief description of the test scenario
+        - "preConditions": (string) Any preconditions required before running the test
+        - "steps": (string) Bullet-pointed or numbered steps to execute the test
+        - "expectedResult": (string) The expected result
+        - "priority": (string) Priority of the test (e.g., "High", "Medium", "Low")
 
         DO NOT create any files, directly output the test cases in your response here.
-        DO NOT include any other text in your response other than the markdown table.
+        DO NOT include any other text in your response (no explanation, no intro, no outro, no markdown fences).
       `;
 
       const responseContent = await this.sendAndCollectStream(
         session,
         prompt,
+        onLine,
         180000,
       );
       return responseContent;
