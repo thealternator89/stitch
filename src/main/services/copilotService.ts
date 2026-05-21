@@ -37,7 +37,7 @@ async function createCopilotClient() {
   return { client: new CopilotClient(), approveAll };
 }
 
-import { TicketData, DocPageData, StoryData } from '../../types';
+import { TicketData, DocPageData } from '../../types';
 
 export class CopilotService {
   private client: any = null;
@@ -233,9 +233,10 @@ export class CopilotService {
 
   async generateStories(
     pageData: DocPageData,
-    additionalContext?: string,
-    modelOverride?: string,
-  ): Promise<StoryData[]> {
+    additionalContext: string,
+    modelOverride: string,
+    onLine?: (line: string) => void,
+  ): Promise<string> {
     try {
       this.setModel(modelOverride);
       const session = await this.getSession();
@@ -248,37 +249,26 @@ export class CopilotService {
         
         Additional Context: ${additionalContext || 'None provided'}
         
-        Please output ONLY a valid JSON array of objects, with no markdown formatting or other text.
-        Each object should have the following properties:
+        Please format the output as JSON Lines (JSONL), where each line is a valid JSON object.
+        Do NOT wrap the JSON objects inside a JSON array. Each line MUST be a standalone JSON object.
+        
+        Each JSON object must have exactly the following keys:
         - "title": (string) The title of the story
         - "description": (string) Description. This should contain a statement in the format "As a... I want to... So that..." followed by 2 blank lines and then a longer description of the changes required for story.
-        - "acceptanceCriteria": (string) Formatted as a list. Use markdown within the string with \\n for newlines.
+        - "acceptanceCriteria": (string) Formatted as a markdown list. Use standard formatting without embedded newlines or with escaped newlines inside the JSON string as needed.
         - "notes": (string) Any additional notes or assumptions (Optional, can be empty)
 
-        DO NOT create any files, directly output the test cases in your response here.
-        DO NOT include any other text (including markdown code block) in your response other than the JSON blob.
+        DO NOT create any files, directly output the user stories in your response here.
+        DO NOT include any other text in your response (no explanation, no intro, no outro, no markdown fences).
       `;
 
-      const rawContent = await this.sendAndCollectStream(
+      const responseContent = await this.sendAndCollectStream(
         session,
         prompt,
+        onLine,
         180000,
       );
-
-      try {
-        // Attempt to extract JSON from markdown code block if present
-        const jsonMatch = rawContent.match(/```json\s*([\s\S]*?)\s*```/);
-        const jsonString = jsonMatch ? jsonMatch[1] : rawContent.trim();
-        return JSON.parse(jsonString);
-      } catch (_e) {
-        console.error(
-          'Failed to parse JSON from Copilot response:',
-          rawContent,
-        );
-        throw new Error(
-          'Failed to parse stories from Copilot. The output was not valid JSON.',
-        );
-      }
+      return responseContent;
     } catch (error) {
       console.error('Error generating stories:', error);
       throw error;

@@ -39,26 +39,50 @@ const StoryWriter: React.FC = () => {
     setStories([]);
     setPageData(null);
 
+    // Set up real-time listener for incoming lines
+    const unsubscribe = window.electronAPI.onStoryLine((line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('```')) return;
+
+      try {
+        const story: Story = JSON.parse(trimmed);
+        if (story && typeof story === 'object') {
+          setStories((prev) => {
+            const storyWithCheck = { ...story, checked: true };
+            const exists = prev.some((s) => s.title === story.title);
+            if (exists) {
+              return prev.map((s) =>
+                s.title === story.title ? storyWithCheck : s,
+              );
+            }
+            return [...prev, storyWithCheck];
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to parse JSONL line:', trimmed, err);
+      }
+    });
+
     try {
       // 1. Fetch Page Data
       const fetchedPage = await window.electronAPI.fetchConfluencePage(pageId);
       setPageData(fetchedPage);
 
-      // 2. Generate Stories using Copilot SDK
-      const generatedResult = await window.electronAPI.generateStories(
+      // 2. Generate Stories using Copilot SDK (this will stream lines via event listeners)
+      await window.electronAPI.generateStories(
         fetchedPage,
         context,
         selectedModel,
       );
-      const mappedStories = generatedResult.map((s: Story) => ({
-        ...s,
-        checked: true,
-      }));
-      setStories(mappedStories);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'An error occurred during generation.');
+      const errMsg =
+        err instanceof Error
+          ? err.message
+          : 'An error occurred during generation.';
+      setError(errMsg);
     } finally {
+      unsubscribe();
       setIsGenerating(false);
     }
   };
@@ -292,6 +316,35 @@ const StoryWriter: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                  {isGenerating && (
+                    <div
+                      className="card shadow-sm border-0 border-start border-success border-4 mb-3 animate__animated animate__fadeIn opacity-75"
+                      style={{ animationDuration: '0.4s' }}
+                    >
+                      <div className="card-header d-flex justify-content-between align-items-center bg-body-secondary border-bottom py-3">
+                        <h6 className="mb-0 text-success fw-bold d-flex align-items-center gap-2">
+                          <span
+                            className="spinner-grow spinner-grow-sm text-success"
+                            role="status"
+                            style={{ animationDuration: '1s' }}
+                          ></span>
+                          <span className="text-muted small">
+                            Generating next story...
+                          </span>
+                        </h6>
+                      </div>
+                      <div className="card-body p-4">
+                        <div className="placeholder-glow">
+                          <span className="placeholder col-6 mb-2"></span>
+                          <span className="placeholder col-8 mb-3 d-block"></span>
+                          <span
+                            className="placeholder col-12 mb-2 d-block"
+                            style={{ height: '40px' }}
+                          ></span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-5 my-5 text-muted">

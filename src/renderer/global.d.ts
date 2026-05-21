@@ -2,7 +2,6 @@ import {
   AppSettings,
   TicketData,
   DocPageData,
-  StoryData,
   CopilotAuth,
   CopilotModel,
 } from '../types';
@@ -22,7 +21,8 @@ export interface IElectronAPI {
     pageData: DocPageData,
     context: string,
     modelOverride: string,
-  ) => Promise<StoryData[]>;
+  ) => Promise<string>;
+  onStoryLine: (callback: (line: string) => void) => () => void;
   addComment: (ticketId: string, text: string) => Promise<void>;
   createTicket: (
     type: string,

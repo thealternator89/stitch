@@ -148,6 +148,9 @@ ipcMain.handle(
       pageData,
       additionalContext,
       modelOverride,
+      (line: string) => {
+        event.sender.send('story-line', line);
+      },
     );
   },
 );
