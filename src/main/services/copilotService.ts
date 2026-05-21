@@ -70,6 +70,7 @@ export class CopilotService {
         model: this.model,
         availableTools: [], // Don't allow any tools to ensure the agent doesn't write to disk etc.
         onPermissionRequest: this.approveAll,
+        streaming: true,
       });
     }
     return this.session;
@@ -94,6 +95,65 @@ export class CopilotService {
     } catch (error) {
       console.error('Error listing Copilot models:', error);
       throw error;
+    }
+  }
+
+  private async sendAndCollectStream(
+    session: any,
+    prompt: string,
+    timeoutMs = 180000,
+  ): Promise<string> {
+    const chunks: string[] = [];
+    let lastAssistantMessage: any = null;
+    let resolvePromise: (value: string) => void;
+    let rejectPromise: (reason: any) => void;
+
+    const completionPromise = new Promise<string>((resolve, reject) => {
+      resolvePromise = resolve;
+      rejectPromise = reject;
+    });
+
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    const unsubscribe = session.on((event: any) => {
+      if (event.type === 'assistant.message_delta') {
+        if (event.data?.deltaContent) {
+          chunks.push(event.data.deltaContent);
+        }
+      } else if (event.type === 'assistant.message') {
+        lastAssistantMessage = event;
+      } else if (event.type === 'session.idle') {
+        const fullContent =
+          chunks.join('') || lastAssistantMessage?.data?.content || '';
+        resolvePromise(fullContent);
+      } else if (event.type === 'session.error') {
+        const error = new Error(
+          event.data?.message || 'Session error occurred',
+        );
+        if (event.data?.stack) {
+          error.stack = event.data.stack;
+        }
+        rejectPromise(error);
+      }
+    });
+
+    try {
+      await session.send({ prompt });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(
+            new Error(`Timeout after ${timeoutMs}ms waiting for response`),
+          );
+        }, timeoutMs);
+      });
+
+      return await Promise.race([completionPromise, timeoutPromise]);
+    } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+      unsubscribe();
     }
   }
 
@@ -128,8 +188,12 @@ export class CopilotService {
         DO NOT include any other text in your response other than the markdown table.
       `;
 
-      const response = await session.sendAndWait({ prompt }, 180000);
-      return response?.data?.content || 'No content returned from Copilot.';
+      const responseContent = await this.sendAndCollectStream(
+        session,
+        prompt,
+        180000,
+      );
+      return responseContent;
     } catch (error) {
       console.error('Error generating test cases:', error);
       throw error;
@@ -164,8 +228,11 @@ export class CopilotService {
         DO NOT include any other text (including markdown code block) in your response other than the JSON blob.
       `;
 
-      const response = await session.sendAndWait({ prompt }, 180000);
-      const rawContent = response?.data?.content || '[]';
+      const rawContent = await this.sendAndCollectStream(
+        session,
+        prompt,
+        180000,
+      );
 
       try {
         // Attempt to extract JSON from markdown code block if present
