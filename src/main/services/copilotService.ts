@@ -12,7 +12,13 @@ async function createCopilotClient() {
   //
   // FIXME: Ideally once Copilot CLI or SDK come out of preview it will be working normally
   // and we can remove this
-  if (process.platform === 'win32') {
+  //
+  // DISABLE_COPILOT_WINDOWS_WORKAROUND is provided to simplify periodic compatibility testing
+  // with new Copilot CLI/SDK releases on Windows. If the standard platform-agnostic approach
+  // starts working, the entire Windows workaround block below should be removed.
+  const disableEnvVal = process.env.DISABLE_COPILOT_WINDOWS_WORKAROUND || '';
+
+  if (process.platform === 'win32' && !['1', 'true'].includes(disableEnvVal)) {
     if (!process.env.NODE_PATH || !process.env.COPILOT_SCRIPT_PATH) {
       throw new Error(
         'On Windows, both NODE_PATH and COPILOT_SCRIPT_PATH environment variables are required to initialise the Copilot client.',
