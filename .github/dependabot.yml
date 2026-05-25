@@ -8,6 +8,7 @@ updates:
       eslint-packages:
         patterns:
           - "eslint*"
+          - "@eslint/*"
           - "@typescript-eslint/*"
       react-packages:
         patterns:
