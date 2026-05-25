@@ -1,0 +1,173 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { AzureDevOpsService } from '../azureDevOpsService';
+
+const mockWitApi = {
+  getWorkItem: vi.fn(),
+  updateWorkItem: vi.fn(),
+  createWorkItem: vi.fn(),
+};
+
+function mockWebApiFunction() {
+  return {
+    getWorkItemTrackingApi() {
+      return Promise.resolve(mockWitApi);
+    },
+  };
+}
+
+vi.mock('azure-devops-node-api', () => {
+  return {
+    getPersonalAccessTokenHandler: vi.fn(() => ({})),
+    WebApi: mockWebApiFunction,
+  };
+});
+
+describe('AzureDevOpsService', () => {
+  let service: AzureDevOpsService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new AzureDevOpsService('https://dev.azure.com/myorg', 'mypat123');
+  });
+
+  describe('fetchTicket', () => {
+    it('should successfully fetch a work item and map fields correctly', async () => {
+      mockWitApi.getWorkItem.mockResolvedValueOnce({
+        id: 42,
+        fields: {
+          'System.Title': 'Implement User Auth',
+          'System.Description': 'As a user I want to log in...',
+          'Microsoft.VSTS.Common.AcceptanceCriteria': 'Must use OAuth2',
+        },
+      });
+
+      const result = await service.fetchTicket('42');
+
+      expect(mockWitApi.getWorkItem).toHaveBeenCalledWith(42);
+      expect(result).toEqual({
+        id: '42',
+        title: 'Implement User Auth',
+        description: 'As a user I want to log in...',
+        acceptanceCriteria: 'Must use OAuth2',
+      });
+    });
+
+    it('should throw error when work item has missing fields', async () => {
+      mockWitApi.getWorkItem.mockResolvedValueOnce({
+        id: undefined,
+      });
+
+      await expect(service.fetchTicket('42')).rejects.toThrow(
+        'Work item not found.',
+      );
+    });
+
+    it('should throw and log error when API call fails', async () => {
+      const apiError = new Error('Network Error');
+      mockWitApi.getWorkItem.mockRejectedValueOnce(apiError);
+
+      await expect(service.fetchTicket('42')).rejects.toThrow('Network Error');
+    });
+  });
+
+  describe('addComment', () => {
+    it('should update work item with history/comment comment patches', async () => {
+      mockWitApi.updateWorkItem.mockResolvedValueOnce({});
+
+      await service.addComment('42', 'This is a test comment');
+
+      expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
+        undefined,
+        [
+          {
+            op: 'add',
+            path: '/fields/System.History',
+            value: 'This is a test comment',
+          },
+          {
+            op: 'add',
+            path: '/multilineFieldsFormat/System.History',
+            value: 'Markdown',
+          },
+        ],
+        42,
+      );
+    });
+  });
+
+  describe('createTicket', () => {
+    it('should fetch parent details and create a child ticket with reverse hierarchy link', async () => {
+      mockWitApi.getWorkItem.mockResolvedValueOnce({
+        id: 10,
+        url: 'https://dev.azure.com/myorg/_apis/wit/workItems/10',
+        fields: {
+          'System.TeamProject': 'MyStitchProject',
+        },
+      });
+
+      mockWitApi.createWorkItem.mockResolvedValueOnce({});
+
+      await service.createTicket('Task', '10', {
+        id: '',
+        title: 'Write unit tests',
+        description: 'Need to write unit tests for Stitch services',
+        acceptanceCriteria: 'Coverage should be high',
+      });
+
+      expect(mockWitApi.getWorkItem).toHaveBeenCalledWith(10);
+      expect(mockWitApi.createWorkItem).toHaveBeenCalledWith(
+        undefined,
+        [
+          {
+            op: 'add',
+            path: '/fields/System.Title',
+            value: 'Write unit tests',
+          },
+          {
+            op: 'add',
+            path: '/fields/System.Description',
+            value: 'Need to write unit tests for Stitch services',
+          },
+          {
+            op: 'add',
+            path: '/multilineFieldsFormat/System.Description',
+            value: 'Markdown',
+          },
+          {
+            op: 'add',
+            path: '/relations/-',
+            value: {
+              rel: 'System.LinkTypes.Hierarchy-Reverse',
+              url: 'https://dev.azure.com/myorg/_apis/wit/workItems/10',
+              attributes: { comment: 'Created via Stitch' },
+            },
+          },
+          {
+            op: 'add',
+            path: '/fields/Microsoft.VSTS.Common.AcceptanceCriteria',
+            value: 'Coverage should be high',
+          },
+          {
+            op: 'add',
+            path: '/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria',
+            value: 'Markdown',
+          },
+        ],
+        'MyStitchProject',
+        'Task',
+      );
+    });
+
+    it('should throw an error if parent ticket is not found', async () => {
+      mockWitApi.getWorkItem.mockResolvedValueOnce(null);
+
+      await expect(
+        service.createTicket('Task', '10', {
+          id: '',
+          title: 'Write unit tests',
+          description: '',
+        }),
+      ).rejects.toThrow('Parent work item not found.');
+    });
+  });
+});
