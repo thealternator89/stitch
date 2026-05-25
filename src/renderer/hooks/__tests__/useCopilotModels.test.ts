@@ -5,8 +5,8 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useCopilotModels } from '../useCopilotModels';
 
 const mockModels = [
-  { id: 'gpt-4.1', name: 'GPT-4o' },
-  { id: 'claude-3.5', name: 'Claude 3.5 Sonnet' },
+  { id: 'gpt-4.1', name: 'GPT-4o', billing: { multiplier: 1 } },
+  { id: 'claude-3.5', name: 'Claude 3.5 Sonnet', billing: { multiplier: 1 } },
 ];
 
 describe('useCopilotModels hook', () => {
@@ -73,8 +73,12 @@ describe('useCopilotModels hook', () => {
 
     getSettingsMock.mockResolvedValue({});
     listCopilotModelsMock.mockResolvedValue([
-      { id: 'claude-3.5', name: 'Claude 3.5 Sonnet' },
-      { id: 'o3-mini', name: 'o3-mini' },
+      {
+        id: 'claude-3.5',
+        name: 'Claude 3.5 Sonnet',
+        billing: { multiplier: 1 },
+      },
+      { id: 'o3-mini', name: 'o3-mini', billing: { multiplier: 1 } },
     ]);
 
     const { result } = renderHook(() => useCopilotModels());
