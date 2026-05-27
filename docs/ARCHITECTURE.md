@@ -41,7 +41,6 @@ locally on the machine.
 - **Library:** `azure-devops-node-api`
 - **Method:** Uses Personal Access Tokens (PAT) via the Work Item Tracking API.
 - **Scope:**
-  - **Scope:**
   - Fetches work item details (ID, Title, Description, Acceptance Criteria) and supports real-time text-based and ID-based work item searching using WIQL and exact-match prioritization.
   - Pushes AI-generated content as **Comments** (updating `System.History`).
   - Creates new **Tasks** linked to a parent ID via `Hierarchy-Reverse`
