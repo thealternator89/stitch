@@ -41,7 +41,8 @@ locally on the machine.
 - **Library:** `azure-devops-node-api`
 - **Method:** Uses Personal Access Tokens (PAT) via the Work Item Tracking API.
 - **Scope:**
-  - Fetches work item details (ID, Title, Description, Acceptance Criteria).
+  - **Scope:**
+  - Fetches work item details (ID, Title, Description, Acceptance Criteria) and supports real-time text-based and ID-based work item searching using WIQL and exact-match prioritization.
   - Pushes AI-generated content as **Comments** (updating `System.History`).
   - Creates new **Tasks** linked to a parent ID via `Hierarchy-Reverse`
     relationships.
@@ -53,8 +54,9 @@ locally on the machine.
 - **Integration:** Directly interacts with the Confluence Cloud REST API using
   internal `fetch` calls.
 - **Authentication:** Supports Basic Auth (Email/API Token) or Bearer Auth.
-- **Usage:** Fetches `body.storage` for a specific Page ID to provide context
-  for story generation.
+- **Usage:**
+  - Fetches `body.storage` for a specific Page ID to provide context for story generation.
+  - Supports real-time text-based and ID-based page searching using Confluence Query Language (CQL) with `expand=body.storage` and exact-match prioritization.
 
 ### GitHub Copilot
 
@@ -66,6 +68,7 @@ locally on the machine.
   3.5 Sonnet) and allowing users to choose a model for each generation session.
 - **Generation:** Uses a conversation session to pass context (Azure tickets or
   Confluence requirements) and custom prompts to generate structured output.
+- **Real-time Streaming:** To provide a highly responsive and interactive user experience, generation does not use a blocking request-response model. Instead, the main process streams generated lines progressively to the renderer process via IPC event emitters (`test-case-line` and `story-line`), allowing the UI to parse and render items dynamically in real-time.
 
 ## Technical Decisions
 
@@ -90,12 +93,13 @@ support modern ESM-only libraries like `electron-store` and
 - `open-external`: Opens a URL in the default browser.
 - `fetch-ticket`: Retrieves work item data from Azure DevOps.
 - `fetch-confluence-page`: Retrieves documentation content from Confluence.
+- `search-tickets`: Queries work items on Azure DevOps by ID or title text.
+- `search-confluence-pages`: Queries pages on Confluence by ID or title text using CQL.
 - `generate-test-cases`: Interfaces with Copilot to produce Markdown test
-  plans. Supports `modelOverride`.
+  plans. Streams output line-by-line via `test-case-line` IPC events and resolves once concluded. Supports `modelOverride`.
 - `generate-stories`: Interfaces with Copilot to produce structured JSON
-  stories. Supports `modelOverride`.
+  stories. Streams output line-by-line via `story-line` IPC events and resolves once concluded. Supports `modelOverride`.
 - `check-copilot-auth`: Checks Copilot CLI authentication and connection status.
 - `list-copilot-models`: Retrieves available GitHub Copilot models.
 - `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
-- `add-child-task`: Creates a new linked Task in Azure DevOps.
-- `create-pbi`: Creates a new linked PBI in Azure DevOps.
+- `create-ticket`: Creates a new work item (PBI or Task) in Azure DevOps linked to a parent.
