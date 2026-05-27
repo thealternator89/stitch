@@ -126,24 +126,34 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('fetch-confluence-page', async (event, pageId) => {
-  const s = await initStore();
-  const { confluenceUrl, confluenceUser, confluenceToken } = trimProperties(
-    s.get('settings'),
-  ) as AppSettings;
-
-  if (!confluenceUrl || !confluenceToken) {
-    throw new Error('Confluence URL and Token are required.');
-  }
-
+async function getConfluenceService(): Promise<DocumentationProvider> {
   if (!confluenceService) {
+    const s = await initStore();
+    const { confluenceUrl, confluenceUser, confluenceToken } = trimProperties(
+      s.get('settings'),
+    ) as AppSettings;
+
+    if (!confluenceUrl || !confluenceToken) {
+      throw new Error('Confluence URL and Token are required.');
+    }
+
     confluenceService = new ConfluenceService(
       confluenceUrl,
       confluenceUser,
       confluenceToken,
     );
   }
-  return confluenceService.fetchPage(pageId);
+  return confluenceService;
+}
+
+ipcMain.handle('fetch-confluence-page', async (event, pageId) => {
+  const service = await getConfluenceService();
+  return service.fetchPage(pageId);
+});
+
+ipcMain.handle('search-confluence-pages', async (event, query) => {
+  const service = await getConfluenceService();
+  return service.searchPages(query);
 });
 
 ipcMain.handle(
