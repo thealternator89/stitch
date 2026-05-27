@@ -12,8 +12,7 @@ TypeScript using Electron Forge.
 - **Unified Navigation**: All tools feature a consistent, **fixed, edge-to-edge
   header** with a back button and page title for better usability on long forms.
 - **Test Case Writer**:
-  - Integration with **Azure DevOps** to fetch work item details (ID, Title,
-    Description, Acceptance Criteria).
+  - Integration with **Azure DevOps Search** via an autocomplete dropdown, supporting debounced queries to search work items by matching title or ID text, with automatic prioritized exact-ID fetching.
   - Ability to seamlessly write generated test cases back to Azure DevOps as
     **Comments** or new **Child Tasks** (created as linked 'Task' items with an
     AI disclaimer).
@@ -22,8 +21,7 @@ TypeScript using Electron Forge.
     **select specific models** (e.g., GPT-4o, Claude 3.5 Sonnet).
   - Markdown support with GFM (tables, lists, etc.) for rendered results.
 - **Story Writer**:
-  - Integration with **Confluence REST API** to read requirements directly from
-    documentation pages.
+  - Integration with **Confluence Page Search** via an autocomplete dropdown, supporting debounced queries to search space pages by matching title or Page ID (utilizing Confluence Query Language and direct Page ID prioritization).
   - Prompts **GitHub Copilot SDK** to generate structured JSON containing user
     stories with Titles, Descriptions, and Acceptance Criteria, using your
     **chosen AI model**.
