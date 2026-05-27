@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
@@ -55,6 +55,10 @@ const convertToMarkdownTable = (tcList: TestCase[]): string => {
 
 const TestCaseWriter: React.FC = () => {
   const [ticketId, setTicketId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<TicketData[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStarted, setGenerationStarted] = useState(false);
@@ -62,6 +66,49 @@ const TestCaseWriter: React.FC = () => {
   const [testCasesList, setTestCasesList] = useState<TestCase[]>([]);
   const [error, setError] = useState<string>('');
   const [isPosting, setIsPosting] = useState(false);
+
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    // If query matches current ticket (meaning it was just selected), don't trigger search again
+    if (ticketId && searchQuery.startsWith(`#${ticketId} -`)) {
+      return;
+    }
+
+    setIsSearching(true);
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const results = await window.electronAPI.searchTickets(searchQuery);
+        setSearchResults(results);
+      } catch (err) {
+        console.error('Error searching tickets:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, ticketId]);
+
+  // Click outside to dismiss dropdown dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
 
@@ -175,18 +222,123 @@ const TestCaseWriter: React.FC = () => {
             <div className="card-body p-4">
               {error && <div className="alert alert-danger">{error}</div>}
 
-              <div className="mb-3">
+              <div className="mb-3 position-relative" ref={searchContainerRef}>
                 <label className="form-label fw-medium text-secondary">
-                  Ticket ID (Azure DevOps)
+                  Ticket Search (Azure DevOps)
                 </label>
-                <input
-                  type="text"
-                  className="form-control form-control-lg border-2"
-                  placeholder="e.g., 12345"
-                  value={ticketId}
-                  onChange={(e) => setTicketId(e.target.value)}
-                  disabled={isGenerating}
-                />
+                <div className="input-group">
+                  <span className="input-group-text bg-body-secondary border-2 border-end-0">
+                    {isSearching ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-primary"
+                        role="status"
+                      ></span>
+                    ) : (
+                      <i className="fas fa-search text-muted"></i>
+                    )}
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control form-control-lg border-2 border-start-0 ps-1"
+                    placeholder="Search by title, text or ID..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSearchQuery(val);
+                      setIsDropdownOpen(val.trim().length > 0);
+
+                      // Support direct numeric typing
+                      if (/^\d+$/.test(val.trim())) {
+                        setTicketId(val.trim());
+                      } else {
+                        setTicketId('');
+                      }
+                    }}
+                    onFocus={() => {
+                      if (searchQuery.trim().length > 0) {
+                        setIsDropdownOpen(true);
+                      }
+                    }}
+                    disabled={isGenerating}
+                  />
+                  {searchQuery && (
+                    <button
+                      className="btn btn-outline-secondary border-2 border-start-0"
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setTicketId('');
+                        setSearchResults([]);
+                        setIsDropdownOpen(false);
+                      }}
+                      disabled={isGenerating}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  )}
+                </div>
+
+                {isDropdownOpen &&
+                  (searchResults.length > 0 || isSearching) && (
+                    <div
+                      className="dropdown-menu show w-100 shadow-lg border rounded-3 mt-1 overflow-y-auto"
+                      style={{
+                        position: 'absolute',
+                        zIndex: 1050,
+                        maxHeight: '300px',
+                        backgroundColor: 'var(--bs-body-bg)',
+                        borderColor: 'var(--bs-border-color)',
+                      }}
+                    >
+                      {isSearching ? (
+                        <div className="dropdown-item text-muted py-3 text-center">
+                          <span
+                            className="spinner-border spinner-border-sm me-2 text-primary"
+                            role="status"
+                          ></span>
+                          Searching work items...
+                        </div>
+                      ) : (
+                        searchResults.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="dropdown-item py-2 border-bottom border-light text-start d-flex flex-column gap-1"
+                            onClick={() => {
+                              setTicketId(item.id || '');
+                              setSearchQuery(`#${item.id} - ${item.title}`);
+                              setIsDropdownOpen(false);
+                            }}
+                            style={{ whiteSpace: 'normal', cursor: 'pointer' }}
+                          >
+                            <span className="fw-bold text-primary small">
+                              #{item.id}
+                            </span>
+                            <span className="text-body small fw-medium">
+                              {item.title}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                {isDropdownOpen &&
+                  !isSearching &&
+                  searchQuery.trim().length > 0 &&
+                  searchResults.length === 0 && (
+                    <div
+                      className="dropdown-menu show w-100 shadow-lg border rounded-3 mt-1 py-3 text-center text-muted small"
+                      style={{
+                        position: 'absolute',
+                        zIndex: 1050,
+                        backgroundColor: 'var(--bs-body-bg)',
+                        borderColor: 'var(--bs-border-color)',
+                      }}
+                    >
+                      No work items found.
+                    </div>
+                  )}
               </div>
 
               <div className="mb-4">

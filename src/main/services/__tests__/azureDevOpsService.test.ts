@@ -5,6 +5,8 @@ const mockWitApi = {
   getWorkItem: vi.fn(),
   updateWorkItem: vi.fn(),
   createWorkItem: vi.fn(),
+  queryByWiql: vi.fn(),
+  getWorkItems: vi.fn(),
 };
 
 function mockWebApiFunction() {
@@ -168,6 +170,106 @@ describe('AzureDevOpsService', () => {
           description: '',
         }),
       ).rejects.toThrow('Parent work item not found.');
+    });
+  });
+
+  describe('searchTickets', () => {
+    it('should query work items using WIQL with title match when search is a string', async () => {
+      mockWitApi.queryByWiql.mockResolvedValueOnce({
+        workItems: [{ id: 101 }, { id: 102 }],
+      });
+
+      mockWitApi.getWorkItems.mockResolvedValueOnce([
+        {
+          id: 101,
+          fields: {
+            'System.Title': 'Refactor user service',
+            'System.Description': 'Description 101',
+            'Microsoft.VSTS.Common.AcceptanceCriteria': 'Criteria 101',
+          },
+        },
+        {
+          id: 102,
+          fields: {
+            'System.Title': 'Implement user validation',
+            'System.Description': 'Description 102',
+            'Microsoft.VSTS.Common.AcceptanceCriteria': 'Criteria 102',
+          },
+        },
+      ]);
+
+      const result = await service.searchTickets('user');
+
+      expect(mockWitApi.queryByWiql).toHaveBeenCalledWith({
+        query:
+          "Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains 'user' Order By [System.Id] Desc",
+      });
+      expect(mockWitApi.getWorkItems).toHaveBeenCalledWith(
+        [101, 102],
+        [
+          'System.Id',
+          'System.Title',
+          'System.Description',
+          'Microsoft.VSTS.Common.AcceptanceCriteria',
+        ],
+      );
+
+      expect(result).toEqual([
+        {
+          id: '101',
+          title: 'Refactor user service',
+          description: 'Description 101',
+          acceptanceCriteria: 'Criteria 101',
+        },
+        {
+          id: '102',
+          title: 'Implement user validation',
+          description: 'Description 102',
+          acceptanceCriteria: 'Criteria 102',
+        },
+      ]);
+    });
+
+    it('should query work items by title and ID when search is numeric', async () => {
+      mockWitApi.queryByWiql.mockResolvedValueOnce({
+        workItems: [{ id: 456 }],
+      });
+
+      mockWitApi.getWorkItems.mockResolvedValueOnce([
+        {
+          id: 456,
+          fields: {
+            'System.Title': 'Fix login bug 456',
+            'System.Description': 'Description 456',
+          },
+        },
+      ]);
+
+      const result = await service.searchTickets('456');
+
+      expect(mockWitApi.queryByWiql).toHaveBeenCalledWith({
+        query:
+          "Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains '456' Or [System.Id] = 456 Order By [System.Id] Desc",
+      });
+
+      expect(result).toEqual([
+        {
+          id: '456',
+          title: 'Fix login bug 456',
+          description: 'Description 456',
+          acceptanceCriteria: '',
+        },
+      ]);
+    });
+
+    it('should return empty list if queryByWiql returns no items', async () => {
+      mockWitApi.queryByWiql.mockResolvedValueOnce({
+        workItems: [],
+      });
+
+      const result = await service.searchTickets('something');
+      expect(result).toEqual([]);
+      expect(mockWitApi.getWorkItems).not.toHaveBeenCalled();
     });
   });
 });

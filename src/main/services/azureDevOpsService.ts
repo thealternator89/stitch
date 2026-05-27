@@ -112,4 +112,52 @@ export class AzureDevOpsService implements IssueTrackerProvider {
 
     await witApi.createWorkItem(undefined, document, project, type);
   }
+
+  async searchTickets(query: string): Promise<TicketData[]> {
+    const witApi = await this.getApi();
+    const escapedQuery = query.replace(/'/g, "''");
+
+    const isNumber = /^\d+$/.test(query.trim());
+    let wiqlQuery = `Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains '${escapedQuery}'`;
+    if (isNumber) {
+      wiqlQuery += ` Or [System.Id] = ${query.trim()}`;
+    }
+    wiqlQuery += ' Order By [System.Id] Desc';
+
+    try {
+      const queryResult = await witApi.queryByWiql({ query: wiqlQuery });
+      const workItemsRefs = queryResult.workItems || [];
+      if (workItemsRefs.length === 0) {
+        return [];
+      }
+
+      // Limit to top 20 search results for performance
+      const ids = workItemsRefs
+        .slice(0, 20)
+        .map((wi) => wi.id)
+        .filter((id): id is number => id !== undefined);
+
+      if (ids.length === 0) {
+        return [];
+      }
+
+      const workItems = await witApi.getWorkItems(ids, [
+        'System.Id',
+        'System.Title',
+        'System.Description',
+        'Microsoft.VSTS.Common.AcceptanceCriteria',
+      ]);
+
+      return workItems.map((wi) => ({
+        id: wi.id?.toString() || '',
+        title: wi.fields?.['System.Title'] || '',
+        description: wi.fields?.['System.Description'] || '',
+        acceptanceCriteria:
+          wi.fields?.['Microsoft.VSTS.Common.AcceptanceCriteria'] || '',
+      }));
+    } catch (error) {
+      console.error('Error searching work items:', error);
+      throw error;
+    }
+  }
 }

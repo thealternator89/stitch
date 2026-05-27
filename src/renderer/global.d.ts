@@ -10,6 +10,7 @@ export interface IElectronAPI {
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: AppSettings) => Promise<void>;
   fetchTicket: (id: string) => Promise<TicketData>;
+  searchTickets: (query: string) => Promise<TicketData[]>;
   generateTestCases: (
     ticketData: TicketData,
     context: string,
