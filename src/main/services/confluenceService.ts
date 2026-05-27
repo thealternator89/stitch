@@ -74,4 +74,90 @@ export class ConfluenceService implements DocumentationProvider {
       throw error;
     }
   }
+
+  async searchPages(query: string): Promise<DocPageData[]> {
+    if (!this.url || !this.token) {
+      throw new Error('ConfluenceService is missing base URL or token.');
+    }
+
+    const cleanQuery = query.trim();
+    const isNumber = /^\d+$/.test(cleanQuery);
+
+    let exactMatch: DocPageData | null = null;
+    if (isNumber) {
+      try {
+        exactMatch = await this.fetchPage(cleanQuery);
+      } catch (error) {
+        // Suppress exact lookup error
+        console.warn(
+          `Exact match fetch for Page ID ${cleanQuery} failed/not found:`,
+          error,
+        );
+      }
+    }
+
+    // Normalize base URL: add scheme if missing and strip trailing slash
+    let baseUrl = this.url;
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = `https://${baseUrl}`;
+    }
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
+    if (!baseUrl.includes('/wiki')) {
+      baseUrl += '/wiki';
+    }
+
+    const escapedQuery = cleanQuery.replace(/"/g, '\\"');
+    const cql = `title ~ "${escapedQuery}" and type = "page"`;
+    const apiUrl = `${baseUrl}/rest/api/content/search?cql=${encodeURIComponent(cql)}&expand=body.storage&limit=20`;
+
+    const { header: authHeader } = this.getAuthHeader();
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const bodyText = await response
+          .text()
+          .catch((e) => `(parse failed: ${e.message ?? 'unknown'})`);
+        throw new Error(
+          `Failed to search Confluence pages: ${response.status} ${response.statusText} ${bodyText}`,
+        );
+      }
+
+      const data = await response.json();
+      const results: DocPageData[] = [];
+
+      if (exactMatch) {
+        results.push(exactMatch);
+      }
+
+      const exactId = exactMatch?.id;
+
+      if (data.results && Array.isArray(data.results)) {
+        for (const item of data.results) {
+          if (exactId && item.id === exactId) {
+            continue; // Skip exact match duplicate
+          }
+          results.push({
+            id: item.id,
+            title: item.title,
+            body: item.body?.storage?.value || '',
+          });
+        }
+      }
+
+      return results.slice(0, 20);
+    } catch (error) {
+      console.error('Error searching Confluence pages:', error);
+      throw error;
+    }
+  }
 }

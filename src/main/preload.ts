@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   fetchConfluencePage: (pageId: string) =>
     ipcRenderer.invoke('fetch-confluence-page', pageId),
+  searchConfluencePages: (query: string) =>
+    ipcRenderer.invoke('search-confluence-pages', query),
   generateStories: (
     pageData: DocPageData,
     context: string,

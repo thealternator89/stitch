@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../hooks/useCopilotModels';
@@ -16,6 +16,10 @@ interface Story {
 
 const StoryWriter: React.FC = () => {
   const [pageId, setPageId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<DocPageData[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStarted, setGenerationStarted] = useState(false);
@@ -24,6 +28,50 @@ const StoryWriter: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [featureId, setFeatureId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    // If query matches current page (meaning it was just selected), don't trigger search again
+    if (pageId && searchQuery.startsWith(`#${pageId} -`)) {
+      return;
+    }
+
+    setIsSearching(true);
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const results =
+          await window.electronAPI.searchConfluencePages(searchQuery);
+        setSearchResults(results);
+      } catch (err) {
+        console.error('Error searching pages:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, pageId]);
+
+  // Click outside to dismiss dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
 
@@ -148,21 +196,123 @@ const StoryWriter: React.FC = () => {
             <div className="card-body p-4">
               {error && <div className="alert alert-danger">{error}</div>}
 
-              <div className="mb-3">
+              <div className="mb-3 position-relative" ref={searchContainerRef}>
                 <label className="form-label fw-medium text-secondary">
-                  Page ID
+                  Page Search (Confluence)
                 </label>
-                <input
-                  type="text"
-                  className="form-control form-control-lg border-2"
-                  placeholder="e.g., 123456789"
-                  value={pageId}
-                  onChange={(e) => setPageId(e.target.value)}
-                  disabled={isGenerating}
-                />
-                <div className="form-text mt-2 small text-muted">
-                  You can find the numerical Page ID in the Confluence URL.
+                <div className="input-group">
+                  <span className="input-group-text bg-body-secondary border-2 border-end-0">
+                    {isSearching ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-success"
+                        role="status"
+                      ></span>
+                    ) : (
+                      <i className="fas fa-search text-muted"></i>
+                    )}
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control form-control-lg border-2 border-start-0 ps-1"
+                    placeholder="Search by title or ID..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSearchQuery(val);
+                      setIsDropdownOpen(val.trim().length > 0);
+
+                      // Support direct numeric typing
+                      if (/^\d+$/.test(val.trim())) {
+                        setPageId(val.trim());
+                      } else {
+                        setPageId('');
+                      }
+                    }}
+                    onFocus={() => {
+                      if (searchQuery.trim().length > 0) {
+                        setIsDropdownOpen(true);
+                      }
+                    }}
+                    disabled={isGenerating}
+                  />
+                  {searchQuery && (
+                    <button
+                      className="btn btn-outline-secondary border-2 border-start-0"
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setPageId('');
+                        setSearchResults([]);
+                        setIsDropdownOpen(false);
+                      }}
+                      disabled={isGenerating}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  )}
                 </div>
+
+                {isDropdownOpen &&
+                  (searchResults.length > 0 || isSearching) && (
+                    <div
+                      className="dropdown-menu show w-100 shadow-lg border rounded-3 mt-1 overflow-y-auto"
+                      style={{
+                        position: 'absolute',
+                        zIndex: 1050,
+                        maxHeight: '300px',
+                        backgroundColor: 'var(--bs-body-bg)',
+                        borderColor: 'var(--bs-border-color)',
+                      }}
+                    >
+                      {isSearching ? (
+                        <div className="dropdown-item text-muted py-3 text-center">
+                          <span
+                            className="spinner-border spinner-border-sm me-2 text-success"
+                            role="status"
+                          ></span>
+                          Searching pages...
+                        </div>
+                      ) : (
+                        searchResults.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="dropdown-item py-2 border-bottom border-light text-start d-flex flex-column gap-1"
+                            onClick={() => {
+                              setPageId(item.id || '');
+                              setSearchQuery(`#${item.id} - ${item.title}`);
+                              setIsDropdownOpen(false);
+                            }}
+                            style={{ whiteSpace: 'normal', cursor: 'pointer' }}
+                          >
+                            <span className="fw-bold text-success small">
+                              #{item.id}
+                            </span>
+                            <span className="text-body small fw-medium">
+                              {item.title}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                {isDropdownOpen &&
+                  !isSearching &&
+                  searchQuery.trim().length > 0 &&
+                  searchResults.length === 0 && (
+                    <div
+                      className="dropdown-menu show w-100 shadow-lg border rounded-3 mt-1 py-3 text-center text-muted small"
+                      style={{
+                        position: 'absolute',
+                        zIndex: 1050,
+                        backgroundColor: 'var(--bs-body-bg)',
+                        borderColor: 'var(--bs-border-color)',
+                      }}
+                    >
+                      No Confluence pages found.
+                    </div>
+                  )}
               </div>
 
               <div className="mb-4">

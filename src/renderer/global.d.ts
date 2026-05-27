@@ -18,6 +18,7 @@ export interface IElectronAPI {
   ) => Promise<string>;
   onTestCaseLine: (callback: (line: string) => void) => () => void;
   fetchConfluencePage: (pageId: string) => Promise<DocPageData>;
+  searchConfluencePages: (query: string) => Promise<DocPageData[]>;
   generateStories: (
     pageData: DocPageData,
     context: string,

@@ -166,4 +166,116 @@ describe('ConfluenceService', () => {
       );
     });
   });
+
+  describe('searchPages scenarios', () => {
+    it('should search pages by text and map results on success', async () => {
+      const service = new ConfluenceService(
+        'myorg.atlassian.net',
+        'user',
+        'token',
+      );
+
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [
+            {
+              id: '101',
+              title: 'Project Requirements',
+              body: { storage: { value: '<p>Req content</p>' } },
+            },
+            {
+              id: '102',
+              title: 'API Spec Requirements',
+              body: { storage: { value: '<p>API content</p>' } },
+            },
+          ],
+        }),
+      } as Response);
+
+      const result = await service.searchPages('Requirements');
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://myorg.atlassian.net/wiki/rest/api/content/search?cql=title%20~%20%22Requirements%22%20and%20type%20%3D%20%22page%22&expand=body.storage&limit=20',
+        expect.any(Object),
+      );
+
+      expect(result).toEqual([
+        {
+          id: '101',
+          title: 'Project Requirements',
+          body: '<p>Req content</p>',
+        },
+        {
+          id: '102',
+          title: 'API Spec Requirements',
+          body: '<p>API content</p>',
+        },
+      ]);
+    });
+
+    it('should prioritize exact matching Page ID first if query is numeric', async () => {
+      const service = new ConfluenceService(
+        'myorg.atlassian.net',
+        'user',
+        'token',
+      );
+
+      // First fetch: exact page fetch
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: '555',
+          title: 'Stitch Requirements',
+          body: { storage: { value: '<h1>Exact match body</h1>' } },
+        }),
+      } as Response);
+
+      // Second fetch: search pages fetch
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [
+            {
+              id: '555',
+              title: 'Stitch Requirements',
+              body: { storage: { value: '<h1>Exact match body</h1>' } },
+            },
+            {
+              id: '888',
+              title: 'Other page 555',
+              body: { storage: { value: '<p>Other body</p>' } },
+            },
+          ],
+        }),
+      } as Response);
+
+      const result = await service.searchPages('555');
+
+      expect(fetchSpy).toHaveBeenNthCalledWith(
+        1,
+        'https://myorg.atlassian.net/wiki/rest/api/content/555?expand=body.storage',
+        expect.any(Object),
+      );
+
+      expect(fetchSpy).toHaveBeenNthCalledWith(
+        2,
+        'https://myorg.atlassian.net/wiki/rest/api/content/search?cql=title%20~%20%22555%22%20and%20type%20%3D%20%22page%22&expand=body.storage&limit=20',
+        expect.any(Object),
+      );
+
+      expect(result).toEqual([
+        {
+          id: '555',
+          title: 'Stitch Requirements',
+          body: '<h1>Exact match body</h1>',
+        },
+        {
+          id: '888',
+          title: 'Other page 555',
+          body: '<p>Other body</p>',
+        },
+      ]);
+    });
+  });
 });
