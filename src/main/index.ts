@@ -107,6 +107,11 @@ ipcMain.handle('fetch-ticket', async (event, ticketId) => {
   return service.fetchTicket(ticketId);
 });
 
+ipcMain.handle('search-tickets', async (event, query) => {
+  const service = await getAzureService();
+  return service.searchTickets(query);
+});
+
 ipcMain.handle(
   'generate-test-cases',
   async (event, ticketData, additionalContext, modelOverride) => {
