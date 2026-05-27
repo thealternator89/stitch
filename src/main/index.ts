@@ -114,6 +114,9 @@ ipcMain.handle(
       ticketData,
       additionalContext,
       modelOverride,
+      (line: string) => {
+        event.sender.send('test-case-line', line);
+      },
     );
   },
 );
@@ -145,6 +148,9 @@ ipcMain.handle(
       pageData,
       additionalContext,
       modelOverride,
+      (line: string) => {
+        event.sender.send('story-line', line);
+      },
     );
   },
 );

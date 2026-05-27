@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
 import { TicketData } from '../../types';
+
+interface TestCase {
+  id: string;
+  description: string;
+  preConditions: string;
+  steps: string;
+  expectedResult: string;
+  priority: string;
+}
 
 const generateTicketOrCommentText = (testCases: string) =>
   [
@@ -16,44 +23,82 @@ const generateTicketOrCommentText = (testCases: string) =>
     'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
   ].join('\n');
 
+const convertToMarkdownTable = (tcList: TestCase[]): string => {
+  if (tcList.length === 0) return '';
+  const headers = [
+    '| Test Case ID | Description | Pre-conditions | Steps | Expected Result | Priority |',
+    '| --- | --- | --- | --- | --- | --- |',
+  ];
+  const rows = tcList.map((tc) => {
+    const id = (tc.id || '').replace(/\|/g, '\\|').trim();
+    const desc = (tc.description || '')
+      .replace(/\|/g, '\\|')
+      .replace(/\n/g, ' ')
+      .trim();
+    const pre = (tc.preConditions || '')
+      .replace(/\|/g, '\\|')
+      .replace(/\n/g, '<br>')
+      .trim();
+    const steps = (tc.steps || '')
+      .replace(/\|/g, '\\|')
+      .replace(/\n/g, '<br>')
+      .trim();
+    const expected = (tc.expectedResult || '')
+      .replace(/\|/g, '\\|')
+      .replace(/\n/g, '<br>')
+      .trim();
+    const prio = (tc.priority || '').replace(/\|/g, '\\|').trim();
+    return `| ${id} | ${desc} | ${pre} | ${steps} | ${expected} | ${prio} |`;
+  });
+  return [...headers, ...rows].join('\n');
+};
+
 const TestCaseWriter: React.FC = () => {
   const [ticketId, setTicketId] = useState('');
   const [context, setContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStarted, setGenerationStarted] = useState(false);
   const [ticketData, setTicketData] = useState<TicketData | null>(null);
-  const [testCases, setTestCases] = useState<string>('');
+  const [testCasesList, setTestCasesList] = useState<TestCase[]>([]);
   const [error, setError] = useState<string>('');
   const [isPosting, setIsPosting] = useState(false);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
 
   const handleAddComment = async () => {
+    if (testCasesList.length === 0) return;
     setIsPosting(true);
     try {
-      const text = generateTicketOrCommentText(testCases);
+      const mdTable = convertToMarkdownTable(testCasesList);
+      const text = generateTicketOrCommentText(mdTable);
       await window.electronAPI.addComment(ticketId, text);
       alert('Comment added successfully!');
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Failed to add comment.');
+      const errMsg =
+        err instanceof Error ? err.message : 'Failed to add comment.';
+      alert(errMsg);
     } finally {
       setIsPosting(false);
     }
   };
 
   const handleAddTask = async () => {
+    if (testCasesList.length === 0) return;
     setIsPosting(true);
     try {
-      const text = generateTicketOrCommentText(testCases);
+      const mdTable = convertToMarkdownTable(testCasesList);
+      const text = generateTicketOrCommentText(mdTable);
       await window.electronAPI.createTicket('Task', ticketId, {
         title: 'BA Test',
         description: text,
       });
       alert('Task created successfully!');
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Failed to create task.');
+      const errMsg =
+        err instanceof Error ? err.message : 'Failed to create task.';
+      alert(errMsg);
     } finally {
       setIsPosting(false);
     }
@@ -68,46 +113,75 @@ const TestCaseWriter: React.FC = () => {
     setError('');
     setIsGenerating(true);
     setGenerationStarted(true);
-    setTestCases('');
+    setTestCasesList([]);
     setTicketData(null);
+
+    // Set up real-time listener for incoming lines
+    const unsubscribe = window.electronAPI.onTestCaseLine((line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('```')) return;
+
+      try {
+        const testCase: TestCase = JSON.parse(trimmed);
+        if (testCase && typeof testCase === 'object') {
+          setTestCasesList((prev) => {
+            const exists = prev.some((tc) => tc.id === testCase.id);
+            if (exists) {
+              return prev.map((tc) => (tc.id === testCase.id ? testCase : tc));
+            }
+            return [...prev, testCase];
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to parse JSONL line:', trimmed, err);
+      }
+    });
 
     try {
       // 1. Fetch Ticket Data
       const fetchedTicket = await window.electronAPI.fetchTicket(ticketId);
       setTicketData(fetchedTicket);
 
-      // 2. Generate Test Cases using Copilot SDK
-      const generatedResult = await window.electronAPI.generateTestCases(
+      // 2. Generate Test Cases using Copilot SDK (this will stream lines via event listeners)
+      await window.electronAPI.generateTestCases(
         fetchedTicket,
         context,
         selectedModel,
       );
-      setTestCases(generatedResult);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'An error occurred during generation.');
+      const errMsg =
+        err instanceof Error
+          ? err.message
+          : 'An error occurred during generation.';
+      setError(errMsg);
     } finally {
+      unsubscribe();
       setIsGenerating(false);
     }
   };
 
   return (
-    <PageLayout title="Test Case Writer" maxWidth="1400px">
-      <div className="row">
+    <PageLayout title="Test Case Writer" maxWidth="100%">
+      <div className="row animate__animated animate__fadeIn">
         {/* Left Column: Input Form */}
-        <div className="col-md-4">
-          <div className="card shadow-sm mb-4">
-            <div className="card-header bg-primary text-white">
-              <h5 className="mb-0">Ticket Details</h5>
+        <div className="col-md-4 col-lg-3">
+          <div className="card shadow-sm border-0 mb-4">
+            <div className="card-header bg-primary text-white py-3">
+              <h5 className="mb-0 fw-semibold">
+                <i className="fas fa-edit me-2"></i>Ticket Details
+              </h5>
             </div>
-            <div className="card-body">
+            <div className="card-body p-4">
               {error && <div className="alert alert-danger">{error}</div>}
 
               <div className="mb-3">
-                <label className="form-label">Ticket ID (Azure DevOps)</label>
+                <label className="form-label fw-medium text-secondary">
+                  Ticket ID (Azure DevOps)
+                </label>
                 <input
                   type="text"
-                  className="form-control"
+                  className="form-control form-control-lg border-2"
                   placeholder="e.g., 12345"
                   value={ticketId}
                   onChange={(e) => setTicketId(e.target.value)}
@@ -115,12 +189,12 @@ const TestCaseWriter: React.FC = () => {
                 />
               </div>
 
-              <div className="mb-3">
-                <label className="form-label">
+              <div className="mb-4">
+                <label className="form-label fw-medium text-secondary">
                   Additional Context (Optional)
                 </label>
                 <textarea
-                  className="form-control"
+                  className="form-control border-2"
                   rows={4}
                   placeholder="e.g., focus on edge cases or accessibility requirements..."
                   value={context}
@@ -130,7 +204,7 @@ const TestCaseWriter: React.FC = () => {
               </div>
 
               <button
-                className="btn btn-primary w-100"
+                className="btn btn-primary btn-lg w-100 py-3 shadow-sm hover-grow"
                 onClick={handleGenerate}
                 disabled={isGenerating}
               >
@@ -154,15 +228,23 @@ const TestCaseWriter: React.FC = () => {
           </div>
 
           {ticketData && (
-            <div className="card shadow-sm border-info">
-              <div className="card-header bg-info text-white">
-                <h6 className="mb-0">Fetched Ticket: #{ticketData.id}</h6>
+            <div className="card shadow-sm border-0 border-start border-info border-4 mb-3">
+              <div className="card-header bg-body-secondary border-bottom py-2">
+                <h6 className="mb-0 text-info fw-bold small">
+                  <i className="fas fa-ticket-alt me-2"></i>Fetched Ticket: #
+                  {ticketData.id}
+                </h6>
               </div>
-              <div className="card-body">
-                <h6>{ticketData.title}</h6>
+              <div className="card-body p-3">
+                <h6
+                  className="fw-semibold mb-2 small text-truncate"
+                  title={ticketData.title}
+                >
+                  {ticketData.title}
+                </h6>
                 <div
                   className="text-muted small overflow-auto"
-                  style={{ maxHeight: '200px' }}
+                  style={{ maxHeight: '100px', lineHeight: '1.5' }}
                   dangerouslySetInnerHTML={{ __html: ticketData.description }}
                 />
               </div>
@@ -171,74 +253,174 @@ const TestCaseWriter: React.FC = () => {
         </div>
 
         {/* Right Column: Results */}
-        <div className="col-md-8">
-          <div className="card shadow-sm h-100 min-vh-50">
-            <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">Generated Test Cases</h5>
-              <div className="d-flex align-items-center gap-2">
+        <div className="col-md-8 col-lg-9">
+          <div
+            className="card shadow-sm border-0 d-flex flex-column"
+            style={{ height: 'calc(100vh - 195px)', minHeight: '400px' }}
+          >
+            <div className="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-shrink-0">
+              <h5 className="mb-0 fw-semibold">
+                <i className="fas fa-clipboard-list me-2"></i>Generated Test
+                Cases
+              </h5>
+              <div className="d-flex align-items-center gap-3">
                 {!generationStarted && (
                   <ModelDropdown
                     models={models}
                     selectedModel={selectedModel}
                     onSelect={setSelectedModel}
                     loading={loadingModels}
-                    className="w-25"
+                    className="w-auto border-0 shadow-sm"
                   />
                 )}
-                {testCases && (
+                {testCasesList.length > 0 && (
                   <button
-                    className="btn btn-sm btn-outline-light"
-                    onClick={() => navigator.clipboard.writeText(testCases)}
+                    className="btn btn-sm btn-outline-light px-3 py-2 fw-medium"
+                    onClick={() => {
+                      const mdTable = convertToMarkdownTable(testCasesList);
+                      navigator.clipboard.writeText(mdTable);
+                    }}
+                    disabled={isGenerating}
                   >
-                    <i className="fas fa-copy me-1"></i>
-                    Copy
+                    <i className="fas fa-copy me-2"></i>
+                    Copy Table
                   </button>
                 )}
               </div>
             </div>
-            <div
-              className="card-body overflow-auto"
-              style={{ maxHeight: '600px' }}
-            >
-              {testCases ? (
-                <div className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {testCases}
-                  </ReactMarkdown>
+            <div className="card-body p-4 overflow-auto flex-grow-1">
+              {testCasesList.length > 0 ? (
+                <div className="table-responsive border rounded-3 overflow-hidden shadow-sm">
+                  <table className="table table-striped table-hover align-middle mb-0">
+                    <thead className="table-dark">
+                      <tr>
+                        <th style={{ width: '12%', minWidth: '80px' }}>ID</th>
+                        <th style={{ width: '23%', minWidth: '150px' }}>
+                          Description
+                        </th>
+                        <th style={{ width: '20%', minWidth: '130px' }}>
+                          Pre-conditions
+                        </th>
+                        <th style={{ width: '25%', minWidth: '180px' }}>
+                          Steps
+                        </th>
+                        <th style={{ width: '12%', minWidth: '100px' }}>
+                          Expected Result
+                        </th>
+                        <th style={{ width: '8%', minWidth: '80px' }}>
+                          Priority
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {testCasesList.map((tc, index) => (
+                        <tr
+                          key={tc.id || index}
+                          className="animate__animated animate__fadeInUp"
+                          style={{ animationDuration: '0.4s' }}
+                        >
+                          <td className="fw-bold text-primary">{tc.id}</td>
+                          <td className="text-secondary small">
+                            {tc.description}
+                          </td>
+                          <td className="text-secondary small whitespace-pre-wrap">
+                            {tc.preConditions}
+                          </td>
+                          <td
+                            className="text-secondary small whitespace-pre-wrap"
+                            style={{ whiteSpace: 'pre-wrap' }}
+                          >
+                            {tc.steps}
+                          </td>
+                          <td className="text-secondary small whitespace-pre-wrap">
+                            {tc.expectedResult}
+                          </td>
+                          <td>
+                            <span
+                              className={`badge rounded-pill px-3 py-2 fw-semibold ${
+                                tc.priority?.toLowerCase() === 'high'
+                                  ? 'bg-danger text-white'
+                                  : tc.priority?.toLowerCase() === 'medium'
+                                    ? 'bg-warning text-dark'
+                                    : 'bg-secondary text-white'
+                              }`}
+                            >
+                              {tc.priority || 'Medium'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {isGenerating && (
+                        <tr className="animate__animated animate__fadeIn opacity-75">
+                          <td className="py-3">
+                            <div className="d-flex align-items-center gap-2">
+                              <span
+                                className="spinner-grow spinner-grow-sm text-primary"
+                                role="status"
+                                style={{ animationDuration: '1s' }}
+                              ></span>
+                              <span className="text-muted small">...</span>
+                            </div>
+                          </td>
+                          <td colSpan={5} className="py-3">
+                            <span className="text-muted small fst-italic animate__animated animate__pulse animate__infinite d-inline-block">
+                              Generating next test case...
+                            </span>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
-                <div className="text-center py-5 text-muted">
+                <div className="text-center py-5 my-5 text-muted">
                   {isGenerating ? (
                     <div className="py-5">
                       <div
                         className="spinner-grow text-primary"
                         role="status"
+                        style={{ width: '3rem', height: '3rem' }}
                       ></div>
-                      <p className="mt-3">Asking Copilot to write tests...</p>
+                      <p className="mt-4 fs-5 fw-medium">
+                        Streaming test cases from Copilot...
+                      </p>
+                      <p className="text-secondary small">
+                        Please wait as test scenarios are progressively parsed
+                        and rendered.
+                      </p>
                     </div>
                   ) : (
-                    <p>
-                      Enter a ticket ID and click "Generate" to see the results
-                      here.
-                    </p>
+                    <div className="py-5">
+                      <i
+                        className="fas fa-clipboard text-light-hover mb-4"
+                        style={{ fontSize: '4rem' }}
+                      ></i>
+                      <p className="fs-5 fw-semibold text-secondary">
+                        No Test Cases Generated Yet
+                      </p>
+                      <p className="small text-muted">
+                        Enter a ticket ID and click "Generate" to stream test
+                        scenarios here in real-time.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
             </div>
-            {testCases && (
-              <div className="card-footer d-flex justify-content-end gap-2">
+            {testCasesList.length > 0 && (
+              <div className="card-footer bg-body-tertiary py-3 d-flex justify-content-end gap-3 border-top flex-shrink-0">
                 <button
-                  className="btn btn-outline-primary"
+                  className="btn btn-outline-primary px-4 py-2 fw-semibold"
                   onClick={handleAddComment}
-                  disabled={isPosting}
+                  disabled={isPosting || isGenerating}
                 >
                   <i className="fas fa-comment me-2"></i>
                   Add Comment
                 </button>
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-primary px-4 py-2 fw-semibold"
                   onClick={handleAddTask}
-                  disabled={isPosting}
+                  disabled={isPosting || isGenerating}
                 >
                   <i className="fas fa-tasks me-2"></i>
                   Add Task

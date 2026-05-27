@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       context,
       modelOverride,
     ),
+  onTestCaseLine: (callback: (line: string) => void) => {
+    const listener = (_event: unknown, line: string) => callback(line);
+    ipcRenderer.on('test-case-line', listener);
+    return () => {
+      ipcRenderer.removeListener('test-case-line', listener);
+    };
+  },
   fetchConfluencePage: (pageId: string) =>
     ipcRenderer.invoke('fetch-confluence-page', pageId),
   generateStories: (
@@ -24,6 +31,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     context: string,
     modelOverride: string,
   ) => ipcRenderer.invoke('generate-stories', pageData, context, modelOverride),
+  onStoryLine: (callback: (line: string) => void) => {
+    const listener = (_event: unknown, line: string) => callback(line);
+    ipcRenderer.on('story-line', listener);
+    return () => {
+      ipcRenderer.removeListener('story-line', listener);
+    };
+  },
   addComment: (ticketId: string, text: string) =>
     ipcRenderer.invoke('add-comment', ticketId, text),
   createTicket: (type: string, parentTicketId: string, data: TicketData) =>

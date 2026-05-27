@@ -42,9 +42,11 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
             onClick={() => onSelect(model.id)}
           >
             <span className="me-2 text-truncate">{model.name}</span>
-            <span className="text-muted ms-2">
-              {`×${model.billing.multiplier}`}
-            </span>
+            {model.billing?.multiplier && (
+              <span className="text-muted ms-2">
+                {`×${model.billing.multiplier}`}
+              </span>
+            )}
           </button>
         </li>
       ))}

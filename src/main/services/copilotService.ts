@@ -37,7 +37,7 @@ async function createCopilotClient() {
   return { client: new CopilotClient(), approveAll };
 }
 
-import { TicketData, DocPageData, StoryData } from '../../types';
+import { TicketData, DocPageData } from '../../types';
 
 export class CopilotService {
   private client: any = null;
@@ -70,6 +70,7 @@ export class CopilotService {
         model: this.model,
         availableTools: [], // Don't allow any tools to ensure the agent doesn't write to disk etc.
         onPermissionRequest: this.approveAll,
+        streaming: true,
       });
     }
     return this.session;
@@ -97,10 +98,96 @@ export class CopilotService {
     }
   }
 
+  private async sendAndCollectStream(
+    session: any,
+    prompt: string,
+    onLineOrTimeout?: ((line: string) => void) | number,
+    timeoutMs = 180000,
+  ): Promise<string> {
+    const chunks: string[] = [];
+    let buffer = '';
+    let lastAssistantMessage: any = null;
+    let resolvePromise: (value: string) => void;
+    let rejectPromise: (reason: any) => void;
+
+    const completionPromise = new Promise<string>((resolve, reject) => {
+      resolvePromise = resolve;
+      rejectPromise = reject;
+    });
+
+    let onLine: ((line: string) => void) | undefined;
+    let actualTimeout = timeoutMs;
+
+    if (typeof onLineOrTimeout === 'number') {
+      actualTimeout = onLineOrTimeout;
+    } else {
+      onLine = onLineOrTimeout;
+    }
+
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    const unsubscribe = session.on((event: any) => {
+      if (event.type === 'assistant.message_delta') {
+        const delta = event.data?.deltaContent;
+        if (delta) {
+          chunks.push(delta);
+          if (onLine) {
+            buffer += delta;
+            let newlineIndex;
+            while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+              const line = buffer.slice(0, newlineIndex);
+              buffer = buffer.slice(newlineIndex + 1);
+              if (line.trim()) {
+                onLine(line);
+              }
+            }
+          }
+        }
+      } else if (event.type === 'assistant.message') {
+        lastAssistantMessage = event;
+      } else if (event.type === 'session.idle') {
+        if (onLine && buffer.trim()) {
+          onLine(buffer);
+        }
+        const fullContent =
+          chunks.join('') || lastAssistantMessage?.data?.content || '';
+        resolvePromise(fullContent);
+      } else if (event.type === 'session.error') {
+        const error = new Error(
+          event.data?.message || 'Session error occurred',
+        );
+        if (event.data?.stack) {
+          error.stack = event.data.stack;
+        }
+        rejectPromise(error);
+      }
+    });
+
+    try {
+      await session.send({ prompt });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(
+            new Error(`Timeout after ${actualTimeout}ms waiting for response`),
+          );
+        }, actualTimeout);
+      });
+
+      return await Promise.race([completionPromise, timeoutPromise]);
+    } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+      unsubscribe();
+    }
+  }
+
   async generateTestCases(
     ticketData: TicketData,
     additionalContext: string,
     modelOverride: string,
+    onLine?: (line: string) => void,
   ) {
     try {
       this.setModel(modelOverride);
@@ -116,20 +203,28 @@ export class CopilotService {
         
         Additional Context: ${additionalContext || 'None provided'}
         
-        Please format the output in a Markdown table, including:
-        - Test Case ID
-        - Description
-        - Pre-conditions
-        - Steps
-        - Expected Result
-        - Priority
+        Please format the output as JSON Lines (JSONL), where each line is a valid JSON object.
+        Do NOT wrap the JSON objects inside a JSON array. Each line MUST be a standalone JSON object.
+        
+        Each JSON object must have exactly the following keys:
+        - "id": (string) Test Case ID (e.g., "TC01")
+        - "description": (string) Brief description of the test scenario
+        - "preConditions": (string) Any preconditions required before running the test
+        - "steps": (string) Bullet-pointed or numbered steps to execute the test
+        - "expectedResult": (string) The expected result
+        - "priority": (string) Priority of the test (e.g., "High", "Medium", "Low")
 
         DO NOT create any files, directly output the test cases in your response here.
-        DO NOT include any other text in your response other than the markdown table.
+        DO NOT include any other text in your response (no explanation, no intro, no outro, no markdown fences).
       `;
 
-      const response = await session.sendAndWait({ prompt }, 180000);
-      return response?.data?.content || 'No content returned from Copilot.';
+      const responseContent = await this.sendAndCollectStream(
+        session,
+        prompt,
+        onLine,
+        180000,
+      );
+      return responseContent;
     } catch (error) {
       console.error('Error generating test cases:', error);
       throw error;
@@ -138,9 +233,10 @@ export class CopilotService {
 
   async generateStories(
     pageData: DocPageData,
-    additionalContext?: string,
-    modelOverride?: string,
-  ): Promise<StoryData[]> {
+    additionalContext: string,
+    modelOverride: string,
+    onLine?: (line: string) => void,
+  ): Promise<string> {
     try {
       this.setModel(modelOverride);
       const session = await this.getSession();
@@ -153,34 +249,26 @@ export class CopilotService {
         
         Additional Context: ${additionalContext || 'None provided'}
         
-        Please output ONLY a valid JSON array of objects, with no markdown formatting or other text.
-        Each object should have the following properties:
+        Please format the output as JSON Lines (JSONL), where each line is a valid JSON object.
+        Do NOT wrap the JSON objects inside a JSON array. Each line MUST be a standalone JSON object.
+        
+        Each JSON object must have exactly the following keys:
         - "title": (string) The title of the story
         - "description": (string) Description. This should contain a statement in the format "As a... I want to... So that..." followed by 2 blank lines and then a longer description of the changes required for story.
-        - "acceptanceCriteria": (string) Formatted as a list. Use markdown within the string with \\n for newlines.
+        - "acceptanceCriteria": (string) Formatted as a markdown list. Use standard formatting without embedded newlines or with escaped newlines inside the JSON string as needed.
         - "notes": (string) Any additional notes or assumptions (Optional, can be empty)
 
-        DO NOT create any files, directly output the test cases in your response here.
-        DO NOT include any other text (including markdown code block) in your response other than the JSON blob.
+        DO NOT create any files, directly output the user stories in your response here.
+        DO NOT include any other text in your response (no explanation, no intro, no outro, no markdown fences).
       `;
 
-      const response = await session.sendAndWait({ prompt }, 180000);
-      const rawContent = response?.data?.content || '[]';
-
-      try {
-        // Attempt to extract JSON from markdown code block if present
-        const jsonMatch = rawContent.match(/```json\s*([\s\S]*?)\s*```/);
-        const jsonString = jsonMatch ? jsonMatch[1] : rawContent.trim();
-        return JSON.parse(jsonString);
-      } catch (_e) {
-        console.error(
-          'Failed to parse JSON from Copilot response:',
-          rawContent,
-        );
-        throw new Error(
-          'Failed to parse stories from Copilot. The output was not valid JSON.',
-        );
-      }
+      const responseContent = await this.sendAndCollectStream(
+        session,
+        prompt,
+        onLine,
+        180000,
+      );
+      return responseContent;
     } catch (error) {
       console.error('Error generating stories:', error);
       throw error;
