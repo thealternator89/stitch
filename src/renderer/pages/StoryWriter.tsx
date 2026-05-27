@@ -135,10 +135,10 @@ const StoryWriter: React.FC = () => {
   };
 
   return (
-    <PageLayout title="Story Writer" maxWidth="1400px">
+    <PageLayout title="Story Writer" maxWidth="100%">
       <div className="row animate__animated animate__fadeIn">
         {/* Left Column: Input Form */}
-        <div className="col-md-4">
+        <div className="col-md-4 col-lg-3">
           <div className="card shadow-sm border-0 mb-4">
             <div className="card-header bg-success text-white py-3">
               <h5 className="mb-0 fw-semibold">
@@ -226,7 +226,7 @@ const StoryWriter: React.FC = () => {
         </div>
 
         {/* Right Column: Results */}
-        <div className="col-md-8">
+        <div className="col-md-8 col-lg-9">
           <div
             className="card shadow-sm border-0 d-flex flex-column"
             style={{ height: 'calc(100vh - 195px)', minHeight: '400px' }}
