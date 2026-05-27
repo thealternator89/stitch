@@ -231,32 +231,56 @@ describe('AzureDevOpsService', () => {
     });
 
     it('should query work items by title and ID when search is numeric', async () => {
+      mockWitApi.getWorkItem.mockResolvedValueOnce({
+        id: 456,
+        fields: {
+          'System.Title': 'Fix login bug 456',
+          'System.Description': 'Description 456',
+        },
+      });
+
       mockWitApi.queryByWiql.mockResolvedValueOnce({
-        workItems: [{ id: 456 }],
+        workItems: [{ id: 456 }, { id: 789 }],
       });
 
       mockWitApi.getWorkItems.mockResolvedValueOnce([
         {
-          id: 456,
+          id: 789,
           fields: {
-            'System.Title': 'Fix login bug 456',
-            'System.Description': 'Description 456',
+            'System.Title': 'Another bug 456',
+            'System.Description': 'Description 789',
           },
         },
       ]);
 
       const result = await service.searchTickets('456');
 
+      expect(mockWitApi.getWorkItem).toHaveBeenCalledWith(456);
       expect(mockWitApi.queryByWiql).toHaveBeenCalledWith({
         query:
-          "Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains '456' Or [System.Id] = 456 Order By [System.Id] Desc",
+          "Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains '456' Order By [System.Id] Desc",
       });
+      expect(mockWitApi.getWorkItems).toHaveBeenCalledWith(
+        [789],
+        [
+          'System.Id',
+          'System.Title',
+          'System.Description',
+          'Microsoft.VSTS.Common.AcceptanceCriteria',
+        ],
+      );
 
       expect(result).toEqual([
         {
           id: '456',
           title: 'Fix login bug 456',
           description: 'Description 456',
+          acceptanceCriteria: '',
+        },
+        {
+          id: '789',
+          title: 'Another bug 456',
+          description: 'Description 789',
           acceptanceCriteria: '',
         },
       ]);

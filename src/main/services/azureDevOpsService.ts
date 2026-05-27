@@ -115,46 +115,77 @@ export class AzureDevOpsService implements IssueTrackerProvider {
 
   async searchTickets(query: string): Promise<TicketData[]> {
     const witApi = await this.getApi();
-    const escapedQuery = query.replace(/'/g, "''");
+    const cleanQuery = query.trim();
+    const isNumber = /^\d+$/.test(cleanQuery);
 
-    const isNumber = /^\d+$/.test(query.trim());
-    let wiqlQuery = `Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains '${escapedQuery}'`;
+    let exactMatch: TicketData | null = null;
     if (isNumber) {
-      wiqlQuery += ` Or [System.Id] = ${query.trim()}`;
+      try {
+        const item = await witApi.getWorkItem(parseInt(cleanQuery));
+        if (item && item.id !== undefined && item.fields) {
+          exactMatch = {
+            id: item.id.toString(),
+            title: item.fields['System.Title'] || '',
+            description: item.fields['System.Description'] || '',
+            acceptanceCriteria:
+              item.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || '',
+          };
+        }
+      } catch (error) {
+        // Suppress error if work item is not found or fails
+        console.warn(
+          `Exact match search for ID ${cleanQuery} failed/not found:`,
+          error,
+        );
+      }
     }
+
+    const escapedQuery = cleanQuery.replace(/'/g, "''");
+    let wiqlQuery = `Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains '${escapedQuery}'`;
     wiqlQuery += ' Order By [System.Id] Desc';
 
     try {
       const queryResult = await witApi.queryByWiql({ query: wiqlQuery });
       const workItemsRefs = queryResult.workItems || [];
-      if (workItemsRefs.length === 0) {
-        return [];
-      }
 
-      // Limit to top 20 search results for performance
-      const ids = workItemsRefs
-        .slice(0, 20)
+      let ids = workItemsRefs
         .map((wi) => wi.id)
         .filter((id): id is number => id !== undefined);
 
-      if (ids.length === 0) {
-        return [];
+      if (exactMatch) {
+        const exactIdNum = parseInt(exactMatch.id!);
+        ids = ids.filter((id) => id !== exactIdNum);
       }
 
-      const workItems = await witApi.getWorkItems(ids, [
-        'System.Id',
-        'System.Title',
-        'System.Description',
-        'Microsoft.VSTS.Common.AcceptanceCriteria',
-      ]);
+      // Limit to top 20 results (or 19 if we have exactMatch) for performance
+      const limit = exactMatch ? 19 : 20;
+      const slicedIds = ids.slice(0, limit);
 
-      return workItems.map((wi) => ({
-        id: wi.id?.toString() || '',
-        title: wi.fields?.['System.Title'] || '',
-        description: wi.fields?.['System.Description'] || '',
-        acceptanceCriteria:
-          wi.fields?.['Microsoft.VSTS.Common.AcceptanceCriteria'] || '',
-      }));
+      let results: TicketData[] = [];
+      if (exactMatch) {
+        results.push(exactMatch);
+      }
+
+      if (slicedIds.length > 0) {
+        const workItems = await witApi.getWorkItems(slicedIds, [
+          'System.Id',
+          'System.Title',
+          'System.Description',
+          'Microsoft.VSTS.Common.AcceptanceCriteria',
+        ]);
+
+        const mapped = workItems.map((wi) => ({
+          id: wi.id?.toString() || '',
+          title: wi.fields?.['System.Title'] || '',
+          description: wi.fields?.['System.Description'] || '',
+          acceptanceCriteria:
+            wi.fields?.['Microsoft.VSTS.Common.AcceptanceCriteria'] || '',
+        }));
+
+        results = results.concat(mapped);
+      }
+
+      return results;
     } catch (error) {
       console.error('Error searching work items:', error);
       throw error;
