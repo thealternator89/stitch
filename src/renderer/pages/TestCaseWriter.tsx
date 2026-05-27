@@ -280,6 +280,7 @@ const TestCaseWriter: React.FC = () => {
                       const mdTable = convertToMarkdownTable(testCasesList);
                       navigator.clipboard.writeText(mdTable);
                     }}
+                    disabled={isGenerating}
                   >
                     <i className="fas fa-copy me-2"></i>
                     Copy Table
@@ -411,7 +412,7 @@ const TestCaseWriter: React.FC = () => {
                 <button
                   className="btn btn-outline-primary px-4 py-2 fw-semibold"
                   onClick={handleAddComment}
-                  disabled={isPosting}
+                  disabled={isPosting || isGenerating}
                 >
                   <i className="fas fa-comment me-2"></i>
                   Add Comment
@@ -419,7 +420,7 @@ const TestCaseWriter: React.FC = () => {
                 <button
                   className="btn btn-primary px-4 py-2 fw-semibold"
                   onClick={handleAddTask}
-                  disabled={isPosting}
+                  disabled={isPosting || isGenerating}
                 >
                   <i className="fas fa-tasks me-2"></i>
                   Add Task

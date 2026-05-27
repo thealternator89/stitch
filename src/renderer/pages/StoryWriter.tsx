@@ -253,6 +253,7 @@ const StoryWriter: React.FC = () => {
                         JSON.stringify(stories, null, 2),
                       )
                     }
+                    disabled={isGenerating}
                   >
                     <i className="fas fa-copy me-2"></i>
                     Copy JSON
@@ -394,13 +395,13 @@ const StoryWriter: React.FC = () => {
                       placeholder="e.g. 12345"
                       value={featureId}
                       onChange={(e) => setFeatureId(e.target.value)}
-                      disabled={isCreating}
+                      disabled={isCreating || isGenerating}
                     />
                   </div>
                   <button
                     className="btn btn-success px-4 py-2 fw-semibold shadow-sm hover-grow"
                     onClick={handleCreateStories}
-                    disabled={isCreating}
+                    disabled={isCreating || isGenerating}
                   >
                     {isCreating ? (
                       <>
