@@ -229,7 +229,7 @@ const StoryWriter: React.FC = () => {
         <div className="col-md-8">
           <div
             className="card shadow-sm border-0 d-flex flex-column"
-            style={{ height: 'calc(100vh - 180px)', minHeight: '400px' }}
+            style={{ height: 'calc(100vh - 195px)', minHeight: '400px' }}
           >
             <div className="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-shrink-0">
               <h5 className="mb-0 fw-semibold">
