@@ -91,6 +91,8 @@ export class CopilotService {
 
       if (authStatus?.isAuthenticated) {
         try {
+          // If authentication succeeds, refresh the cached models. This ensures a valid list
+          // is populated if startup credentials were bad/missing, and reuses the active client.
           const models = await client.listModels();
           this.cachedModels = models;
         } catch (modelsError) {
