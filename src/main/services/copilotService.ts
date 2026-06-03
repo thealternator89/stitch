@@ -37,65 +37,101 @@ async function createCopilotClient() {
   return { client: new CopilotClient(), approveAll };
 }
 
-import { TicketData, DocPageData } from '../../types';
+import { TicketData, DocPageData, CopilotModel } from '../../types';
 
 export class CopilotService {
-  private client: any = null;
-  private approveAll: any = null;
-  private session: any = null;
   private model = 'gpt-4.1';
+  private cachedModels: CopilotModel[] = [];
 
   setModel(model: string) {
-    if (model && model !== this.model) {
+    if (model) {
       this.model = model;
-      // Invalidate the session so it will be re-created with the new model
-      this.session = null;
     }
   }
 
-  private async ensureCopilotClient() {
-    if (!this.client) {
-      const { client, approveAll } = await createCopilotClient();
-      this.client = client;
-      this.approveAll = approveAll;
+  async initializeAsync(): Promise<void> {
+    try {
+      await this.fetchAndCacheModels();
+    } catch (error: any) {
+      console.warn(
+        'Could not pre-fetch Copilot models on startup:',
+        error.message || error,
+      );
     }
-    await this.client.start();
-    return this.client;
   }
 
-  private async getSession() {
-    await this.ensureCopilotClient();
-    if (!this.session) {
-      this.session = await this.client.createSession({
-        model: this.model,
-        availableTools: [], // Don't allow any tools to ensure the agent doesn't write to disk etc.
-        onPermissionRequest: this.approveAll,
-        streaming: true,
-      });
+  private async fetchAndCacheModels(): Promise<CopilotModel[]> {
+    const { client } = await createCopilotClient();
+    try {
+      await client.start();
+      const models = await client.listModels();
+      this.cachedModels = models;
+      return models;
+    } catch (error) {
+      console.error('Error fetching/caching Copilot models:', error);
+      throw error;
+    } finally {
+      try {
+        await client.stop();
+      } catch (stopError) {
+        console.error(
+          'Error stopping Copilot client after fetching models:',
+          stopError,
+        );
+      }
     }
-    return this.session;
   }
 
   async checkAuthStatus() {
+    const { client } = await createCopilotClient();
     try {
-      await this.ensureCopilotClient();
-      const authStatus = await this.client.getAuthStatus();
-      const status = await this.client.getStatus();
+      await client.start();
+      const authStatus = await client.getAuthStatus();
+      const status = await client.getStatus();
+
+      if (authStatus?.isAuthenticated) {
+        try {
+          const models = await client.listModels();
+          this.cachedModels = models;
+        } catch (modelsError) {
+          console.error(
+            'Error refreshing models during auth check:',
+            modelsError,
+          );
+        }
+      }
+
       return { authStatus, status };
     } catch (error) {
       console.error('Error checking Copilot auth status:', error);
       throw error;
+    } finally {
+      try {
+        await client.stop();
+      } catch (stopError) {
+        console.error(
+          'Error stopping Copilot client in checkAuthStatus:',
+          stopError,
+        );
+      }
     }
   }
 
-  async listModels() {
-    try {
-      await this.ensureCopilotClient();
-      return await this.client.listModels();
-    } catch (error) {
-      console.error('Error listing Copilot models:', error);
-      throw error;
+  async listModels(): Promise<CopilotModel[]> {
+    if (this.cachedModels.length > 0) {
+      return this.cachedModels;
     }
+    return this.fetchAndCacheModels();
+  }
+
+  clearCache() {
+    this.cachedModels = [];
+    this.initializeAsync().catch((err) => {
+      console.error(
+        'Failed to re-initialize copilotService after settings update:',
+        err,
+      );
+    });
   }
 
   private async sendAndCollectStream(
@@ -189,9 +225,16 @@ export class CopilotService {
     modelOverride: string,
     onLine?: (line: string) => void,
   ) {
+    const { client, approveAll } = await createCopilotClient();
+    let session: any = null;
     try {
-      this.setModel(modelOverride);
-      const session = await this.getSession();
+      await client.start();
+      session = await client.createSession({
+        model: modelOverride || this.model,
+        availableTools: [],
+        onPermissionRequest: approveAll,
+        streaming: true,
+      });
 
       const prompt = `
         Generate a set of comprehensive test cases for the following user story/ticket.
@@ -228,6 +271,19 @@ export class CopilotService {
     } catch (error) {
       console.error('Error generating test cases:', error);
       throw error;
+    } finally {
+      if (session) {
+        try {
+          await session.destroy();
+        } catch (e) {
+          console.error('Error destroying session in generateTestCases:', e);
+        }
+      }
+      try {
+        await client.stop();
+      } catch (e) {
+        console.error('Error stopping client in generateTestCases:', e);
+      }
     }
   }
 
@@ -237,9 +293,16 @@ export class CopilotService {
     modelOverride: string,
     onLine?: (line: string) => void,
   ): Promise<string> {
+    const { client, approveAll } = await createCopilotClient();
+    let session: any = null;
     try {
-      this.setModel(modelOverride);
-      const session = await this.getSession();
+      await client.start();
+      session = await client.createSession({
+        model: modelOverride || this.model,
+        availableTools: [],
+        onPermissionRequest: approveAll,
+        streaming: true,
+      });
 
       const prompt = `
         Generate a set of user stories based on the following functional requirements from a Confluence page.
@@ -272,17 +335,23 @@ export class CopilotService {
     } catch (error) {
       console.error('Error generating stories:', error);
       throw error;
+    } finally {
+      if (session) {
+        try {
+          await session.destroy();
+        } catch (e) {
+          console.error('Error destroying session in generateStories:', e);
+        }
+      }
+      try {
+        await client.stop();
+      } catch (e) {
+        console.error('Error stopping client in generateStories:', e);
+      }
     }
   }
 
   async cleanup() {
-    if (this.session) {
-      await this.session.destroy();
-      this.session = null;
-    }
-    if (this.client) {
-      await this.client.stop();
-      this.client = null;
-    }
+    // Connections are now short-lived and cleaned up automatically after each session.
   }
 }
