@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useCopilotModels } from '../hooks/useCopilotModels';
-import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
 import { CopilotAuth } from '../../types';
+
+import GeneralSettings from '../components/settings/GeneralSettings';
+import AzureSettings from '../components/settings/AzureSettings';
+import ConfluenceSettings from '../components/settings/ConfluenceSettings';
+import CopilotSettings from '../components/settings/CopilotSettings';
+import PromptSettings from '../components/settings/PromptSettings';
 
 const Settings: React.FC = () => {
   const [azureOrg, setAzureOrg] = useState('');
@@ -19,6 +24,25 @@ const Settings: React.FC = () => {
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
 
+  const [activeTab, setActiveTab] = useState<
+    'general' | 'azure' | 'confluence' | 'copilot' | 'prompts'
+  >('general');
+
+  // Story Writer Custom Prompts
+  const [storyGeneral, setStoryGeneral] = useState('');
+  const [storyTitle, setStoryTitle] = useState('');
+  const [storyDescription, setStoryDescription] = useState('');
+  const [storyAcceptanceCriteria, setStoryAcceptanceCriteria] = useState('');
+  const [storyNotes, setStoryNotes] = useState('');
+
+  // Test Case Writer Custom Prompts
+  const [testCaseGeneral, setTestCaseGeneral] = useState('');
+  const [testCaseId, setTestCaseId] = useState('');
+  const [testCaseDescription, setTestCaseDescription] = useState('');
+  const [testCasePreConditions, setTestCasePreConditions] = useState('');
+  const [testCaseSteps, setTestCaseSteps] = useState('');
+  const [testCaseExpectedResult, setTestCaseExpectedResult] = useState('');
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -32,6 +56,24 @@ const Settings: React.FC = () => {
           setConfluenceUser(settings.confluenceUser || '');
           setConfluenceToken(settings.confluenceToken || '');
           setTheme(settings.theme || 'auto');
+
+          // Load custom prompts
+          const prompts = settings.prompts || {};
+          const story = prompts.storyWriter || {};
+          const tc = prompts.testCaseWriter || {};
+
+          setStoryGeneral(story.general || '');
+          setStoryTitle(story.title || '');
+          setStoryDescription(story.description || '');
+          setStoryAcceptanceCriteria(story.acceptanceCriteria || '');
+          setStoryNotes(story.notes || '');
+
+          setTestCaseGeneral(tc.general || '');
+          setTestCaseId(tc.id || '');
+          setTestCaseDescription(tc.description || '');
+          setTestCasePreConditions(tc.preConditions || '');
+          setTestCaseSteps(tc.steps || '');
+          setTestCaseExpectedResult(tc.expectedResult || '');
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -53,6 +95,23 @@ const Settings: React.FC = () => {
         confluenceUser: confluenceUser,
         confluenceToken: confluenceToken,
         theme: theme,
+        prompts: {
+          storyWriter: {
+            general: storyGeneral,
+            title: storyTitle,
+            description: storyDescription,
+            acceptanceCriteria: storyAcceptanceCriteria,
+            notes: storyNotes,
+          },
+          testCaseWriter: {
+            general: testCaseGeneral,
+            id: testCaseId,
+            description: testCaseDescription,
+            preConditions: testCasePreConditions,
+            steps: testCaseSteps,
+            expectedResult: testCaseExpectedResult,
+          },
+        },
       });
       setStatusMessage('Settings saved successfully!');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -84,8 +143,80 @@ const Settings: React.FC = () => {
     </button>
   );
 
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'general':
+        return <GeneralSettings theme={theme} setTheme={setTheme} />;
+      case 'azure':
+        return (
+          <AzureSettings
+            azureOrg={azureOrg}
+            setAzureOrg={setAzureOrg}
+            azureProject={azureProject}
+            setAzureProject={setAzureProject}
+            azurePat={azurePat}
+            setAzurePat={setAzurePat}
+          />
+        );
+      case 'confluence':
+        return (
+          <ConfluenceSettings
+            confluenceUrl={confluenceUrl}
+            setConfluenceUrl={setConfluenceUrl}
+            confluenceUser={confluenceUser}
+            setConfluenceUser={setConfluenceUser}
+            confluenceToken={confluenceToken}
+            setConfluenceToken={setConfluenceToken}
+          />
+        );
+      case 'copilot':
+        return (
+          <CopilotSettings
+            copilotToken={copilotToken}
+            setCopilotToken={setCopilotToken}
+            models={models}
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+            loadingModels={loadingModels}
+            authStatus={authStatus}
+            checkingAuth={checkingAuth}
+            handleCheckAuth={handleCheckAuth}
+          />
+        );
+      case 'prompts':
+        return (
+          <PromptSettings
+            storyGeneral={storyGeneral}
+            setStoryGeneral={setStoryGeneral}
+            storyTitle={storyTitle}
+            setStoryTitle={setStoryTitle}
+            storyDescription={storyDescription}
+            setStoryDescription={setStoryDescription}
+            storyAcceptanceCriteria={storyAcceptanceCriteria}
+            setStoryAcceptanceCriteria={setStoryAcceptanceCriteria}
+            storyNotes={storyNotes}
+            setStoryNotes={setStoryNotes}
+            testCaseGeneral={testCaseGeneral}
+            setTestCaseGeneral={setTestCaseGeneral}
+            testCaseId={testCaseId}
+            setTestCaseId={setTestCaseId}
+            testCaseDescription={testCaseDescription}
+            setTestCaseDescription={setTestCaseDescription}
+            testCasePreConditions={testCasePreConditions}
+            setTestCasePreConditions={setTestCasePreConditions}
+            testCaseSteps={testCaseSteps}
+            setTestCaseSteps={setTestCaseSteps}
+            testCaseExpectedResult={testCaseExpectedResult}
+            setTestCaseExpectedResult={setTestCaseExpectedResult}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <PageLayout title="Settings" actions={actions} maxWidth="848px">
+    <PageLayout title="Settings" actions={actions} maxWidth="960px">
       {statusMessage && (
         <div
           className={`alert ${statusMessage.includes('Error') ? 'alert-danger' : 'alert-success'} mb-4`}
@@ -95,210 +226,52 @@ const Settings: React.FC = () => {
       )}
 
       <form id="settings-form" onSubmit={handleSave}>
-        <div className="card shadow-sm mb-4">
-          <div className="card-body p-4">
-            <h5 className="mb-3 border-bottom pb-2">Appearance</h5>
-            <div className="mb-4">
-              <label className="form-label d-block">Theme</label>
-              <div
-                className="btn-group"
-                role="group"
-                aria-label="Theme selection"
-              >
-                <button
-                  type="button"
-                  className={`btn ${theme === 'auto' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                  onClick={() => setTheme('auto')}
-                >
-                  <i className="fas fa-circle-half-stroke me-2"></i>
-                  Auto
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${theme === 'light' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                  onClick={() => setTheme('light')}
-                >
-                  <i className="fas fa-sun me-2"></i>
-                  Light
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${theme === 'dark' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                  onClick={() => setTheme('dark')}
-                >
-                  <i className="fas fa-moon me-2"></i>
-                  Dark
-                </button>
-              </div>
-            </div>
+        <div className="settings-container">
+          <div className="settings-sidebar">
+            <button
+              type="button"
+              className={`settings-nav-item ${activeTab === 'general' ? 'active' : ''}`}
+              onClick={() => setActiveTab('general')}
+            >
+              <i className="fas fa-palette"></i>
+              General
+            </button>
+            <button
+              type="button"
+              className={`settings-nav-item ${activeTab === 'azure' ? 'active' : ''}`}
+              onClick={() => setActiveTab('azure')}
+            >
+              <i className="fab fa-microsoft"></i>
+              Azure DevOps
+            </button>
+            <button
+              type="button"
+              className={`settings-nav-item ${activeTab === 'confluence' ? 'active' : ''}`}
+              onClick={() => setActiveTab('confluence')}
+            >
+              <i className="fas fa-book"></i>
+              Confluence
+            </button>
+            <button
+              type="button"
+              className={`settings-nav-item ${activeTab === 'copilot' ? 'active' : ''}`}
+              onClick={() => setActiveTab('copilot')}
+            >
+              <i className="fas fa-robot"></i>
+              GitHub Copilot
+            </button>
+            <button
+              type="button"
+              className={`settings-nav-item ${activeTab === 'prompts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('prompts')}
+            >
+              <i className="fas fa-wand-magic-sparkles"></i>
+              Prompts
+            </button>
+          </div>
 
-            <h5 className="mb-3 border-bottom pb-2 mt-4">
-              Azure DevOps Configuration
-            </h5>
-            <div className="mb-3">
-              <label className="form-label">Organization URL</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="https://dev.azure.com/your-org"
-                value={azureOrg}
-                onChange={(e) => setAzureOrg(e.target.value)}
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label">Project Name</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="YourProject"
-                value={azureProject}
-                onChange={(e) => setAzureProject(e.target.value)}
-              />
-            </div>
-            <div className="mb-4">
-              <label className="form-label">Personal Access Token (PAT)</label>
-              <input
-                type="password"
-                className="form-control"
-                value={azurePat}
-                onChange={(e) => setAzurePat(e.target.value)}
-              />
-            </div>
-
-            <h5 className="mb-3 border-bottom pb-2 mt-4">
-              Confluence Configuration
-            </h5>
-            <div className="mb-3">
-              <label className="form-label">Confluence URL</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="https://your-domain.atlassian.net/wiki"
-                value={confluenceUrl}
-                onChange={(e) => setConfluenceUrl(e.target.value)}
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label">Email / User (Optional)</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="user@example.com"
-                value={confluenceUser}
-                onChange={(e) => setConfluenceUser(e.target.value)}
-              />
-              <div className="form-text">
-                Leave blank if using a Personal Access Token (Bearer Auth).
-                Enter email if using an Atlassian API Token (Basic Auth).
-              </div>
-            </div>
-            <div className="mb-4">
-              <label className="form-label">API Token</label>
-              <input
-                type="password"
-                className="form-control"
-                value={confluenceToken}
-                onChange={(e) => setConfluenceToken(e.target.value)}
-              />
-              <div className="form-text">
-                Your API token or Personal Access Token (PAT).
-              </div>
-            </div>
-
-            <h5 className="mb-3 border-bottom pb-2 mt-4">
-              GitHub Copilot Configuration
-            </h5>
-            <div className="mb-3">
-              <label className="form-label">Copilot API Token</label>
-              <input
-                type="password"
-                className="form-control"
-                value={copilotToken}
-                onChange={(e) => setCopilotToken(e.target.value)}
-              />
-              <div className="form-text">
-                Your Copilot session or API token for authentication.
-              </div>
-            </div>
-            <div className="mb-4">
-              <label className="form-label">Default Model</label>
-              <ModelDropdown
-                models={models}
-                selectedModel={selectedModel}
-                onSelect={setSelectedModel}
-                loading={loadingModels}
-                className="w-25"
-                buttonVariant="outline-secondary"
-              />
-            </div>
-
-            <div className="mb-4 p-3 rounded border">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <h6 className="mb-0">Copilot CLI Status</h6>
-                <button
-                  type="button"
-                  className="btn btn-outline-info btn-sm"
-                  onClick={handleCheckAuth}
-                  disabled={checkingAuth}
-                >
-                  {checkingAuth ? (
-                    <>
-                      <span
-                        className="spinner-border spinner-border-sm me-2"
-                        role="status"
-                        aria-hidden="true"
-                      ></span>
-                      Checking...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-sync-alt me-2"></i>Check Status
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {authStatus && (
-                <div
-                  className={`alert mt-2 mb-0 ${authStatus.error || !authStatus.authStatus?.isAuthenticated ? 'alert-danger' : 'alert-success'}`}
-                >
-                  {authStatus.error ? (
-                    <div>
-                      <strong>Error:</strong> {authStatus.error}
-                    </div>
-                  ) : (
-                    <>
-                      <div>
-                        <strong>Authenticated:</strong>{' '}
-                        {authStatus.authStatus?.isAuthenticated ? 'Yes' : 'No'}
-                      </div>
-                      {authStatus.authStatus?.isAuthenticated && (
-                        <>
-                          <div>
-                            <strong>User:</strong>{' '}
-                            {authStatus.authStatus?.login}
-                          </div>
-                          <div>
-                            <strong>Auth Type:</strong>{' '}
-                            {authStatus.authStatus?.authType}
-                          </div>
-                          <div>
-                            <strong>Message:</strong>{' '}
-                            {authStatus.authStatus?.statusMessage}
-                          </div>
-                          {authStatus.status && (
-                            <div className="mt-2 text-muted small">
-                              CLI Version: {authStatus.status.version} v
-                              {authStatus.status.protocolVersion}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+          <div key={activeTab} className="settings-content">
+            {renderActiveTab()}
           </div>
         </div>
       </form>
