@@ -76,6 +76,7 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
   s.set('settings', sanitizedSettings);
 
   copilotService.setModel(sanitizedSettings.copilotModel || 'gpt-4.1');
+  copilotService.clearCache();
 
   // Apply theme immediately
   const theme = sanitizedSettings.theme ?? 'auto';
@@ -223,6 +224,12 @@ app.on('ready', async () => {
   const settings = (s.get('settings') ?? {}) as AppSettings;
   const theme = settings.theme ?? 'auto';
   nativeTheme.themeSource = theme === 'auto' ? 'system' : theme;
+
+  copilotService.setModel(settings.copilotModel || 'gpt-4.1');
+  copilotService.initializeAsync().catch((err) => {
+    console.error('Failed to initialize copilotService on startup:', err);
+  });
+
   createWindow();
 });
 
