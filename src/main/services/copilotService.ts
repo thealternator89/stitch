@@ -1,6 +1,6 @@
 // Since we dynamically import the SDK, we need to use any - disable eslint rule
 /* eslint-disable @typescript-eslint/no-explicit-any */
-async function createCopilotClient() {
+async function createCopilotClient(copilotToken?: string) {
   // Eval to avoid webpack interfering with the import
   const { CopilotClient, approveAll } = await eval(
     'import("@github/copilot-sdk")',
@@ -17,6 +17,13 @@ async function createCopilotClient() {
   // with new Copilot CLI/SDK releases on Windows. If the standard platform-agnostic approach
   // starts working, the entire Windows workaround block below should be removed.
   const disableEnvVal = process.env.DISABLE_COPILOT_WINDOWS_WORKAROUND || '';
+  const env = copilotToken
+    ? {
+        ...process.env,
+        GITHUB_TOKEN: copilotToken,
+        COPILOT_TOKEN: copilotToken,
+      }
+    : undefined;
 
   if (process.platform === 'win32' && !['1', 'true'].includes(disableEnvVal)) {
     if (!process.env.NODE_PATH || !process.env.COPILOT_SCRIPT_PATH) {
@@ -29,15 +36,21 @@ async function createCopilotClient() {
         cliPath: process.env.NODE_PATH,
         cliArgs: [process.env.COPILOT_SCRIPT_PATH],
         useStdio: true,
+        env,
       }),
       approveAll,
     };
   }
 
-  return { client: new CopilotClient(), approveAll };
+  return { client: new CopilotClient({ env }), approveAll };
 }
 
-import { TicketData, DocPageData, CopilotModel } from '../../types';
+import {
+  TicketData,
+  DocPageData,
+  CopilotModel,
+  AppSettings,
+} from '../../types';
 
 export class CopilotService {
   private model = 'gpt-4.1';
@@ -49,9 +62,9 @@ export class CopilotService {
     }
   }
 
-  async initializeAsync(): Promise<void> {
+  async initializeAsync(copilotToken?: string): Promise<void> {
     try {
-      await this.fetchAndCacheModels();
+      await this.fetchAndCacheModels(copilotToken);
     } catch (error: any) {
       console.warn(
         'Could not pre-fetch Copilot models on startup:',
@@ -60,8 +73,10 @@ export class CopilotService {
     }
   }
 
-  private async fetchAndCacheModels(): Promise<CopilotModel[]> {
-    const { client } = await createCopilotClient();
+  private async fetchAndCacheModels(
+    copilotToken?: string,
+  ): Promise<CopilotModel[]> {
+    const { client } = await createCopilotClient(copilotToken);
     try {
       await client.start();
       const models = await client.listModels();
@@ -82,8 +97,8 @@ export class CopilotService {
     }
   }
 
-  async checkAuthStatus() {
-    const { client } = await createCopilotClient();
+  async checkAuthStatus(copilotToken?: string) {
+    const { client } = await createCopilotClient(copilotToken);
     try {
       await client.start();
       const authStatus = await client.getAuthStatus();
@@ -119,16 +134,16 @@ export class CopilotService {
     }
   }
 
-  async listModels(): Promise<CopilotModel[]> {
+  async listModels(copilotToken?: string): Promise<CopilotModel[]> {
     if (this.cachedModels.length > 0) {
       return this.cachedModels;
     }
-    return this.fetchAndCacheModels();
+    return this.fetchAndCacheModels(copilotToken);
   }
 
-  clearCache() {
+  clearCache(copilotToken?: string) {
     this.cachedModels = [];
-    this.initializeAsync().catch((err) => {
+    this.initializeAsync(copilotToken).catch((err) => {
       console.error(
         'Failed to re-initialize copilotService after settings update:',
         err,
@@ -225,9 +240,12 @@ export class CopilotService {
     ticketData: TicketData,
     additionalContext: string,
     modelOverride: string,
+    settings: AppSettings,
     onLine?: (line: string) => void,
   ) {
-    const { client, approveAll } = await createCopilotClient();
+    const { client, approveAll } = await createCopilotClient(
+      settings.copilotToken,
+    );
     let session: any = null;
     try {
       await client.start();
@@ -238,9 +256,24 @@ export class CopilotService {
         streaming: true,
       });
 
+      const testCaseWriter = settings.prompts?.testCaseWriter || {};
+      const generalPrompt = testCaseWriter.general || '';
+
+      const idPrompt = testCaseWriter.id || 'Test Case ID (e.g., "TC01")';
+      const descriptionPrompt =
+        testCaseWriter.description || 'Brief description of the test scenario';
+      const preConditionsPrompt =
+        testCaseWriter.preConditions ||
+        'Any preconditions required before running the test';
+      const stepsPrompt =
+        testCaseWriter.steps ||
+        'Bullet-pointed or numbered steps to execute the test';
+      const expectedResultPrompt =
+        testCaseWriter.expectedResult || 'The expected result';
+
       const prompt = `
         Generate a set of comprehensive test cases for the following user story/ticket.
-        
+        ${generalPrompt ? `\n        ${generalPrompt}\n` : ''}
         Ticket ID: ${ticketData.id}
         Title: ${ticketData.title}
         Description: ${ticketData.description}
@@ -252,11 +285,11 @@ export class CopilotService {
         Do NOT wrap the JSON objects inside a JSON array. Each line MUST be a standalone JSON object.
         
         Each JSON object must have exactly the following keys:
-        - "id": (string) Test Case ID (e.g., "TC01")
-        - "description": (string) Brief description of the test scenario
-        - "preConditions": (string) Any preconditions required before running the test
-        - "steps": (string) Bullet-pointed or numbered steps to execute the test
-        - "expectedResult": (string) The expected result
+        - "id": (string) ${idPrompt}
+        - "description": (string) ${descriptionPrompt}
+        - "preConditions": (string) ${preConditionsPrompt}
+        - "steps": (string) ${stepsPrompt}
+        - "expectedResult": (string) ${expectedResultPrompt}
         - "priority": (string) Priority of the test (e.g., "High", "Medium", "Low")
 
         DO NOT create any files, directly output the test cases in your response here.
@@ -293,9 +326,12 @@ export class CopilotService {
     pageData: DocPageData,
     additionalContext: string,
     modelOverride: string,
+    settings: AppSettings,
     onLine?: (line: string) => void,
   ): Promise<string> {
-    const { client, approveAll } = await createCopilotClient();
+    const { client, approveAll } = await createCopilotClient(
+      settings.copilotToken,
+    );
     let session: any = null;
     try {
       await client.start();
@@ -306,9 +342,22 @@ export class CopilotService {
         streaming: true,
       });
 
+      const storyWriter = settings.prompts?.storyWriter || {};
+      const generalPrompt = storyWriter.general || '';
+
+      const titlePrompt = storyWriter.title || 'The title of the story';
+      const descriptionPrompt =
+        storyWriter.description ||
+        'Description. This should contain a statement in the format "As a... I want to... So that..." followed by 2 blank lines and then a longer description of the changes required for story.';
+      const acceptanceCriteriaPrompt =
+        storyWriter.acceptanceCriteria || 'Formatted as a markdown list.';
+      const notesPrompt =
+        storyWriter.notes ||
+        'Any additional notes or assumptions (Optional, can be empty)';
+
       const prompt = `
         Generate a set of user stories based on the following functional requirements from a Confluence page.
-        
+        ${generalPrompt ? `\n        ${generalPrompt}\n` : ''}
         Page Title: ${pageData.title}
         Page Content: ${pageData.body}
         
@@ -318,11 +367,12 @@ export class CopilotService {
         Do NOT wrap the JSON objects inside a JSON array. Each line MUST be a standalone JSON object.
         
         Each JSON object must have exactly the following keys:
-        - "title": (string) The title of the story
-        - "description": (string) Description. This should contain a statement in the format "As a... I want to... So that..." followed by 2 blank lines and then a longer description of the changes required for story.
-        - "acceptanceCriteria": (string) Formatted as a markdown list. Use standard formatting without embedded newlines or with escaped newlines inside the JSON string as needed.
-        - "notes": (string) Any additional notes or assumptions (Optional, can be empty)
+        - "title": (string) ${titlePrompt}
+        - "description": (string) ${descriptionPrompt}
+        - "acceptanceCriteria": (string) ${acceptanceCriteriaPrompt}
+        - "notes": (string) ${notesPrompt}
 
+        For any fields containing markdown, use standard formatting without embedded newlines or with escaped newlines inside the JSON string as needed.
         DO NOT create any files, directly output the user stories in your response here.
         DO NOT include any other text in your response (no explanation, no intro, no outro, no markdown fences).
       `;

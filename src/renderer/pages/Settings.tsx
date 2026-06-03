@@ -28,6 +28,21 @@ const Settings: React.FC = () => {
     'general' | 'azure' | 'confluence' | 'copilot' | 'prompts'
   >('general');
 
+  // Story Writer Custom Prompts
+  const [storyGeneral, setStoryGeneral] = useState('');
+  const [storyTitle, setStoryTitle] = useState('');
+  const [storyDescription, setStoryDescription] = useState('');
+  const [storyAcceptanceCriteria, setStoryAcceptanceCriteria] = useState('');
+  const [storyNotes, setStoryNotes] = useState('');
+
+  // Test Case Writer Custom Prompts
+  const [testCaseGeneral, setTestCaseGeneral] = useState('');
+  const [testCaseId, setTestCaseId] = useState('');
+  const [testCaseDescription, setTestCaseDescription] = useState('');
+  const [testCasePreConditions, setTestCasePreConditions] = useState('');
+  const [testCaseSteps, setTestCaseSteps] = useState('');
+  const [testCaseExpectedResult, setTestCaseExpectedResult] = useState('');
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -41,6 +56,24 @@ const Settings: React.FC = () => {
           setConfluenceUser(settings.confluenceUser || '');
           setConfluenceToken(settings.confluenceToken || '');
           setTheme(settings.theme || 'auto');
+
+          // Load custom prompts
+          const prompts = settings.prompts || {};
+          const story = prompts.storyWriter || {};
+          const tc = prompts.testCaseWriter || {};
+
+          setStoryGeneral(story.general || '');
+          setStoryTitle(story.title || '');
+          setStoryDescription(story.description || '');
+          setStoryAcceptanceCriteria(story.acceptanceCriteria || '');
+          setStoryNotes(story.notes || '');
+
+          setTestCaseGeneral(tc.general || '');
+          setTestCaseId(tc.id || '');
+          setTestCaseDescription(tc.description || '');
+          setTestCasePreConditions(tc.preConditions || '');
+          setTestCaseSteps(tc.steps || '');
+          setTestCaseExpectedResult(tc.expectedResult || '');
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -62,6 +95,23 @@ const Settings: React.FC = () => {
         confluenceUser: confluenceUser,
         confluenceToken: confluenceToken,
         theme: theme,
+        prompts: {
+          storyWriter: {
+            general: storyGeneral,
+            title: storyTitle,
+            description: storyDescription,
+            acceptanceCriteria: storyAcceptanceCriteria,
+            notes: storyNotes,
+          },
+          testCaseWriter: {
+            general: testCaseGeneral,
+            id: testCaseId,
+            description: testCaseDescription,
+            preConditions: testCasePreConditions,
+            steps: testCaseSteps,
+            expectedResult: testCaseExpectedResult,
+          },
+        },
       });
       setStatusMessage('Settings saved successfully!');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -134,7 +184,32 @@ const Settings: React.FC = () => {
           />
         );
       case 'prompts':
-        return <PromptSettings />;
+        return (
+          <PromptSettings
+            storyGeneral={storyGeneral}
+            setStoryGeneral={setStoryGeneral}
+            storyTitle={storyTitle}
+            setStoryTitle={setStoryTitle}
+            storyDescription={storyDescription}
+            setStoryDescription={setStoryDescription}
+            storyAcceptanceCriteria={storyAcceptanceCriteria}
+            setStoryAcceptanceCriteria={setStoryAcceptanceCriteria}
+            storyNotes={storyNotes}
+            setStoryNotes={setStoryNotes}
+            testCaseGeneral={testCaseGeneral}
+            setTestCaseGeneral={setTestCaseGeneral}
+            testCaseId={testCaseId}
+            setTestCaseId={setTestCaseId}
+            testCaseDescription={testCaseDescription}
+            setTestCaseDescription={setTestCaseDescription}
+            testCasePreConditions={testCasePreConditions}
+            setTestCasePreConditions={setTestCasePreConditions}
+            testCaseSteps={testCaseSteps}
+            setTestCaseSteps={setTestCaseSteps}
+            testCaseExpectedResult={testCaseExpectedResult}
+            setTestCaseExpectedResult={setTestCaseExpectedResult}
+          />
+        );
       default:
         return null;
     }

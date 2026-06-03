@@ -55,17 +55,22 @@ ipcMain.handle('open-external', async (event, url: string) => {
   return shell.openExternal(url);
 });
 
-function trimProperties(
-  obj: Record<string, string | undefined>,
-): Record<string, string | undefined> {
-  const out: Record<string, string> = {};
-  for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      out[key] = obj[key]?.toString().trim();
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function trimProperties(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') return obj.trim();
+  if (typeof obj === 'object') {
+    const out: any = Array.isArray(obj) ? [] : {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        out[key] = trimProperties(obj[key]);
+      }
     }
+    return out;
   }
-  return out;
+  return obj;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
   const s = await initStore();
@@ -76,7 +81,7 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
   s.set('settings', sanitizedSettings);
 
   copilotService.setModel(sanitizedSettings.copilotModel || 'gpt-4.1');
-  copilotService.clearCache();
+  copilotService.clearCache(sanitizedSettings.copilotToken);
 
   // Apply theme immediately
   const theme = sanitizedSettings.theme ?? 'auto';
@@ -116,10 +121,13 @@ ipcMain.handle('search-tickets', async (event, query) => {
 ipcMain.handle(
   'generate-test-cases',
   async (event, ticketData, additionalContext, modelOverride) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
     return copilotService.generateTestCases(
       ticketData,
       additionalContext,
       modelOverride,
+      settings,
       (line: string) => {
         event.sender.send('test-case-line', line);
       },
@@ -160,10 +168,13 @@ ipcMain.handle('search-confluence-pages', async (event, query) => {
 ipcMain.handle(
   'generate-stories',
   async (event, pageData, additionalContext, modelOverride) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
     return copilotService.generateStories(
       pageData,
       additionalContext,
       modelOverride,
+      settings,
       (line: string) => {
         event.sender.send('story-line', line);
       },
@@ -172,11 +183,15 @@ ipcMain.handle(
 );
 
 ipcMain.handle('check-copilot-auth', async () => {
-  return copilotService.checkAuthStatus();
+  const s = await initStore();
+  const settings = (s.get('settings') ?? {}) as AppSettings;
+  return copilotService.checkAuthStatus(settings.copilotToken);
 });
 
 ipcMain.handle('list-copilot-models', async () => {
-  return copilotService.listModels();
+  const s = await initStore();
+  const settings = (s.get('settings') ?? {}) as AppSettings;
+  return copilotService.listModels(settings.copilotToken);
 });
 
 ipcMain.handle('add-comment', async (event, ticketId, text) => {
@@ -226,7 +241,7 @@ app.on('ready', async () => {
   nativeTheme.themeSource = theme === 'auto' ? 'system' : theme;
 
   copilotService.setModel(settings.copilotModel || 'gpt-4.1');
-  copilotService.initializeAsync().catch((err) => {
+  copilotService.initializeAsync(settings.copilotToken).catch((err) => {
     console.error('Failed to initialize copilotService on startup:', err);
   });
 

@@ -8,6 +8,23 @@ export type AppSettings = {
   confluenceUser?: string;
   confluenceToken?: string;
   theme?: 'auto' | 'light' | 'dark';
+  prompts?: {
+    storyWriter?: {
+      general?: string;
+      title?: string;
+      description?: string;
+      acceptanceCriteria?: string;
+      notes?: string;
+    };
+    testCaseWriter?: {
+      general?: string;
+      id?: string;
+      description?: string;
+      preConditions?: string;
+      steps?: string;
+      expectedResult?: string;
+    };
+  };
 };
 
 export interface TicketData {
