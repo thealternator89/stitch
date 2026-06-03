@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface PromptSettingsProps {
   storyGeneral: string;
@@ -53,6 +55,15 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
 }) => {
   const [subTab, setSubTab] = useState<'story' | 'testcase'>('story');
 
+  // Local state for checking prompt complexity
+  const [checkingStory, setCheckingStory] = useState(false);
+  const [storyResult, setStoryResult] = useState<string | null>(null);
+  const [storyError, setStoryError] = useState<string | null>(null);
+
+  const [checkingTestCase, setCheckingTestCase] = useState(false);
+  const [testCaseResult, setTestCaseResult] = useState<string | null>(null);
+  const [testCaseError, setTestCaseError] = useState<string | null>(null);
+
   const handleResetStoryDefaults = () => {
     setStoryGeneral('');
     setStoryTitle('');
@@ -70,6 +81,56 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
     setTestCaseExpectedResult('');
   };
 
+  const handleCheckStory = async () => {
+    setCheckingStory(true);
+    setStoryResult(null);
+    setStoryError(null);
+    try {
+      const response = await window.electronAPI.checkPromptComplexity('story', {
+        general: storyGeneral,
+        title: storyTitle,
+        description: storyDescription,
+        acceptanceCriteria: storyAcceptanceCriteria,
+        notes: storyNotes,
+      });
+      setStoryResult(response);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setStoryError(
+        errorMsg || 'An error occurred while validating the prompt.',
+      );
+    } finally {
+      setCheckingStory(false);
+    }
+  };
+
+  const handleCheckTestCase = async () => {
+    setCheckingTestCase(true);
+    setTestCaseResult(null);
+    setTestCaseError(null);
+    try {
+      const response = await window.electronAPI.checkPromptComplexity(
+        'testcase',
+        {
+          general: testCaseGeneral,
+          id: testCaseId,
+          description: testCaseDescription,
+          preConditions: testCasePreConditions,
+          steps: testCaseSteps,
+          expectedResult: testCaseExpectedResult,
+        },
+      );
+      setTestCaseResult(response);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setTestCaseError(
+        errorMsg || 'An error occurred while validating the prompt.',
+      );
+    } finally {
+      setCheckingTestCase(false);
+    }
+  };
+
   return (
     <div className="card shadow-sm border-0 bg-body-tertiary">
       <div className="card-header bg-transparent border-0 pt-4 px-4 pb-0">
@@ -78,23 +139,72 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
             <i className="fas fa-wand-magic-sparkles me-2 text-primary"></i>
             Prompt Customization
           </h5>
-          {subTab === 'story' ? (
-            <button
-              type="button"
-              className="btn btn-outline-secondary btn-sm"
-              onClick={handleResetStoryDefaults}
-            >
-              <i className="fas fa-undo me-2"></i>Reset Story Defaults
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-outline-secondary btn-sm"
-              onClick={handleResetTestCaseDefaults}
-            >
-              <i className="fas fa-undo me-2"></i>Reset Test Case Defaults
-            </button>
-          )}
+
+          <div className="d-flex gap-2">
+            {subTab === 'story' ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-outline-info btn-sm d-flex align-items-center gap-2"
+                  onClick={handleCheckStory}
+                  disabled={checkingStory}
+                >
+                  {checkingStory ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-shield-halved"></i>Check Prompt
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={handleResetStoryDefaults}
+                >
+                  <i className="fas fa-undo me-2"></i>Reset Defaults
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-outline-info btn-sm d-flex align-items-center gap-2"
+                  onClick={handleCheckTestCase}
+                  disabled={checkingTestCase}
+                >
+                  {checkingTestCase ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-shield-halved"></i>Check Prompt
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={handleResetTestCaseDefaults}
+                >
+                  <i className="fas fa-undo me-2"></i>Reset Defaults
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <ul className="nav nav-tabs border-bottom">
@@ -123,8 +233,8 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
         {subTab === 'story' && (
           <div key="story-writer-panel" className="settings-content p-0">
             <p className="text-muted small mb-4">
-              Customize the guidelines and instructions used when generating
-              user stories.
+              Customize the functional guidelines and instructions sent to
+              Copilot when drafting user stories.
             </p>
 
             <div className="mb-4">
@@ -132,7 +242,7 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                 General Instructions
               </label>
               <textarea
-                className="form-control"
+                className="form-control text-start"
                 rows={3}
                 value={storyGeneral}
                 onChange={(e) => setStoryGeneral(e.target.value)}
@@ -205,6 +315,27 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                 Instruct what extra warnings, assumptions, or notes to include.
               </div>
             </div>
+
+            {storyResult && (
+              <div className="card border-info bg-info-subtle mt-4">
+                <div className="card-header bg-transparent border-0 pt-3 pb-0 fw-semibold text-info-emphasis d-flex align-items-center gap-2">
+                  <i className="fas fa-magnifying-glass-chart"></i>Prompt
+                  Analysis Feedback
+                </div>
+                <div className="card-body markdown-content p-3">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {storyResult}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {storyError && (
+              <div className="alert alert-danger mt-4 d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis">
+                <i className="fas fa-triangle-exclamation mt-1"></i>
+                <div>{storyError}</div>
+              </div>
+            )}
           </div>
         )}
 
@@ -325,6 +456,27 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                 cannot be customized.
               </div>
             </div>
+
+            {testCaseResult && (
+              <div className="card border-info bg-info-subtle mt-4">
+                <div className="card-header bg-transparent border-0 pt-3 pb-0 fw-semibold text-info-emphasis d-flex align-items-center gap-2">
+                  <i className="fas fa-magnifying-glass-chart"></i>Prompt
+                  Analysis Feedback
+                </div>
+                <div className="card-body markdown-content p-3">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {testCaseResult}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {testCaseError && (
+              <div className="alert alert-danger mt-4 d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis">
+                <i className="fas fa-triangle-exclamation mt-1"></i>
+                <div>{testCaseError}</div>
+              </div>
+            )}
           </div>
         )}
       </div>

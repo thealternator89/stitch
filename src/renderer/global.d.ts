@@ -36,6 +36,10 @@ export interface IElectronAPI {
   getVersion: () => Promise<string>;
   listCopilotModels: () => Promise<CopilotModel[]>;
   openExternal: (url: string) => Promise<void>;
+  checkPromptComplexity: (
+    type: 'story' | 'testcase',
+    prompts: Record<string, string>,
+  ) => Promise<string>;
   isWindows: boolean;
 }
 

@@ -49,5 +49,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVersion: () => ipcRenderer.invoke('get-version'),
   listCopilotModels: () => ipcRenderer.invoke('list-copilot-models'),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  checkPromptComplexity: (
+    type: 'story' | 'testcase',
+    prompts: Record<string, string>,
+  ) => ipcRenderer.invoke('check-prompt-complexity', type, prompts),
   isWindows: process.platform === 'win32',
 });

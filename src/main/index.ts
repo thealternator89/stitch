@@ -194,6 +194,12 @@ ipcMain.handle('list-copilot-models', async () => {
   return copilotService.listModels(settings.copilotToken);
 });
 
+ipcMain.handle('check-prompt-complexity', async (event, type, prompts) => {
+  const s = await initStore();
+  const settings = (s.get('settings') ?? {}) as AppSettings;
+  return copilotService.checkPromptComplexity(type, prompts, settings);
+});
+
 ipcMain.handle('add-comment', async (event, ticketId, text) => {
   const service = await getAzureService();
   return service.addComment(ticketId, text);
