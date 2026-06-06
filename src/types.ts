@@ -24,6 +24,9 @@ export type AppSettings = {
       steps?: string;
       expectedResult?: string;
     };
+    storyElaborator?: {
+      general?: string;
+    };
   };
 };
 

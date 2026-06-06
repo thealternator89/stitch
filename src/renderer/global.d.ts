@@ -41,6 +41,16 @@ export interface IElectronAPI {
     type: 'story' | 'testcase',
     prompts: Record<string, string>,
   ) => Promise<string>;
+  selectDirectory: () => Promise<string | null>;
+  startStoryElaboration: (
+    ticketData: TicketData,
+    repoPath: string | null,
+    additionalContext: string,
+    modelOverride: string,
+  ) => Promise<string>;
+  sendElaborationAnswer: (ticketId: string, answer: string) => Promise<string>;
+  stopStoryElaboration: (ticketId: string) => Promise<void>;
+  onElaborationLine: (callback: (line: string) => void) => () => void;
   isWindows: boolean;
 }
 

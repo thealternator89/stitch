@@ -53,5 +53,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
     type: 'story' | 'testcase',
     prompts: Record<string, string>,
   ) => ipcRenderer.invoke('check-prompt-complexity', type, prompts),
+  selectDirectory: () => ipcRenderer.invoke('select-directory'),
+  startStoryElaboration: (
+    ticketData: TicketData,
+    repoPath: string | null,
+    additionalContext: string,
+    modelOverride: string,
+  ) =>
+    ipcRenderer.invoke(
+      'start-story-elaboration',
+      ticketData,
+      repoPath,
+      additionalContext,
+      modelOverride,
+    ),
+  sendElaborationAnswer: (ticketId: string, answer: string) =>
+    ipcRenderer.invoke('send-elaboration-answer', ticketId, answer),
+  stopStoryElaboration: (ticketId: string) =>
+    ipcRenderer.invoke('stop-story-elaboration', ticketId),
+  onElaborationLine: (callback: (line: string) => void) => {
+    const listener = (_event: unknown, line: string) => callback(line);
+    ipcRenderer.on('elaboration-line', listener);
+    return () => {
+      ipcRenderer.removeListener('elaboration-line', listener);
+    };
+  },
   isWindows: process.platform === 'win32',
 });

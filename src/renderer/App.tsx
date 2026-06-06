@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Menu from './pages/Menu';
 import TestCaseWriter from './pages/TestCaseWriter';
 import StoryWriter from './pages/StoryWriter';
+import StoryElaborator from './pages/StoryElaborator';
 import Settings from './pages/Settings';
 import { UpdateStatus } from '../types';
 
@@ -97,6 +98,7 @@ const App: React.FC = () => {
           />
           <Route path="/test-case-writer" element={<TestCaseWriter />} />
           <Route path="/story-writer" element={<StoryWriter />} />
+          <Route path="/story-elaborator" element={<StoryElaborator />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>

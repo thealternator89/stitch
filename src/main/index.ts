@@ -1,4 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell, nativeTheme } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  shell,
+  nativeTheme,
+  dialog,
+} from 'electron';
 import { AzureDevOpsService } from './services/azureDevOpsService';
 import { CopilotService } from './services/copilotService';
 import { ConfluenceService } from './services/confluenceService';
@@ -212,6 +219,48 @@ ipcMain.handle('check-prompt-complexity', async (event, type, prompts) => {
   const s = await initStore();
   const settings = (s.get('settings') ?? {}) as AppSettings;
   return copilotService.checkPromptComplexity(type, prompts, settings);
+});
+
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+  });
+  if (result.canceled) {
+    return null;
+  }
+  return result.filePaths[0];
+});
+
+ipcMain.handle(
+  'start-story-elaboration',
+  async (event, ticketData, repoPath, additionalContext, modelOverride) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
+    return copilotService.startStoryElaboration(
+      ticketData,
+      repoPath,
+      additionalContext,
+      modelOverride,
+      settings,
+      (line: string) => {
+        event.sender.send('elaboration-line', line);
+      },
+    );
+  },
+);
+
+ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
+  return copilotService.sendElaborationAnswer(
+    ticketId,
+    answer,
+    (line: string) => {
+      event.sender.send('elaboration-line', line);
+    },
+  );
+});
+
+ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
+  return copilotService.stopStoryElaboration(ticketId);
 });
 
 ipcMain.handle('add-comment', async (event, ticketId, text) => {

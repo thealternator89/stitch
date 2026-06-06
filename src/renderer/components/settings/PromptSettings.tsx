@@ -26,6 +26,9 @@ interface PromptSettingsProps {
   setTestCaseSteps: (val: string) => void;
   testCaseExpectedResult: string;
   setTestCaseExpectedResult: (val: string) => void;
+
+  storyElaboratorGeneral: string;
+  setStoryElaboratorGeneral: (val: string) => void;
 }
 
 const PromptSettings: React.FC<PromptSettingsProps> = ({
@@ -52,8 +55,13 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
   setTestCaseSteps,
   testCaseExpectedResult,
   setTestCaseExpectedResult,
+
+  storyElaboratorGeneral,
+  setStoryElaboratorGeneral,
 }) => {
-  const [subTab, setSubTab] = useState<'story' | 'testcase'>('story');
+  const [subTab, setSubTab] = useState<'story' | 'testcase' | 'elaborator'>(
+    'story',
+  );
 
   // Local state for checking prompt complexity
   const [checkingStory, setCheckingStory] = useState(false);
@@ -79,6 +87,10 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
     setTestCasePreConditions('');
     setTestCaseSteps('');
     setTestCaseExpectedResult('');
+  };
+
+  const handleResetElaboratorDefaults = () => {
+    setStoryElaboratorGeneral('');
   };
 
   const handleCheckStory = async () => {
@@ -141,7 +153,7 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
           </h5>
 
           <div className="d-flex gap-2">
-            {subTab === 'story' ? (
+            {subTab === 'story' && (
               <>
                 <button
                   type="button"
@@ -172,7 +184,8 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                   <i className="fas fa-undo me-2"></i>Reset Defaults
                 </button>
               </>
-            ) : (
+            )}
+            {subTab === 'testcase' && (
               <>
                 <button
                   type="button"
@@ -204,6 +217,15 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                 </button>
               </>
             )}
+            {subTab === 'elaborator' && (
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={handleResetElaboratorDefaults}
+              >
+                <i className="fas fa-undo me-2"></i>Reset Defaults
+              </button>
+            )}
           </div>
         </div>
 
@@ -224,6 +246,15 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
               onClick={() => setSubTab('testcase')}
             >
               <i className="fas fa-vial me-2"></i>Test Case Writer
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              type="button"
+              className={`nav-link px-4 py-2 border-0 ${subTab === 'elaborator' ? 'active border-bottom border-primary fw-semibold text-primary' : 'text-muted bg-transparent'}`}
+              onClick={() => setSubTab('elaborator')}
+            >
+              <i className="fas fa-brain me-2"></i>Story Elaborator
             </button>
           </li>
         </ul>
@@ -477,6 +508,32 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                 <div>{testCaseError}</div>
               </div>
             )}
+          </div>
+        )}
+
+        {subTab === 'elaborator' && (
+          <div key="elaborator-panel" className="settings-content p-0">
+            <p className="text-muted small mb-4">
+              Customize the guidelines and instructions sent to Copilot when
+              elaborating user stories.
+            </p>
+
+            <div className="mb-4">
+              <label className="form-label fw-semibold">
+                General Instructions
+              </label>
+              <textarea
+                className="form-control text-start"
+                rows={4}
+                value={storyElaboratorGeneral}
+                onChange={(e) => setStoryElaboratorGeneral(e.target.value)}
+                placeholder="Optional general instructions inserted into the system instructions for Story Elaborator (e.g., 'Target a clean architecture, write plans in a very structured way with clear file trees.')"
+              />
+              <div className="form-text">
+                This prompt is appended to the system instructions to steer the
+                questioning style and plan format.
+              </div>
+            </div>
           </div>
         )}
       </div>
