@@ -80,7 +80,7 @@ const Menu: React.FC<MenuProps> = ({
         <div className="col-md-4 mb-4">
           <div className="card shadow-sm h-100">
             <div className="card-body d-flex flex-column">
-              <h5 className="card-title text-indigo">
+              <h5 className="card-title text-primary">
                 <i className="fas fa-brain me-2"></i>
                 Story Elaborator
               </h5>
@@ -91,7 +91,7 @@ const Menu: React.FC<MenuProps> = ({
               <div className="mt-auto">
                 <Link
                   to="/story-elaborator"
-                  className="btn btn-outline-indigo w-100"
+                  className="btn btn-outline-primary w-100"
                 >
                   Open Tool
                 </Link>
