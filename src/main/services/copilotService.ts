@@ -723,8 +723,8 @@ You must choose one of the following JSON formats for each line you output:
    \`{"type": "status", "text": "Analyzing codebase / reading package.json..."}\`
    *IMPORTANT*: You must never output only status updates in a turn and then stop. If you output a status update, you must either call a tool in the same turn to continue your work (e.g. read a file, list files, search), or you must end your output with a question to the user (type: 'question') or the final plan (type: 'plan'). Ending a turn with only a status update and no tool call/question/plan is forbidden, as it will leave the session stuck.
 
-2. Questions (if you need clarification on requirements, architectural choices, styling preferences, or codebase details from the user). Ask exactly ONE question at a time and then STOP. Do not output anything else in that turn:
-   \`{"type": "question", "text": "Should we use React state or Redux to store this new field?"}\`
+2. Questions (if you need clarification on requirements, architectural choices, styling preferences, or codebase details from the user). Ask exactly ONE question at a time and then STOP. Do not output anything else in that turn. You can optionally provide a list of suggested answers if you are able to guess or suggest sensible options:
+   \`{"type": "question", "text": "Should we use React state or Redux to store this new field?", "suggestedAnswers": ["React State", "Redux", "Context API"]}\`
 
 3. The Final Plan (when all questions are answered and the plan is ready. In this case, output a single JSON object. If a repository is available, make sure to write the plan to a file in the workspace first using your tools, and provide the absolute or relative file path in the 'filePath' attribute):
    \`{"type": "plan", "text": "# Detailed Implementation Plan\\n\\n### Proposed Changes...", "filePath": "implementation_plan.md"}\` (omit 'filePath' if no repository is available)

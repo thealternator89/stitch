@@ -37,6 +37,7 @@ const StoryElaborator: React.FC = () => {
   const [planFilePath, setPlanFilePath] = useState('');
 
   const [isPosting, setIsPosting] = useState(false);
+  const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -120,6 +121,7 @@ const StoryElaborator: React.FC = () => {
     setConversation([]);
     setPlanMarkdown('');
     setPlanFilePath('');
+    setCurrentSuggestions([]);
 
     // Setup listener for incoming lines
     const unsubscribe = window.electronAPI.onElaborationLine((line: string) => {
@@ -137,6 +139,7 @@ const StoryElaborator: React.FC = () => {
             ...prev,
             { sender: 'copilot', text: data.text },
           ]);
+          setCurrentSuggestions(data.suggestedAnswers || []);
         } else if (data.type === 'plan') {
           setPlanMarkdown(data.text);
           setPlanFilePath(data.filePath || '');
@@ -182,11 +185,31 @@ const StoryElaborator: React.FC = () => {
     const answer = userAnswer.trim();
     setConversation((prev) => [...prev, { sender: 'user', text: answer }]);
     setUserAnswer('');
+    setCurrentSuggestions([]);
     setIsGenerating(true);
     setIsWaitingForUser(false);
 
     try {
       await window.electronAPI.sendElaborationAnswer(ticketId, answer);
+    } catch (err: unknown) {
+      console.error(err);
+      const errMsg =
+        err instanceof Error
+          ? err.message
+          : 'An error occurred sending response.';
+      setError(errMsg);
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSendSuggestion = async (suggestion: string) => {
+    setConversation((prev) => [...prev, { sender: 'user', text: suggestion }]);
+    setCurrentSuggestions([]);
+    setIsGenerating(true);
+    setIsWaitingForUser(false);
+
+    try {
+      await window.electronAPI.sendElaborationAnswer(ticketId, suggestion);
     } catch (err: unknown) {
       console.error(err);
       const errMsg =
@@ -541,6 +564,21 @@ const StoryElaborator: React.FC = () => {
 
                     {/* Chat Input */}
                     <div className="p-3 border-top bg-body flex-shrink-0">
+                      {isWaitingForUser && currentSuggestions.length > 0 && (
+                        <div className="mb-3 d-flex flex-wrap gap-2 animate__animated animate__fadeIn">
+                          {currentSuggestions.map((suggestion, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              className="btn btn-sm btn-outline-indigo rounded-pill shadow-sm py-1.5 px-3 fw-medium"
+                              onClick={() => handleSendSuggestion(suggestion)}
+                              disabled={isGenerating}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="input-group">
                         <textarea
                           rows={2}
