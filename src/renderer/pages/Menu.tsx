@@ -1,8 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import logo from '../../../assets/logo-full.png';
+import UpdateToast from '../components/UpdateToast';
+import { UpdateStatus } from '../../types';
 
-const Menu: React.FC = () => {
+interface MenuProps {
+  updateStatus: UpdateStatus | null;
+  onCloseToast: () => void;
+  onOpenChangelog: () => void;
+}
+
+const Menu: React.FC<MenuProps> = ({
+  updateStatus,
+  onCloseToast,
+  onOpenChangelog,
+}) => {
   return (
     <div className="container mt-4 position-relative p-3">
       <div className="position-absolute top-0 end-0">
@@ -74,6 +86,14 @@ const Menu: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {updateStatus?.isUpdated && (
+        <UpdateToast
+          version={updateStatus.currentVersion}
+          onClose={onCloseToast}
+          onChangelog={onOpenChangelog}
+        />
+      )}
     </div>
   );
 };

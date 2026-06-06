@@ -51,6 +51,31 @@ ipcMain.handle('get-version', async () => {
   return app.getVersion();
 });
 
+ipcMain.handle('check-update-status', async () => {
+  const s = await initStore();
+  const lastRunVersion = s.get('lastRunVersion') as string | undefined;
+  const currentVersion = app.getVersion();
+
+  if (!lastRunVersion) {
+    s.set('lastRunVersion', currentVersion);
+    return { isUpdated: false, currentVersion };
+  }
+
+  const isUpdated = lastRunVersion !== currentVersion;
+  return {
+    isUpdated,
+    previousVersion: lastRunVersion,
+    currentVersion,
+  };
+});
+
+ipcMain.handle('acknowledge-update', async () => {
+  const s = await initStore();
+  const currentVersion = app.getVersion();
+  s.set('lastRunVersion', currentVersion);
+  return { success: true };
+});
+
 ipcMain.handle('open-external', async (event, url: string) => {
   return shell.openExternal(url);
 });

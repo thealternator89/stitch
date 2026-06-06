@@ -4,21 +4,51 @@ import Menu from './pages/Menu';
 import TestCaseWriter from './pages/TestCaseWriter';
 import StoryWriter from './pages/StoryWriter';
 import Settings from './pages/Settings';
+import { UpdateStatus } from '../types';
 
 const App: React.FC = () => {
   const [version, setVersion] = useState<string>('');
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 
   useEffect(() => {
-    const fetchVersion = async () => {
+    const fetchVersionAndStatus = async () => {
       try {
         const v = await window.electronAPI.getVersion();
         setVersion(v);
+
+        const status = await window.electronAPI.checkUpdateStatus();
+        if (status.isUpdated) {
+          setUpdateStatus(status);
+        }
       } catch (err) {
-        console.error('Failed to get version:', err);
+        console.error('Failed to initialize app version and status:', err);
       }
     };
-    fetchVersion();
+    fetchVersionAndStatus();
   }, []);
+
+  const handleCloseToast = async () => {
+    try {
+      await window.electronAPI.acknowledgeUpdate();
+      setUpdateStatus(null);
+    } catch (err) {
+      console.error('Failed to acknowledge update:', err);
+    }
+  };
+
+  const handleOpenChangelog = async () => {
+    if (!updateStatus) return;
+    try {
+      const ver = updateStatus.currentVersion;
+      await window.electronAPI.acknowledgeUpdate();
+      setUpdateStatus(null);
+      await window.electronAPI.openExternal(
+        `https://github.com/thealternator89/stitch/releases/tag/v${ver}`,
+      );
+    } catch (err) {
+      console.error('Failed to open changelog:', err);
+    }
+  };
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -63,7 +93,16 @@ const App: React.FC = () => {
 
       <div className="main-content">
         <Routes>
-          <Route path="/" element={<Menu />} />
+          <Route
+            path="/"
+            element={
+              <Menu
+                updateStatus={updateStatus}
+                onCloseToast={handleCloseToast}
+                onOpenChangelog={handleOpenChangelog}
+              />
+            }
+          />
           <Route path="/test-case-writer" element={<TestCaseWriter />} />
           <Route path="/story-writer" element={<StoryWriter />} />
           <Route path="/settings" element={<Settings />} />
