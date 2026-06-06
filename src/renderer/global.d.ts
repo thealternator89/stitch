@@ -36,7 +36,6 @@ export interface IElectronAPI {
   checkCopilotAuth: () => Promise<CopilotAuth>;
   getVersion: () => Promise<string>;
   checkUpdateStatus: () => Promise<UpdateStatus>;
-  acknowledgeUpdate: () => Promise<{ success: boolean }>;
   listCopilotModels: () => Promise<CopilotModel[]>;
   openExternal: (url: string) => Promise<void>;
   checkPromptComplexity: (

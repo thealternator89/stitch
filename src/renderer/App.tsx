@@ -6,6 +6,10 @@ import StoryWriter from './pages/StoryWriter';
 import Settings from './pages/Settings';
 import { UpdateStatus } from '../types';
 
+function repoUrl(suffix: string): string {
+  return 'https://github.com/thealternator89/stitch/' + suffix;
+}
+
 const App: React.FC = () => {
   const [version, setVersion] = useState<string>('');
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
@@ -27,24 +31,16 @@ const App: React.FC = () => {
     fetchVersionAndStatus();
   }, []);
 
-  const handleCloseToast = async () => {
-    try {
-      await window.electronAPI.acknowledgeUpdate();
-      setUpdateStatus(null);
-    } catch (err) {
-      console.error('Failed to acknowledge update:', err);
-    }
+  const handleCloseToast = () => {
+    setUpdateStatus(null);
   };
 
   const handleOpenChangelog = async () => {
     if (!updateStatus) return;
+    const ver = updateStatus.currentVersion;
+    setUpdateStatus(null);
     try {
-      const ver = updateStatus.currentVersion;
-      await window.electronAPI.acknowledgeUpdate();
-      setUpdateStatus(null);
-      await window.electronAPI.openExternal(
-        `https://github.com/thealternator89/stitch/releases/tag/v${ver}`,
-      );
+      await window.electronAPI.openExternal(repoUrl(`releases/tag/v${ver}`));
     } catch (err) {
       console.error('Failed to open changelog:', err);
     }
@@ -66,9 +62,7 @@ const App: React.FC = () => {
 
   const handleOpenIssues = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.electronAPI.openExternal(
-      'https://github.com/thealternator89/stitch/issues',
-    );
+    window.electronAPI.openExternal(repoUrl('issues'));
   };
 
   const isWindows = window.electronAPI.isWindows;
