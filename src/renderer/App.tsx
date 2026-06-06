@@ -17,10 +17,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchVersionAndStatus = async () => {
       try {
-        const v = await window.electronAPI.getVersion();
-        setVersion(v);
-
-        const status = await window.electronAPI.checkUpdateStatus();
+        const status = await window.electronAPI.getVersionStatus();
+        setVersion(status.currentVersion);
         if (status.isUpdated) {
           setUpdateStatus(status);
         }

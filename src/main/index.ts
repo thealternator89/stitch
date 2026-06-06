@@ -47,11 +47,7 @@ ipcMain.handle('get-settings', async () => {
   return s.get('settings');
 });
 
-ipcMain.handle('get-version', async () => {
-  return app.getVersion();
-});
-
-ipcMain.handle('check-update-status', async () => {
+ipcMain.handle('get-version-status', async () => {
   const s = await initStore();
   const lastRunVersion = s.get('lastRunVersion') as string | undefined;
   const currentVersion = app.getVersion();
