@@ -66,3 +66,9 @@ export interface CopilotModel {
   name: string;
   billing: { multiplier: number };
 }
+
+export interface UpdateStatus {
+  isUpdated: boolean;
+  previousVersion?: string;
+  currentVersion: string;
+}

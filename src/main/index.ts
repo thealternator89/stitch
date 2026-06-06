@@ -47,8 +47,22 @@ ipcMain.handle('get-settings', async () => {
   return s.get('settings');
 });
 
-ipcMain.handle('get-version', async () => {
-  return app.getVersion();
+ipcMain.handle('get-version-status', async () => {
+  const s = await initStore();
+  const lastRunVersion = s.get('lastRunVersion') as string | undefined;
+  const currentVersion = app.getVersion();
+
+  const isUpdated = !lastRunVersion || lastRunVersion !== currentVersion;
+
+  if (isUpdated) {
+    s.set('lastRunVersion', currentVersion);
+  }
+
+  return {
+    isUpdated,
+    previousVersion: lastRunVersion,
+    currentVersion,
+  };
 });
 
 ipcMain.handle('open-external', async (event, url: string) => {

@@ -4,21 +4,45 @@ import Menu from './pages/Menu';
 import TestCaseWriter from './pages/TestCaseWriter';
 import StoryWriter from './pages/StoryWriter';
 import Settings from './pages/Settings';
+import { UpdateStatus } from '../types';
+
+function repoUrl(suffix: string): string {
+  return 'https://github.com/thealternator89/stitch/' + suffix;
+}
 
 const App: React.FC = () => {
   const [version, setVersion] = useState<string>('');
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 
   useEffect(() => {
-    const fetchVersion = async () => {
+    const fetchVersionAndStatus = async () => {
       try {
-        const v = await window.electronAPI.getVersion();
-        setVersion(v);
+        const status = await window.electronAPI.getVersionStatus();
+        setVersion(status.currentVersion);
+        if (status.isUpdated) {
+          setUpdateStatus(status);
+        }
       } catch (err) {
-        console.error('Failed to get version:', err);
+        console.error('Failed to initialize app version and status:', err);
       }
     };
-    fetchVersion();
+    fetchVersionAndStatus();
   }, []);
+
+  const handleCloseToast = () => {
+    setUpdateStatus(null);
+  };
+
+  const handleOpenChangelog = async () => {
+    if (!updateStatus) return;
+    const ver = updateStatus.currentVersion;
+    setUpdateStatus(null);
+    try {
+      await window.electronAPI.openExternal(repoUrl(`releases/tag/v${ver}`));
+    } catch (err) {
+      console.error('Failed to open changelog:', err);
+    }
+  };
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -36,9 +60,7 @@ const App: React.FC = () => {
 
   const handleOpenIssues = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.electronAPI.openExternal(
-      'https://github.com/thealternator89/stitch/issues',
-    );
+    window.electronAPI.openExternal(repoUrl('issues'));
   };
 
   const isWindows = window.electronAPI.isWindows;
@@ -63,7 +85,16 @@ const App: React.FC = () => {
 
       <div className="main-content">
         <Routes>
-          <Route path="/" element={<Menu />} />
+          <Route
+            path="/"
+            element={
+              <Menu
+                updateStatus={updateStatus}
+                onCloseToast={handleCloseToast}
+                onOpenChangelog={handleOpenChangelog}
+              />
+            }
+          />
           <Route path="/test-case-writer" element={<TestCaseWriter />} />
           <Route path="/story-writer" element={<StoryWriter />} />
           <Route path="/settings" element={<Settings />} />

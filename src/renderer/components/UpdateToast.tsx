@@ -1,0 +1,46 @@
+import React from 'react';
+
+interface UpdateToastProps {
+  version: string;
+  onClose: () => void;
+  onChangelog: () => void;
+}
+
+const UpdateToast: React.FC<UpdateToastProps> = ({
+  version,
+  onClose,
+  onChangelog,
+}) => {
+  return (
+    <div className="update-toast" role="alert" aria-live="assertive">
+      <div className="update-toast-header">
+        <div className="update-toast-icon">
+          <i className="fas fa-rocket"></i>
+        </div>
+        <h6 className="update-toast-title">Stitch Updated!</h6>
+      </div>
+      <p className="update-toast-body">
+        The app has successfully updated to version <strong>v{version}</strong>.
+        Check out the latest changes and improvements in the release notes.
+      </p>
+      <div className="update-toast-actions">
+        <button
+          type="button"
+          className="update-toast-btn-close"
+          onClick={onClose}
+        >
+          Close
+        </button>
+        <button
+          type="button"
+          className="update-toast-btn-changelog"
+          onClick={onChangelog}
+        >
+          Changelog
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default UpdateToast;

@@ -4,6 +4,7 @@ import {
   DocPageData,
   CopilotAuth,
   CopilotModel,
+  UpdateStatus,
 } from '../types';
 
 export interface IElectronAPI {
@@ -33,7 +34,7 @@ export interface IElectronAPI {
   ) => Promise<void>;
 
   checkCopilotAuth: () => Promise<CopilotAuth>;
-  getVersion: () => Promise<string>;
+  getVersionStatus: () => Promise<UpdateStatus>;
   listCopilotModels: () => Promise<CopilotModel[]>;
   openExternal: (url: string) => Promise<void>;
   checkPromptComplexity: (
