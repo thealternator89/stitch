@@ -419,25 +419,10 @@ const StoryElaborator: React.FC = () => {
                 </label>
                 <textarea
                   className="form-control border-2"
-                  rows={4}
+                  rows={3}
                   placeholder="e.g. steer Copilot to focus on frontend architecture, database setup, or specific dependencies..."
                   value={context}
                   onChange={(e) => setContext(e.target.value)}
-                  disabled={stage !== 'idle'}
-                />
-              </div>
-
-              {/* Model Select */}
-              <div className="mb-4">
-                <label className="form-label fw-medium text-secondary d-block">
-                  Copilot Model
-                </label>
-                <ModelDropdown
-                  models={models}
-                  selectedModel={selectedModel}
-                  onSelect={setSelectedModel}
-                  loading={loadingModels}
-                  className="w-100 border-2"
                   disabled={stage !== 'idle'}
                 />
               </div>
@@ -470,7 +455,7 @@ const StoryElaborator: React.FC = () => {
         <div className="col-md-8 col-lg-9">
           <div
             className="card shadow-sm border-0 d-flex flex-column"
-            style={{ height: 'calc(100vh - 195px)', minHeight: '450px' }}
+            style={{ height: 'calc(100vh - 195px)', minHeight: '400px' }}
           >
             {/* Header */}
             <div className="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-shrink-0">
@@ -478,15 +463,26 @@ const StoryElaborator: React.FC = () => {
                 <i className="fas fa-comments-dollar me-2"></i>Elaboration
                 Console
               </h5>
-              {stage === 'plan_completed' && (
-                <button
-                  className="btn btn-sm btn-outline-light px-3 py-2 fw-medium"
-                  onClick={() => navigator.clipboard.writeText(planMarkdown)}
-                >
-                  <i className="fas fa-copy me-2"></i>
-                  Copy Plan
-                </button>
-              )}
+              <div className="d-flex align-items-center gap-3">
+                {stage === 'idle' && (
+                  <ModelDropdown
+                    models={models}
+                    selectedModel={selectedModel}
+                    onSelect={setSelectedModel}
+                    loading={loadingModels}
+                    className="w-auto border-0 shadow-sm"
+                  />
+                )}
+                {stage === 'plan_completed' && (
+                  <button
+                    className="btn btn-sm btn-outline-light px-3 py-2 fw-medium"
+                    onClick={() => navigator.clipboard.writeText(planMarkdown)}
+                  >
+                    <i className="fas fa-copy me-2"></i>
+                    Copy Plan
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Body */}
