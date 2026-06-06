@@ -197,7 +197,6 @@ export class CopilotService {
               const line = buffer.slice(0, newlineIndex);
               buffer = buffer.slice(newlineIndex + 1);
               if (line.trim()) {
-                console.log(`DELTA: ${line}`);
                 onLine(line);
               }
             }
@@ -207,7 +206,6 @@ export class CopilotService {
         lastAssistantMessage = event;
       } else if (event.type === 'session.idle') {
         if (onLine && buffer.trim()) {
-          console.log(`IDLE: ${buffer}`);
           onLine(buffer);
           buffer = '';
         }
@@ -219,7 +217,6 @@ export class CopilotService {
           const lines = fullContent.split('\n');
           for (const line of lines) {
             if (line.trim()) {
-              console.log(`FALLBACK LINE: ${line}`);
               onLine(line);
             }
           }
