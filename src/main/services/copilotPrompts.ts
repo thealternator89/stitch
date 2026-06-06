@@ -173,6 +173,8 @@ Follow this process:
 6. Finally, return the "plan" message in JSONL format.
 
 Start by analyzing the ticket details and/or repository, and ask your first question or output a status update followed by a tool call or question.
+
+Your plan will be written as a comment on the ticket, so be concise and avoid repeating the ticket contents. Ideally your output is a list of things that need to be done to complete this ticket.
 `;
 }
 
