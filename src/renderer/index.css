@@ -157,6 +157,36 @@ textarea,
   background-color: #161b22;
 }
 
+/* Indigo Theme Utilities */
+.bg-indigo {
+  background-color: #4f46e5 !important;
+}
+.text-indigo {
+  color: #4f46e5 !important;
+}
+.btn-indigo {
+  background-color: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+  color: white !important;
+}
+.btn-indigo:hover {
+  background-color: #4338ca !important;
+  border-color: #4338ca !important;
+}
+.btn-outline-indigo {
+  color: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+  background-color: transparent !important;
+}
+.btn-outline-indigo:hover {
+  background-color: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+  color: white !important;
+}
+.border-indigo {
+  border-color: #4f46e5 !important;
+}
+
 /* Settings Page Sidebar Layout */
 .settings-container {
   display: flex;
