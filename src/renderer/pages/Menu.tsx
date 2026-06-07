@@ -42,14 +42,14 @@ const Menu: React.FC<MenuProps> = ({
                 Test Case Writer
               </h5>
               <p className="card-text text-muted">
-                Create and manage test cases for your features.
+                Create test cases for your stories.
               </p>
               <div className="mt-auto">
                 <Link
                   to="/test-case-writer"
                   className="btn btn-outline-primary w-100"
                 >
-                  Open Tool
+                  Open
                 </Link>
               </div>
             </div>
@@ -63,20 +63,19 @@ const Menu: React.FC<MenuProps> = ({
                 Story Writer
               </h5>
               <p className="card-text text-muted">
-                Generate stories from Confluence requirements.
+                Generate stories from requirements.
               </p>
               <div className="mt-auto">
                 <Link
                   to="/story-writer"
                   className="btn btn-outline-primary w-100"
                 >
-                  Open Tool
+                  Open
                 </Link>
               </div>
             </div>
           </div>
         </div>
-        {/* Placeholder for future tools */}
         <div className="col-md-4 mb-4">
           <div className="card shadow-sm h-100">
             <div className="card-body d-flex flex-column">
@@ -85,17 +84,25 @@ const Menu: React.FC<MenuProps> = ({
                 Story Elaborator
               </h5>
               <p className="card-text text-muted">
-                Cycle through questions to elaborate a ticket into an
-                implementation plan.
+                Reveal unclear story details and build an implementation plan.
               </p>
               <div className="mt-auto">
                 <Link
                   to="/story-elaborator"
                   className="btn btn-outline-primary w-100"
                 >
-                  Open Tool
+                  Open
                 </Link>
               </div>
+            </div>
+          </div>
+        </div>
+        {/* Placeholder for future tools */}
+        <div className="col-md-4 mb-4">
+          <div className="card shadow-sm h-100 border-dashed">
+            <div className="card-body d-flex flex-column justify-content-center align-items-center opacity-50 mt-4 mb-4">
+              <i className="fas fa-plus-circle fa-2x mb-2"></i>
+              <p className="card-text">More tools coming soon...</p>
             </div>
           </div>
         </div>
