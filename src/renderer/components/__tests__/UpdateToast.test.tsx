@@ -17,6 +17,11 @@ describe('UpdateToast Component', () => {
 
     expect(screen.getByText('Stitch Updated!')).toBeInTheDocument();
     expect(screen.getByText('v2026.6.3')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Check out the latest changes and improvements in the release notes/,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /changelog/i }),
@@ -59,6 +64,11 @@ describe('UpdateToast Component', () => {
     expect(
       screen.queryByRole('button', { name: /changelog/i }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /You're running an unreleased build. Check out the git history for changes/,
+      ),
+    ).toBeInTheDocument();
 
     rerender(
       <UpdateToast
@@ -71,5 +81,10 @@ describe('UpdateToast Component', () => {
     expect(
       screen.queryByRole('button', { name: /changelog/i }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /You're running an unreleased build. Check out the git history for changes/,
+      ),
+    ).toBeInTheDocument();
   });
 });
