@@ -50,4 +50,26 @@ describe('UpdateToast Component', () => {
     fireEvent.click(screen.getByRole('button', { name: /changelog/i }));
     expect(onChangelogSpy).toHaveBeenCalledOnce();
   });
+
+  it('does not render Changelog button if the version is not strictly CalVer format', () => {
+    const { rerender } = render(
+      <UpdateToast version="1.0.1" onClose={vi.fn()} onChangelog={vi.fn()} />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /changelog/i }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <UpdateToast
+        version="2026.6.7-some-branch"
+        onClose={vi.fn()}
+        onChangelog={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /changelog/i }),
+    ).not.toBeInTheDocument();
+  });
 });

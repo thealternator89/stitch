@@ -11,6 +11,8 @@ const UpdateToast: React.FC<UpdateToastProps> = ({
   onClose,
   onChangelog,
 }) => {
+  const isCalVer = /^\d{4}\.\d{1,2}\.\d{1,2}$/.test(version);
+
   return (
     <div className="update-toast" role="alert" aria-live="assertive">
       <div className="update-toast-header">
@@ -31,13 +33,15 @@ const UpdateToast: React.FC<UpdateToastProps> = ({
         >
           Close
         </button>
-        <button
-          type="button"
-          className="update-toast-btn-changelog"
-          onClick={onChangelog}
-        >
-          Changelog
-        </button>
+        {isCalVer && (
+          <button
+            type="button"
+            className="update-toast-btn-changelog"
+            onClick={onChangelog}
+          >
+            Changelog
+          </button>
+        )}
       </div>
     </div>
   );
