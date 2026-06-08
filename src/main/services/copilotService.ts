@@ -160,7 +160,8 @@ export class CopilotService {
   private async sendAndCollectStream(
     session: any,
     prompt: string,
-    onLineOrTimeout?: ((line: string) => void) | number,
+    onLine?: (line: string) => void,
+    onTool?: (type: 'start' | 'end', tool: string) => void,
     timeoutMs = 180000,
   ): Promise<string> {
     const chunks: string[] = [];
@@ -173,15 +174,6 @@ export class CopilotService {
       resolvePromise = resolve;
       rejectPromise = reject;
     });
-
-    let onLine: ((line: string) => void) | undefined;
-    let actualTimeout = timeoutMs;
-
-    if (typeof onLineOrTimeout === 'number') {
-      actualTimeout = onLineOrTimeout;
-    } else {
-      onLine = onLineOrTimeout;
-    }
 
     let timeoutId: NodeJS.Timeout | undefined;
 
@@ -223,6 +215,10 @@ export class CopilotService {
         }
 
         resolvePromise(fullContent);
+      } else if (event.type === 'tool.execution_start') {
+        onTool('start', event.data.toolName);
+      } else if (event.type === 'tool.execution_complete') {
+        onTool('end', event.data.toolDescription?.name);
       } else if (event.type === 'session.error') {
         const error = new Error(
           event.data?.message || 'Session error occurred',
@@ -240,9 +236,9 @@ export class CopilotService {
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
           reject(
-            new Error(`Timeout after ${actualTimeout}ms waiting for response`),
+            new Error(`Timeout after ${timeoutMs}ms waiting for response`),
           );
-        }, actualTimeout);
+        }, timeoutMs);
       });
 
       return await Promise.race([completionPromise, timeoutPromise]);
@@ -287,6 +283,7 @@ export class CopilotService {
         session,
         prompt,
         onLine,
+        undefined,
         180000,
       );
       return responseContent;
@@ -340,6 +337,7 @@ export class CopilotService {
         session,
         prompt,
         onLine,
+        undefined,
         180000,
       );
       return responseContent;
@@ -405,6 +403,7 @@ export class CopilotService {
       const responseContent = await this.sendAndCollectStream(
         session,
         metaPrompt,
+        undefined,
         undefined,
         180000,
       );
@@ -479,6 +478,8 @@ export class CopilotService {
         session,
         prompt,
         onLine,
+        (type, tool) =>
+          onLine(JSON.stringify({ type: 'tool', status: type, name: tool })),
         180000,
       );
       return responseContent;
@@ -508,6 +509,8 @@ export class CopilotService {
         session,
         answer,
         onLine,
+        (type, tool) =>
+          onLine(JSON.stringify({ type: 'tool', status: type, name: tool })),
         180000,
       );
       return responseContent;

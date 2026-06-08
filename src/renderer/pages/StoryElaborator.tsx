@@ -132,6 +132,11 @@ const StoryElaborator: React.FC = () => {
         const data = JSON.parse(trimmed);
         if (data.type === 'status') {
           setStatusLogs((prev) => [...prev, data.text]);
+        } else if (data.type === 'tool') {
+          setStatusLogs((prev) => [
+            ...prev,
+            `Tool ${data.status}: ${data.tool}`,
+          ]);
         } else if (data.type === 'question') {
           setIsGenerating(false);
           setIsWaitingForUser(true);
