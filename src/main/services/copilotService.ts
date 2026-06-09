@@ -161,7 +161,7 @@ export class CopilotService {
     session: any,
     prompt: string,
     onLine?: (line: string) => void,
-    onTool?: (type: 'start' | 'end', tool: string) => void,
+    onTool?: (type: 'start' | 'end', tool: string, success?: boolean) => void,
     timeoutMs = 180000,
   ): Promise<string> {
     const chunks: string[] = [];
@@ -176,6 +176,7 @@ export class CopilotService {
     });
 
     let timeoutId: NodeJS.Timeout | undefined;
+    const activeToolCalls = new Map<string, string>();
 
     const unsubscribe = session.on((event: any) => {
       if (event.type === 'assistant.message_delta') {
@@ -216,9 +217,18 @@ export class CopilotService {
 
         resolvePromise(fullContent);
       } else if (event.type === 'tool.execution_start') {
-        onTool('start', event.data.toolName);
+        const toolName = event.data.toolName;
+        activeToolCalls.set(event.data.toolCallId, toolName);
+        if (onTool) {
+          onTool('start', toolName);
+        }
       } else if (event.type === 'tool.execution_complete') {
-        onTool('end', event.data.toolDescription?.name);
+        const toolName =
+          activeToolCalls.get(event.data.toolCallId) || 'unknown';
+        activeToolCalls.delete(event.data.toolCallId);
+        if (onTool) {
+          onTool('end', toolName, event.data.success);
+        }
       } else if (event.type === 'session.error') {
         const error = new Error(
           event.data?.message || 'Session error occurred',
@@ -478,8 +488,10 @@ export class CopilotService {
         session,
         prompt,
         onLine,
-        (type, tool) =>
-          onLine(JSON.stringify({ type: 'tool', status: type, name: tool })),
+        (type, tool, success) =>
+          onLine(
+            JSON.stringify({ type: 'tool', status: type, name: tool, success }),
+          ),
         180000,
       );
       return responseContent;
@@ -509,8 +521,10 @@ export class CopilotService {
         session,
         answer,
         onLine,
-        (type, tool) =>
-          onLine(JSON.stringify({ type: 'tool', status: type, name: tool })),
+        (type, tool, success) =>
+          onLine(
+            JSON.stringify({ type: 'tool', status: type, name: tool, success }),
+          ),
         180000,
       );
       return responseContent;
