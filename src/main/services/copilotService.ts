@@ -314,7 +314,7 @@ export class CopilotService {
     } finally {
       if (session) {
         try {
-          await session.destroy();
+          await session.disconnect();
         } catch (e) {
           console.error('Error destroying session in generateTestCases:', e);
         }
@@ -368,7 +368,7 @@ export class CopilotService {
     } finally {
       if (session) {
         try {
-          await session.destroy();
+          await session.disconnect();
         } catch (e) {
           console.error('Error destroying session in generateStories:', e);
         }
@@ -435,7 +435,7 @@ export class CopilotService {
     } finally {
       if (session) {
         try {
-          await session.destroy();
+          await session.disconnect();
         } catch (e) {
           console.error(
             'Error destroying session in checkPromptComplexity:',
@@ -569,7 +569,7 @@ export class CopilotService {
     this.activeElaborations.delete(ticketId);
     const { client, session } = data;
     try {
-      await session.destroy();
+      await session.disconnect();
     } catch (e) {
       console.error('Error destroying session in stopStoryElaboration:', e);
     }
@@ -583,7 +583,7 @@ export class CopilotService {
   async cleanup() {
     for (const [ticketId, data] of this.activeElaborations.entries()) {
       try {
-        await data.session.destroy();
+        await data.session.disconnect();
         await data.client.stop();
       } catch (e) {
         console.error(
