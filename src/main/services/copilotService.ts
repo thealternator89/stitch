@@ -161,7 +161,13 @@ export class CopilotService {
     session: any,
     prompt: string,
     onLine?: (line: string) => void,
-    onTool?: (type: 'start' | 'end', tool: string, success?: boolean) => void,
+    onTool?: (
+      type: 'start' | 'end',
+      tool: string,
+      success?: boolean,
+      error?: string,
+      args?: any,
+    ) => void,
     timeoutMs = 180000,
   ): Promise<string> {
     const chunks: string[] = [];
@@ -220,14 +226,19 @@ export class CopilotService {
         const toolName = event.data.toolName;
         activeToolCalls.set(event.data.toolCallId, toolName);
         if (onTool) {
-          onTool('start', toolName);
+          onTool('start', toolName, undefined, undefined, event.data.arguments);
         }
       } else if (event.type === 'tool.execution_complete') {
         const toolName =
           activeToolCalls.get(event.data.toolCallId) || 'unknown';
         activeToolCalls.delete(event.data.toolCallId);
         if (onTool) {
-          onTool('end', toolName, event.data.success);
+          onTool(
+            'end',
+            toolName,
+            event.data.success,
+            event.data.error?.message,
+          );
         }
       } else if (event.type === 'session.error') {
         const error = new Error(
@@ -488,9 +499,16 @@ export class CopilotService {
         session,
         prompt,
         onLine,
-        (type, tool, success) =>
+        (type, tool, success, error, args) =>
           onLine(
-            JSON.stringify({ type: 'tool', status: type, name: tool, success }),
+            JSON.stringify({
+              type: 'tool',
+              status: type,
+              name: tool,
+              success,
+              error,
+              arguments: args,
+            }),
           ),
         180000,
       );
@@ -521,9 +539,16 @@ export class CopilotService {
         session,
         answer,
         onLine,
-        (type, tool, success) =>
+        (type, tool, success, error, args) =>
           onLine(
-            JSON.stringify({ type: 'tool', status: type, name: tool, success }),
+            JSON.stringify({
+              type: 'tool',
+              status: type,
+              name: tool,
+              success,
+              error,
+              arguments: args,
+            }),
           ),
         180000,
       );

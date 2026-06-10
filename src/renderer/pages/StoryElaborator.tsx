@@ -133,10 +133,19 @@ const StoryElaborator: React.FC = () => {
         if (data.type === 'status') {
           setStatusLogs((prev) => [...prev, data.text]);
         } else if (data.type === 'tool') {
-          const statusText =
-            data.status === 'end'
-              ? `Tool end: ${data.name} (${data.success ? 'success' : 'failed'})`
-              : `Tool start: ${data.name}`;
+          let statusText = '';
+          if (data.name === 'report_intent') {
+            if (data.status === 'start' && data.arguments?.intent) {
+              statusText = `Intent: ${data.arguments.intent}`;
+            } else {
+              return;
+            }
+          } else {
+            statusText =
+              data.status === 'end'
+                ? `Tool end: ${data.name} (${data.success ? 'success' : 'failed'}${data.error ? `: ${data.error}` : ''})`
+                : `Tool start: ${data.name}`;
+          }
           setStatusLogs((prev) => [...prev, statusText]);
         } else if (data.type === 'question') {
           setIsGenerating(false);
