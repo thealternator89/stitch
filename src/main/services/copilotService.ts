@@ -17,25 +17,33 @@ async function createCopilotClient(copilotToken?: string) {
   // with new Copilot CLI/SDK releases on Windows. If the standard platform-agnostic approach
   // starts working, the entire Windows workaround block below should be removed.
   const disableEnvVal = process.env.DISABLE_COPILOT_WINDOWS_WORKAROUND || '';
-  const env = copilotToken
-    ? {
-        ...process.env,
-        GITHUB_TOKEN: copilotToken,
-        COPILOT_TOKEN: copilotToken,
-      }
-    : undefined;
+  const env = {
+    ...process.env,
+    ELECTRON_RUN_AS_NODE: '1',
+    ...(copilotToken
+      ? {
+          GITHUB_TOKEN: copilotToken,
+          COPILOT_TOKEN: copilotToken,
+        }
+      : {}),
+  };
 
-  if (process.platform === 'win32' && !['1', 'true'].includes(disableEnvVal)) {
-    if (!process.env.NODE_PATH || !process.env.COPILOT_SCRIPT_PATH) {
-      throw new Error(
-        'On Windows, both NODE_PATH and COPILOT_SCRIPT_PATH environment variables are required to initialise the Copilot client.',
-      );
-    }
+  // If the user explicitly configured NODE_PATH and COPILOT_SCRIPT_PATH, use them.
+  // Otherwise, the default platform-agnostic approach will spawn the Electron executable
+  // as a Node.js process using ELECTRON_RUN_AS_NODE: '1', running the bundled copilot script.
+  if (
+    process.platform === 'win32' &&
+    !['1', 'true'].includes(disableEnvVal) &&
+    process.env.NODE_PATH &&
+    process.env.COPILOT_SCRIPT_PATH
+  ) {
     return {
       client: new CopilotClient({
-        cliPath: process.env.NODE_PATH,
-        cliArgs: [process.env.COPILOT_SCRIPT_PATH],
-        useStdio: true,
+        connection: {
+          kind: 'stdio',
+          path: process.env.NODE_PATH,
+          args: [process.env.COPILOT_SCRIPT_PATH],
+        },
         env,
       }),
       approveAll,
