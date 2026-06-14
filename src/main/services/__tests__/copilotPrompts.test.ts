@@ -129,7 +129,6 @@ describe('copilotPrompts', () => {
       expect(prompt).toContain('AC 1 should pass.');
       expect(prompt).toContain('Additional context here');
       expect(prompt).toContain('You have access to the local codebase');
-      expect(prompt).toContain('write the final plan to a markdown file');
       expect(prompt).not.toContain(
         'You DO NOT have access to a local codebase',
       );

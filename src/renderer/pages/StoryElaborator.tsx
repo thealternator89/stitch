@@ -141,9 +141,12 @@ const StoryElaborator: React.FC = () => {
               return;
             }
           } else {
+            if (data.status === 'end' && data.success) {
+              return; // don't clog status with "end" logs unless it fails
+            }
             statusText =
               data.status === 'end'
-                ? `Tool end: ${data.name} (${data.success ? 'success' : 'failed'}${data.error ? `: ${data.error}` : ''})`
+                ? `Tool failed: ${data.name} ${data.error ? `- ${data.error}` : ''}`
                 : `Tool start: ${data.name}`;
           }
           setStatusLogs((prev) => [...prev, statusText]);

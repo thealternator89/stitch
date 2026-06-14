@@ -125,15 +125,12 @@ export function buildStoryElaboratorPrompt(
     repoInstructions = `
 You have access to the local codebase of the project through your built-in tools (such as reading files and browsing directories).
 Use these tools to search, analyze, and inspect the codebase files to understand the project structure and existing implementations before formulating questions or plans.
-Once you have collected enough information and the user has answered all questions, you MUST write the final plan to a markdown file in the repository (e.g., \`implementation_plan.md\` or another appropriate path/file in the directory) using your file-writing tools.
-Once written, return a "plan" message containing both the markdown text and the saved file path.
 `;
   } else {
     repoInstructions = `
 You DO NOT have access to a local codebase or repository.
 Base all your questions, architectural assumptions, and the final plan entirely on the details provided in the ticket and user inputs.
 Do NOT attempt to run any filesystem or command tools, as no repository context is available.
-Once you have enough information, generate the final plan in markdown format and output it in a "plan" message. Do not specify a filePath.
 `;
   }
 
@@ -149,6 +146,9 @@ Additional Context: ${additionalContext || 'None provided'}
 
 ${repoInstructions}
 
+Once you have enough information, generate the final plan in markdown format and output it in a "plan" message.
+If you have access to the repository you are forbidden from modifying, creating, or deleting any files. You must only read.
+
 Your communication protocol with the host application is strictly JSON Lines (JSONL).
 Every output line MUST be a single, standalone, valid JSON object. Do NOT wrap the JSON objects in an array. Do NOT output markdown fences (like \`\`\`json) wrapping your JSONL output.
 All double quotes inside string values must be escaped as \\". All actual newlines inside string values must be escaped as \\n.
@@ -161,16 +161,17 @@ You must choose one of the following JSON formats for each line you output:
 2. Questions (if you need clarification on requirements, architectural choices, styling preferences, or codebase details from the user). Ask exactly ONE question at a time and then STOP. Do not output anything else in that turn. You can optionally provide a list of suggested answers if you are able to guess or suggest sensible options:
    \`{"type": "question", "text": "Should we use React state or Redux to store this new field?", "suggestedAnswers": ["React State", "Redux", "Context API"]}\`
 
-3. The Final Plan (when all questions are answered and the plan is ready. In this case, output a single JSON object. If a repository is available, make sure to write the plan to a file in the workspace first using your tools, and provide the absolute or relative file path in the 'filePath' attribute):
-   \`{"type": "plan", "text": "# Detailed Implementation Plan\\n\\n### Proposed Changes...", "filePath": "implementation_plan.md"}\` (omit 'filePath' if no repository is available)
+3. The Final Plan (when all questions are answered and the plan is ready. In this case, output a single JSON object:
+   \`{"type": "plan", "text": "# Detailed Implementation Plan\\n\\n### Proposed Changes..."}\`
 
 Follow this process:
 1. Analyze the ticket and, if a repository is available, inspect the files using your tools to understand the codebase.
 2. If you are still analyzing or reading files, call your filesystem/grep tools to continue. Each turn where you do not call a tool must ask the user a clarifying question or present the final plan. Do not stop without either calling a tool or asking a question/plan.
 3. Ask clarifying questions one by one, stopping after each question to wait for the user's response.
 4. Once all details are resolved, draft the detailed implementation plan.
-5. If a repository is available, write the plan to a file in the workspace using your file tools.
 6. Finally, return the "plan" message in JSONL format.
+
+You are forbidden from ending the interaction without returning the "plan" message in JSONL format.
 
 Start by analyzing the ticket details and/or repository, and ask your first question or output a status update followed by a tool call or question.
 
