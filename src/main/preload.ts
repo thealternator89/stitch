@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createTicket: (type: string, parentTicketId: string, data: TicketData) =>
     ipcRenderer.invoke('create-ticket', type, parentTicketId, data),
   checkCopilotAuth: () => ipcRenderer.invoke('check-copilot-auth'),
+  checkEnvironment: () => ipcRenderer.invoke('check-environment'),
   getVersionStatus: () => ipcRenderer.invoke('get-version-status'),
   listCopilotModels: () => ipcRenderer.invoke('list-copilot-models'),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),

@@ -75,3 +75,12 @@ export interface UpdateStatus {
   previousVersion?: string;
   currentVersion: string;
 }
+
+export interface EnvironmentCheckResult {
+  success: boolean;
+  nodePath: string | null;
+  nodeVersion: string | null;
+  minRequiredVersion: number;
+  errorType: 'NODE_NOT_FOUND' | 'NODE_VERSION_TOO_LOW' | null;
+  message: string | null;
+}

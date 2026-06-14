@@ -209,6 +209,10 @@ ipcMain.handle('check-copilot-auth', async () => {
   return copilotService.checkAuthStatus(settings.copilotToken);
 });
 
+ipcMain.handle('check-environment', async () => {
+  return copilotService.checkEnvironment();
+});
+
 ipcMain.handle('list-copilot-models', async () => {
   const s = await initStore();
   const settings = (s.get('settings') ?? {}) as AppSettings;

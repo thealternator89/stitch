@@ -5,7 +5,7 @@ import TestCaseWriter from './pages/TestCaseWriter';
 import StoryWriter from './pages/StoryWriter';
 import StoryElaborator from './pages/StoryElaborator';
 import Settings from './pages/Settings';
-import { UpdateStatus } from '../types';
+import { UpdateStatus, EnvironmentCheckResult } from '../types';
 
 function repoUrl(suffix: string): string {
   return 'https://github.com/thealternator89/stitch/' + suffix;
@@ -14,6 +14,22 @@ function repoUrl(suffix: string): string {
 const App: React.FC = () => {
   const [version, setVersion] = useState<string>('');
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [envCheckResult, setEnvCheckResult] =
+    useState<EnvironmentCheckResult | null>(null);
+
+  useEffect(() => {
+    const runEnvCheck = async () => {
+      try {
+        const result = await window.electronAPI.checkEnvironment();
+        if (!result.success) {
+          setEnvCheckResult(result);
+        }
+      } catch (err) {
+        console.error('Failed to run environment check:', err);
+      }
+    };
+    runEnvCheck();
+  }, []);
 
   useEffect(() => {
     const fetchVersionAndStatus = async () => {
@@ -106,6 +122,37 @@ const App: React.FC = () => {
       <div className="footer">
         <span className="me-2 text-muted">Version {version}</span>
       </div>
+
+      {envCheckResult && (
+        <div className="env-error-overlay">
+          <div className="env-error-modal">
+            <div className="env-error-icon">
+              <i className="fas fa-exclamation-triangle"></i>
+            </div>
+            <h4 className="env-error-title">Node.js Upgrade Required</h4>
+            <p className="env-error-message text-center">
+              {envCheckResult.message}
+            </p>
+            <div className="env-error-details">
+              Stitch requires Node.js v{envCheckResult.minRequiredVersion} or
+              above to communicate with the GitHub Copilot CLI safely and
+              reliably. Please install the latest LTS version of Node.js and
+              restart the application.
+            </div>
+            <div className="env-error-actions">
+              <button
+                className="btn btn-indigo btn-lg"
+                onClick={async () => {
+                  await window.electronAPI.openExternal('https://nodejs.org/');
+                }}
+              >
+                <i className="fas fa-download me-2"></i>
+                Download Node.js
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Router>
   );
 };

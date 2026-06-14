@@ -5,6 +5,7 @@ import {
   CopilotAuth,
   CopilotModel,
   UpdateStatus,
+  EnvironmentCheckResult,
 } from '../types';
 
 export interface IElectronAPI {
@@ -34,6 +35,7 @@ export interface IElectronAPI {
   ) => Promise<void>;
 
   checkCopilotAuth: () => Promise<CopilotAuth>;
+  checkEnvironment: () => Promise<EnvironmentCheckResult>;
   getVersionStatus: () => Promise<UpdateStatus>;
   listCopilotModels: () => Promise<CopilotModel[]>;
   openExternal: (url: string) => Promise<void>;
