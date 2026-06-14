@@ -1,3 +1,74 @@
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs';
+import path from 'path';
+
+const execPromise = promisify(exec);
+
+// Windows has weird redirection issues, where the wrapper exits causing stdio to drop
+// To get around this, instead of launching `copilot` directly, we launch `node` with the
+// `copilot` script as an argument. This seems to fix the issue.
+//
+// FIXME: Ideally once Copilot CLI or SDK come out of preview it will be working normally
+// and we can remove this
+//
+// DISABLE_COPILOT_WINDOWS_WORKAROUND is provided to simplify periodic compatibility testing
+// with new Copilot CLI/SDK releases on Windows. If the standard platform-agnostic approach
+// starts working, the entire Windows workaround block below should be removed.
+const DISABLE_WINDOWS_WORKAROUND = ['1', 'true'].includes(
+  process.env.DISABLE_COPILOT_WINDOWS_WORKAROUND || '',
+);
+
+async function getNodePath(): Promise<string | null> {
+  // Respect user-specified NODE_PATH first (unless the workaround test bypass is active)
+  if (!DISABLE_WINDOWS_WORKAROUND && process.env.NODE_PATH) {
+    return process.env.NODE_PATH;
+  }
+
+  const cmd = process.platform === 'win32' ? 'where node' : 'which node';
+  try {
+    const { stdout } = await execPromise(cmd);
+    const resolvedPath = stdout.trim().split('\n')[0].trim();
+    if (resolvedPath && fs.existsSync(resolvedPath)) {
+      return resolvedPath;
+    }
+  } catch (e) {
+    console.warn(`Could not locate system node via "${cmd}":`, e);
+  }
+  return null;
+}
+
+function getCopilotScriptPath(): string | null {
+  // Respect user-specified COPILOT_SCRIPT_PATH first (unless the workaround test bypass is active)
+  if (!DISABLE_WINDOWS_WORKAROUND && process.env.COPILOT_SCRIPT_PATH) {
+    return process.env.COPILOT_SCRIPT_PATH;
+  }
+
+  try {
+    // Locate the peer `@github/copilot` package directory relative to `@github/copilot-sdk`
+    // Webpack wraps require.resolve, but eval('require.resolve') runs standard Node resolution at runtime.
+    const sdkEntryPoint = eval("require.resolve('@github/copilot-sdk')");
+
+    // Traverse up to find the peer `@github/copilot/index.js`
+    let dir = path.dirname(sdkEntryPoint);
+    for (let i = 0; i < 5; i++) {
+      const candidate = path.join(dir, '@github', 'copilot', 'index.js');
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch (e) {
+    console.warn(
+      'Could not locate bundled copilot script path dynamically:',
+      e,
+    );
+  }
+  return null;
+}
+
 // Since we dynamically import the SDK, we need to use any - disable eslint rule
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function createCopilotClient(copilotToken?: string) {
@@ -6,17 +77,6 @@ async function createCopilotClient(copilotToken?: string) {
     'import("@github/copilot-sdk")',
   );
 
-  // Windows has weird redirection issues, where the wrapper exits causing stdio to drop
-  // To get around this, instead of launching `copilot` directly, we launch `node` with the
-  // `copilot` script as an argument. This seems to fix the issue.
-  //
-  // FIXME: Ideally once Copilot CLI or SDK come out of preview it will be working normally
-  // and we can remove this
-  //
-  // DISABLE_COPILOT_WINDOWS_WORKAROUND is provided to simplify periodic compatibility testing
-  // with new Copilot CLI/SDK releases on Windows. If the standard platform-agnostic approach
-  // starts working, the entire Windows workaround block below should be removed.
-  const disableEnvVal = process.env.DISABLE_COPILOT_WINDOWS_WORKAROUND || '';
   const env = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
@@ -28,21 +88,19 @@ async function createCopilotClient(copilotToken?: string) {
       : {}),
   };
 
-  // If the user explicitly configured NODE_PATH and COPILOT_SCRIPT_PATH, use them.
-  // Otherwise, the default platform-agnostic approach will spawn the Electron executable
-  // as a Node.js process using ELECTRON_RUN_AS_NODE: '1', running the bundled copilot script.
-  if (
-    process.platform === 'win32' &&
-    !['1', 'true'].includes(disableEnvVal) &&
-    process.env.NODE_PATH &&
-    process.env.COPILOT_SCRIPT_PATH
-  ) {
+  const nodePath = await getNodePath();
+  const copilotScriptPath = getCopilotScriptPath();
+
+  // If we found both the system node and the copilot script path, spawn the Copilot CLI
+  // using the system node. This avoids Electron's process.argv parsing issues
+  // (e.g. Commander.js bug) and packaging limitations.
+  if (nodePath && copilotScriptPath) {
     return {
       client: new CopilotClient({
         connection: {
           kind: 'stdio',
-          path: process.env.NODE_PATH,
-          args: [process.env.COPILOT_SCRIPT_PATH],
+          path: nodePath,
+          args: [copilotScriptPath],
         },
         env,
       }),
@@ -50,6 +108,7 @@ async function createCopilotClient(copilotToken?: string) {
     };
   }
 
+  // Fallback to the default platform-agnostic approach using process.execPath (Electron)
   return { client: new CopilotClient({ env }), approveAll };
 }
 
