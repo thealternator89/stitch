@@ -30,7 +30,9 @@ const StoryElaborator: React.FC = () => {
   const [error, setError] = useState<string>('');
 
   // Elaboration Content
-  const [statusLogs, setStatusLogs] = useState<string[]>([]);
+  const [statusLogs, setStatusLogs] = useState<
+    { message: string; timestamp: Date }[]
+  >([]);
   const [conversation, setConversation] = useState<ChatMessage[]>([]);
   const [userAnswer, setUserAnswer] = useState('');
   const [planMarkdown, setPlanMarkdown] = useState('');
@@ -131,7 +133,10 @@ const StoryElaborator: React.FC = () => {
       try {
         const data = JSON.parse(trimmed);
         if (data.type === 'status') {
-          setStatusLogs((prev) => [...prev, data.text]);
+          setStatusLogs((prev) => [
+            ...prev,
+            { message: data.text, timestamp: new Date() },
+          ]);
         } else if (data.type === 'tool') {
           let statusText = '';
           if (data.name === 'report_intent') {
@@ -149,7 +154,10 @@ const StoryElaborator: React.FC = () => {
                 ? `Tool failed: ${data.name} ${data.error ? `- ${data.error}` : ''}`
                 : `Tool start: ${data.name}`;
           }
-          setStatusLogs((prev) => [...prev, statusText]);
+          setStatusLogs((prev) => [
+            ...prev,
+            { message: statusText, timestamp: new Date() },
+          ]);
         } else if (data.type === 'question') {
           setIsGenerating(false);
           setIsWaitingForUser(true);
@@ -537,7 +545,9 @@ const StoryElaborator: React.FC = () => {
                             role="status"
                           ></div>
                           <p className="fw-medium small">
-                            Initializing Copilot agent session...
+                            {statusLogs.length === 0
+                              ? 'Initializing Copilot agent session...'
+                              : 'Thinking...'}
                           </p>
                         </div>
                       ) : (
@@ -636,7 +646,10 @@ const StoryElaborator: React.FC = () => {
                   </div>
 
                   {/* Status / Activity Panel */}
-                  <div className="col-md-4 d-flex flex-column h-100 bg-dark text-light border-start">
+                  <div
+                    className="col-md-4 d-flex flex-column h-100 bg-dark text-light border-start"
+                    data-bs-theme="dark"
+                  >
                     <div className="p-3 border-bottom border-secondary flex-shrink-0 d-flex align-items-center justify-content-between">
                       <span className="small fw-bold text-uppercase text-secondary tracking-wider">
                         Copilot Status Log
@@ -653,8 +666,10 @@ const StoryElaborator: React.FC = () => {
                       style={{ backgroundColor: '#111827' }}
                     >
                       {statusLogs.length === 0 ? (
-                        <div className="text-muted small italic">
-                          Awaiting connection...
+                        <div className="text-body-secondary small italic">
+                          {conversation.length === 0
+                            ? 'Awaiting connection...'
+                            : 'Thinking...'}
                         </div>
                       ) : (
                         statusLogs.map((log, idx) => (
@@ -662,10 +677,10 @@ const StoryElaborator: React.FC = () => {
                             key={idx}
                             className="mb-2 text-indigo-light border-start border-indigo border-2 ps-2 py-0.5"
                           >
-                            <span className="text-muted small">
-                              [{new Date().toLocaleTimeString()}]
+                            <span className="text-body-secondary small">
+                              [{log.timestamp.toLocaleTimeString()}]
                             </span>{' '}
-                            {log}
+                            {log.message}
                           </div>
                         ))
                       )}
