@@ -547,7 +547,7 @@ const StoryElaborator: React.FC = () => {
                           <p className="fw-medium small">
                             {statusLogs.length === 0
                               ? 'Initializing Copilot agent session...'
-                              : 'Thinking...'}
+                              : 'Copilot is thinking...'}
                           </p>
                         </div>
                       ) : (
@@ -669,7 +669,7 @@ const StoryElaborator: React.FC = () => {
                         <div className="text-body-secondary small italic">
                           {conversation.length === 0
                             ? 'Awaiting connection...'
-                            : 'Thinking...'}
+                            : 'Copilot is thinking...'}
                         </div>
                       ) : (
                         statusLogs.map((log, idx) => (
