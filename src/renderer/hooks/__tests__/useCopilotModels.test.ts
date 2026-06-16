@@ -5,7 +5,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useCopilotModels } from '../useCopilotModels';
 
 const mockModels = [
-  { id: 'gpt-4.1', name: 'GPT-4o', billing: { multiplier: 1 } },
+  { id: 'auto', name: 'Auto' },
   { id: 'claude-3.5', name: 'Claude 3.5 Sonnet', billing: { multiplier: 1 } },
 ];
 
@@ -47,7 +47,7 @@ describe('useCopilotModels hook', () => {
     expect(listCopilotModelsMock).toHaveBeenCalledOnce();
   });
 
-  it('should fallback to gpt-4.1 if setting is not set but model is present in list', async () => {
+  it('should fallback to auto if setting is not set but model is present in list', async () => {
     const getSettingsMock = vi.mocked(window.electronAPI.getSettings);
     const listCopilotModelsMock = vi.mocked(
       window.electronAPI.listCopilotModels,
@@ -62,10 +62,10 @@ describe('useCopilotModels hook', () => {
       expect(result.current.loadingModels).toBe(false);
     });
 
-    expect(result.current.selectedModel).toBe('gpt-4.1');
+    expect(result.current.selectedModel).toBe('auto');
   });
 
-  it('should fallback to the first model in the list if setting is empty and gpt-4.1 is not present', async () => {
+  it('should fallback to the first model in the list if setting is empty and auto is not present', async () => {
     const getSettingsMock = vi.mocked(window.electronAPI.getSettings);
     const listCopilotModelsMock = vi.mocked(
       window.electronAPI.listCopilotModels,

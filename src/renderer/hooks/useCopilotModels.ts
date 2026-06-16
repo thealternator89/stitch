@@ -16,7 +16,7 @@ export function useCopilotModels() {
         setModels(list);
         const defaultModel =
           settings?.copilotModel ??
-          list.find((m) => m.id === 'gpt-4.1')?.id ??
+          list.find((m) => m.id === 'auto')?.id ??
           list[0]?.id;
 
         // Throw if no models can be loaded
