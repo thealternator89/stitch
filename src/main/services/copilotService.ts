@@ -358,7 +358,7 @@ export class CopilotService {
       error?: string,
       args?: any,
     ) => void,
-    timeoutMs = 180000,
+    timeoutMs = 60000,
   ): Promise<string> {
     const chunks: string[] = [];
     let buffer = '';
@@ -374,8 +374,24 @@ export class CopilotService {
     let timeoutId: NodeJS.Timeout | undefined;
     const activeToolCalls = new Map<string, string>();
 
+    const resetTimeout = () => {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+      if (activeToolCalls.size > 0) {
+        return;
+      }
+      timeoutId = setTimeout(() => {
+        rejectPromise(
+          new Error(`Timeout after ${timeoutMs}ms waiting for response`),
+        );
+      }, timeoutMs);
+    };
+
     const unsubscribe = session.on((event: any) => {
       if (event.type === 'assistant.message_delta') {
+        resetTimeout();
         const delta = event.data?.deltaContent;
         if (delta) {
           chunks.push(delta);
@@ -415,6 +431,7 @@ export class CopilotService {
       } else if (event.type === 'tool.execution_start') {
         const toolName = event.data.toolName;
         activeToolCalls.set(event.data.toolCallId, toolName);
+        resetTimeout();
         if (onTool) {
           onTool('start', toolName, undefined, undefined, event.data.arguments);
         }
@@ -422,6 +439,7 @@ export class CopilotService {
         const toolName =
           activeToolCalls.get(event.data.toolCallId) || 'unknown';
         activeToolCalls.delete(event.data.toolCallId);
+        resetTimeout();
         if (onTool) {
           onTool(
             'end',
@@ -442,17 +460,9 @@ export class CopilotService {
     });
 
     try {
+      resetTimeout();
       await session.send({ prompt });
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => {
-          reject(
-            new Error(`Timeout after ${timeoutMs}ms waiting for response`),
-          );
-        }, timeoutMs);
-      });
-
-      return await Promise.race([completionPromise, timeoutPromise]);
+      return await completionPromise;
     } finally {
       if (timeoutId !== undefined) {
         clearTimeout(timeoutId);
@@ -494,8 +504,6 @@ export class CopilotService {
         session,
         prompt,
         onLine,
-        undefined,
-        180000,
       );
       return responseContent;
     } catch (error) {
@@ -548,8 +556,6 @@ export class CopilotService {
         session,
         prompt,
         onLine,
-        undefined,
-        180000,
       );
       return responseContent;
     } catch (error) {
@@ -614,9 +620,6 @@ export class CopilotService {
       const responseContent = await this.sendAndCollectStream(
         session,
         metaPrompt,
-        undefined,
-        undefined,
-        180000,
       );
       return responseContent;
     } catch (error) {
@@ -700,7 +703,6 @@ export class CopilotService {
               arguments: args,
             }),
           ),
-        180000,
       );
       return responseContent;
     } catch (error) {
@@ -740,7 +742,6 @@ export class CopilotService {
               arguments: args,
             }),
           ),
-        180000,
       );
       return responseContent;
     } catch (error) {
