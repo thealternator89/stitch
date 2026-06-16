@@ -6,6 +6,7 @@ import {
   getCopilotScriptPath,
 } from '../copilotDetector';
 import fs from 'fs';
+import path from 'path';
 
 let mockExec: any = null;
 let mockExecFile: any = null;
@@ -169,24 +170,29 @@ describe('copilotDetector', () => {
       const scriptPath = getCopilotScriptPath();
       expect(scriptPath).toBe('/custom/copilot/index.js');
     });
-
     it('should resolve script path relative to @github/copilot-sdk peer package', () => {
+      const mockSdkPath = path.normalize(
+        '/mock/node_modules/@github/copilot-sdk/dist/index.js',
+      );
+      const expectedCopilotPath = path.normalize(
+        '/mock/node_modules/@github/copilot/index.js',
+      );
+
       global.eval = vi.fn().mockImplementation((val) => {
         if (val === "require.resolve('@github/copilot-sdk')") {
-          return '/mock/node_modules/@github/copilot-sdk/dist/index.js';
+          return mockSdkPath;
         }
         return originalEval(val);
       });
 
       vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
         // Should traverse up to node_modules/ and check node_modules/@github/copilot/index.js
-        return p === '/mock/node_modules/@github/copilot/index.js';
+        return p === expectedCopilotPath;
       });
 
       const scriptPath = getCopilotScriptPath();
-      expect(scriptPath).toBe('/mock/node_modules/@github/copilot/index.js');
+      expect(scriptPath).toBe(expectedCopilotPath);
     });
-
     it('should return null if path cannot be resolved', () => {
       global.eval = vi.fn().mockImplementation(() => {
         throw new Error('module not found');
