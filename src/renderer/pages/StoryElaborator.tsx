@@ -152,7 +152,7 @@ const StoryElaborator: React.FC = () => {
             statusText =
               data.status === 'end'
                 ? `Tool failed: ${data.name} ${data.error ? `- ${data.error}` : ''}`
-                : `Tool start: ${data.name}`;
+                : `Tool: ${data.name}`;
           }
           setStatusLogs((prev) => [
             ...prev,
