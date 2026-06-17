@@ -5,6 +5,7 @@ import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
 import { DocPageData } from '../../types';
+import { useTimeoutModal, isTimeoutError } from '../context/TimeoutContext';
 
 interface Story {
   title: string;
@@ -15,6 +16,7 @@ interface Story {
 }
 
 const StoryWriter: React.FC = () => {
+  const { showTimeout } = useTimeoutModal();
   const [pageId, setPageId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<DocPageData[]>([]);
@@ -128,7 +130,11 @@ const StoryWriter: React.FC = () => {
         err instanceof Error
           ? err.message
           : 'An error occurred during generation.';
-      setError(errMsg);
+      if (isTimeoutError(err)) {
+        showTimeout(err);
+      } else {
+        setError(errMsg);
+      }
     } finally {
       unsubscribe();
       setIsGenerating(false);

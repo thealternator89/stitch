@@ -104,6 +104,23 @@ function parseResilientJSONL(
   return tempBuffer;
 }
 
+export class TimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`[TIMEOUT_ERROR] Timeout after ${timeoutMs}ms waiting for response`);
+    this.name = 'TimeoutError';
+  }
+}
+
+function getTimeoutMs(): number {
+  if (process.env.STITCH_COPILOT_TIMEOUT) {
+    const parsed = parseInt(process.env.STITCH_COPILOT_TIMEOUT, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 60_000;
+}
+
 export class CopilotService {
   private model = 'auto';
   private cachedModels: CopilotModel[] = [];
@@ -218,8 +235,8 @@ export class CopilotService {
       error?: string,
       args?: any,
     ) => void,
-    timeoutMs = 60000,
   ): Promise<string> {
+    const timeoutMs = getTimeoutMs();
     const chunks: string[] = [];
     let buffer = '';
     let lastAssistantMessage: any = null;
@@ -243,9 +260,7 @@ export class CopilotService {
         return;
       }
       timeoutId = setTimeout(() => {
-        rejectPromise(
-          new Error(`Timeout after ${timeoutMs}ms waiting for response`),
-        );
+        rejectPromise(new TimeoutError(timeoutMs));
       }, timeoutMs);
     };
 

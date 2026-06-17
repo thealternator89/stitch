@@ -5,6 +5,7 @@ import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
 import { TicketData } from '../../types';
+import { useTimeoutModal, isTimeoutError } from '../context/TimeoutContext';
 
 interface ChatMessage {
   sender: 'copilot' | 'user';
@@ -12,6 +13,7 @@ interface ChatMessage {
 }
 
 const StoryElaborator: React.FC = () => {
+  const { showTimeout } = useTimeoutModal();
   const [ticketId, setTicketId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TicketData[]>([]);
@@ -195,7 +197,11 @@ const StoryElaborator: React.FC = () => {
         err instanceof Error
           ? err.message
           : 'An error occurred during elaboration.';
-      setError(errMsg);
+      if (isTimeoutError(err)) {
+        showTimeout(err);
+      } else {
+        setError(errMsg);
+      }
       setStage('idle');
       setIsGenerating(false);
     } finally {
@@ -223,7 +229,11 @@ const StoryElaborator: React.FC = () => {
         err instanceof Error
           ? err.message
           : 'An error occurred sending response.';
-      setError(errMsg);
+      if (isTimeoutError(err)) {
+        showTimeout(err);
+      } else {
+        setError(errMsg);
+      }
       setIsGenerating(false);
     }
   };
@@ -242,7 +252,11 @@ const StoryElaborator: React.FC = () => {
         err instanceof Error
           ? err.message
           : 'An error occurred sending response.';
-      setError(errMsg);
+      if (isTimeoutError(err)) {
+        showTimeout(err);
+      } else {
+        setError(errMsg);
+      }
       setIsGenerating(false);
     }
   };

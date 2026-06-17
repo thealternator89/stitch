@@ -403,4 +403,36 @@ describe('CopilotService', () => {
     expect(result).toBe('{"id": 3}');
     expect(lines).toEqual(['{"id": 3}']);
   });
+
+  it('should respect STITCH_COPILOT_TIMEOUT environment variable override', async () => {
+    process.env.STITCH_COPILOT_TIMEOUT = '15000';
+    try {
+      const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
+      const ticket: TicketData = {
+        id: '1',
+        title: 'Test ticket',
+        description: 'desc',
+      };
+
+      const responsePromise = service.generateTestCases(
+        ticket,
+        '',
+        '',
+        settings,
+      );
+
+      await vi.advanceTimersByTimeAsync(10);
+
+      const checkExpectation = expect(responsePromise).rejects.toThrow(
+        'Timeout after 15000ms waiting for response',
+      );
+
+      // Advance past the environment-variable-defined timeout (15000ms)
+      await vi.advanceTimersByTimeAsync(16000);
+
+      await checkExpectation;
+    } finally {
+      delete process.env.STITCH_COPILOT_TIMEOUT;
+    }
+  });
 });
