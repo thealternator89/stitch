@@ -61,6 +61,49 @@ import {
   buildPromptComplexityCheckPrompt,
 } from './copilotPrompts';
 
+function parseResilientJSONL(
+  text: string,
+  onLine: (line: string) => void,
+): string {
+  let tempBuffer = text;
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    const startIdx = tempBuffer.indexOf('{');
+    if (startIdx === -1) {
+      // Discard all non-JSON prefix noise if there is no opening brace in the buffer
+      tempBuffer = '';
+      break;
+    }
+
+    if (startIdx > 0) {
+      tempBuffer = tempBuffer.slice(startIdx);
+    }
+
+    let searchStart = 1;
+    while (true) {
+      const closeIdx = tempBuffer.indexOf('}', searchStart);
+      if (closeIdx === -1) {
+        break;
+      }
+
+      const candidate = tempBuffer.slice(0, closeIdx + 1);
+      try {
+        JSON.parse(candidate);
+        onLine(candidate);
+        tempBuffer = tempBuffer.slice(closeIdx + 1);
+        changed = true;
+        break; // break inner loop, restart search from the new start of the buffer
+      } catch {
+        searchStart = closeIdx + 1;
+      }
+    }
+  }
+
+  return tempBuffer;
+}
+
 export class CopilotService {
   private model = 'auto';
   private cachedModels: CopilotModel[] = [];
@@ -213,22 +256,14 @@ export class CopilotService {
         if (delta) {
           chunks.push(delta);
           if (onLine) {
-            buffer += delta;
-            let newlineIndex;
-            while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-              const line = buffer.slice(0, newlineIndex);
-              buffer = buffer.slice(newlineIndex + 1);
-              if (line.trim()) {
-                onLine(line);
-              }
-            }
+            buffer = parseResilientJSONL(buffer + delta, onLine);
           }
         }
       } else if (event.type === 'assistant.message') {
         lastAssistantMessage = event;
       } else if (event.type === 'session.idle') {
         if (onLine && buffer.trim()) {
-          onLine(buffer);
+          buffer = parseResilientJSONL(buffer, onLine);
           buffer = '';
         }
         const fullContent =
@@ -236,12 +271,7 @@ export class CopilotService {
 
         // Fallback: If nothing was streamed (e.g. chunks was empty), stream the fullContent
         if (onLine && chunks.length === 0 && fullContent.trim()) {
-          const lines = fullContent.split('\n');
-          for (const line of lines) {
-            if (line.trim()) {
-              onLine(line);
-            }
-          }
+          parseResilientJSONL(fullContent, onLine);
         }
 
         resolvePromise(fullContent);

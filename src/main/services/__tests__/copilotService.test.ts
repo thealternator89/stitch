@@ -253,4 +253,154 @@ describe('CopilotService', () => {
 
     await checkExpectation;
   });
+
+  it('should resiliently parse stream with leading noise and markdown wrappers', async () => {
+    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
+    const ticket: TicketData = {
+      id: '1',
+      title: 'Test ticket',
+      description: 'desc',
+    };
+
+    const lines: string[] = [];
+    const responsePromise = service.generateTestCases(
+      ticket,
+      '',
+      '',
+      settings,
+      (line) => {
+        lines.push(line);
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    sessionListener!({
+      type: 'assistant.message_delta',
+      data: { deltaContent: 'Here is the response:\n```json\n' },
+    });
+    sessionListener!({
+      type: 'assistant.message_delta',
+      data: { deltaContent: '{"title": "Story 1"}\n' },
+    });
+    sessionListener!({
+      type: 'assistant.message_delta',
+      data: { deltaContent: '{"title": "Story 2"}\n' },
+    });
+    sessionListener!({
+      type: 'assistant.message_delta',
+      data: { deltaContent: '```\nSome trailing explanation' },
+    });
+
+    sessionListener!({ type: 'session.idle' });
+
+    const result = await responsePromise;
+    expect(result).toBe(
+      'Here is the response:\n```json\n{"title": "Story 1"}\n{"title": "Story 2"}\n```\nSome trailing explanation',
+    );
+    expect(lines).toEqual(['{"title": "Story 1"}', '{"title": "Story 2"}']);
+  });
+
+  it('should resiliently parse streams with nested curly braces', async () => {
+    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
+    const ticket: TicketData = {
+      id: '1',
+      title: 'Test ticket',
+      description: 'desc',
+    };
+
+    const lines: string[] = [];
+    const responsePromise = service.generateTestCases(
+      ticket,
+      '',
+      '',
+      settings,
+      (line) => {
+        lines.push(line);
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    sessionListener!({
+      type: 'assistant.message_delta',
+      data: { deltaContent: '{"title": "A", "details": {"score": 10}}' },
+    });
+
+    sessionListener!({ type: 'session.idle' });
+
+    const result = await responsePromise;
+    expect(result).toBe('{"title": "A", "details": {"score": 10}}');
+    expect(lines).toEqual(['{"title": "A", "details": {"score": 10}}']);
+  });
+
+  it('should resiliently parse multiple JSON objects in a single delta', async () => {
+    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
+    const ticket: TicketData = {
+      id: '1',
+      title: 'Test ticket',
+      description: 'desc',
+    };
+
+    const lines: string[] = [];
+    const responsePromise = service.generateTestCases(
+      ticket,
+      '',
+      '',
+      settings,
+      (line) => {
+        lines.push(line);
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    sessionListener!({
+      type: 'assistant.message_delta',
+      data: { deltaContent: '{"id": 1}{"id": 2}' },
+    });
+
+    sessionListener!({ type: 'session.idle' });
+
+    const result = await responsePromise;
+    expect(result).toBe('{"id": 1}{"id": 2}');
+    expect(lines).toEqual(['{"id": 1}', '{"id": 2}']);
+  });
+
+  it('should resiliently parse streams without newlines', async () => {
+    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
+    const ticket: TicketData = {
+      id: '1',
+      title: 'Test ticket',
+      description: 'desc',
+    };
+
+    const lines: string[] = [];
+    const responsePromise = service.generateTestCases(
+      ticket,
+      '',
+      '',
+      settings,
+      (line) => {
+        lines.push(line);
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    sessionListener!({
+      type: 'assistant.message_delta',
+      data: { deltaContent: '{"id":' },
+    });
+    sessionListener!({
+      type: 'assistant.message_delta',
+      data: { deltaContent: ' 3}' },
+    });
+
+    sessionListener!({ type: 'session.idle' });
+
+    const result = await responsePromise;
+    expect(result).toBe('{"id": 3}');
+    expect(lines).toEqual(['{"id": 3}']);
+  });
 });
