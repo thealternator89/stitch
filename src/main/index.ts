@@ -1,4 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell, nativeTheme } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  shell,
+  nativeTheme,
+  dialog,
+} from 'electron';
 import { AzureDevOpsService } from './services/azureDevOpsService';
 import { CopilotService } from './services/copilotService';
 import { ConfluenceService } from './services/confluenceService';
@@ -94,7 +101,7 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
 
   s.set('settings', sanitizedSettings);
 
-  copilotService.setModel(sanitizedSettings.copilotModel || 'gpt-4.1');
+  copilotService.setModel(sanitizedSettings.copilotModel || 'auto');
   copilotService.clearCache(sanitizedSettings.copilotToken);
 
   // Apply theme immediately
@@ -202,6 +209,10 @@ ipcMain.handle('check-copilot-auth', async () => {
   return copilotService.checkAuthStatus(settings.copilotToken);
 });
 
+ipcMain.handle('check-environment', async () => {
+  return copilotService.checkEnvironment();
+});
+
 ipcMain.handle('list-copilot-models', async () => {
   const s = await initStore();
   const settings = (s.get('settings') ?? {}) as AppSettings;
@@ -212,6 +223,48 @@ ipcMain.handle('check-prompt-complexity', async (event, type, prompts) => {
   const s = await initStore();
   const settings = (s.get('settings') ?? {}) as AppSettings;
   return copilotService.checkPromptComplexity(type, prompts, settings);
+});
+
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+  });
+  if (result.canceled) {
+    return null;
+  }
+  return result.filePaths[0];
+});
+
+ipcMain.handle(
+  'start-story-elaboration',
+  async (event, ticketData, repoPath, additionalContext, modelOverride) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
+    return copilotService.startStoryElaboration(
+      ticketData,
+      repoPath,
+      additionalContext,
+      modelOverride,
+      settings,
+      (line: string) => {
+        event.sender.send('elaboration-line', line);
+      },
+    );
+  },
+);
+
+ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
+  return copilotService.sendElaborationAnswer(
+    ticketId,
+    answer,
+    (line: string) => {
+      event.sender.send('elaboration-line', line);
+    },
+  );
+});
+
+ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
+  return copilotService.stopStoryElaboration(ticketId);
 });
 
 ipcMain.handle('add-comment', async (event, ticketId, text) => {
@@ -260,7 +313,7 @@ app.on('ready', async () => {
   const theme = settings.theme ?? 'auto';
   nativeTheme.themeSource = theme === 'auto' ? 'system' : theme;
 
-  copilotService.setModel(settings.copilotModel || 'gpt-4.1');
+  copilotService.setModel(settings.copilotModel || 'auto');
   copilotService.initializeAsync(settings.copilotToken).catch((err) => {
     console.error('Failed to initialize copilotService on startup:', err);
   });

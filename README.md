@@ -28,6 +28,14 @@ TypeScript using Electron Forge.
   - Ability to selectively choose generated stories and write them back to Azure
     DevOps as new **Product Backlog Items (PBIs)** linked under a specific
     Feature.
+- **Story Elaborator**:
+  - Interactive, multi-turn dialog with GitHub Copilot to analyze an Azure DevOps work item and elaborate it into a detailed markdown implementation plan.
+  - **Dual Operating Modes**:
+    - _With Repository_: Initializes the Copilot session using the local directory as the workspace context, allowing the model to use built-in tools (reading files, browsing directories) to analyze code and write the final implementation plan file directly to the workspace.
+    - _Without Repository_: Disables LLM filesystem tools and runs entirely context-free, building the plan solely from ticket details and user replies.
+  - Interactive Q&A chat interface with quick-select suggested answer pill buttons.
+  - Streams real-time logging status updates from the Copilot session.
+  - Option to post the final plan as an Azure DevOps comment.
 - **Persistent Settings**: Securely store Azure DevOps credentials, Confluence
   tokens, and project configuration locally, select a **default Copilot model**,
   and actively **check the status** of local GitHub Copilot CLI authentication.
@@ -118,11 +126,11 @@ npm run make
 │   ├── main/           # Main process logic (Node.js environment)
 │   │   ├── index.ts    # Main process entry point & IPC Handlers
 │   │   ├── preload.ts  # Preload script for IPC and secure bridge
-│   │   └── services/   # Encapsulated backend API services (Azure, Copilot, Confluence)
+│   │   └── services/   # Encapsulated backend API services (Azure, Copilot, Confluence, and copilotPrompts.ts)
 │   └── renderer/       # Renderer process (React environment)
 │       ├── components/ # Shared React components
 │       ├── hooks/      # Custom React hooks (e.g., useCopilotModels)
-│       ├── pages/      # Application views (Menu, Settings, TestCaseWriter, StoryWriter)
+│       ├── pages/      # Application views (Menu, Settings, TestCaseWriter, StoryWriter, StoryElaborator)
 │       ├── App.tsx     # Main React component with Routing
 │       ├── index.css   # Global styles & Markdown overrides
 │       ├── index.html  # Main HTML template

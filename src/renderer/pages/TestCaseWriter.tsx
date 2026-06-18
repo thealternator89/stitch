@@ -3,6 +3,7 @@ import { useCopilotModels } from '../hooks/useCopilotModels';
 import ModelDropdown from '../components/ModelDropdown';
 import PageLayout from '../components/PageLayout';
 import { TicketData } from '../../types';
+import { useTimeoutModal, isTimeoutError } from '../context/TimeoutContext';
 
 interface TestCase {
   id: string;
@@ -19,8 +20,8 @@ const generateTicketOrCommentText = (testCases: string) =>
     '',
     testCases,
     '',
-    'Generated with Stitch and GitHub Copilot.',
-    'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
+    '> Generated with Stitch and GitHub Copilot.',
+    '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
   ].join('\n');
 
 const convertToMarkdownTable = (tcList: TestCase[]): string => {
@@ -54,6 +55,7 @@ const convertToMarkdownTable = (tcList: TestCase[]): string => {
 };
 
 const TestCaseWriter: React.FC = () => {
+  const { showTimeout } = useTimeoutModal();
   const [ticketId, setTicketId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TicketData[]>([]);
@@ -201,7 +203,11 @@ const TestCaseWriter: React.FC = () => {
         err instanceof Error
           ? err.message
           : 'An error occurred during generation.';
-      setError(errMsg);
+      if (isTimeoutError(err)) {
+        showTimeout(err);
+      } else {
+        setError(errMsg);
+      }
     } finally {
       unsubscribe();
       setIsGenerating(false);

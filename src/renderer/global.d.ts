@@ -5,6 +5,7 @@ import {
   CopilotAuth,
   CopilotModel,
   UpdateStatus,
+  EnvironmentCheckResult,
 } from '../types';
 
 export interface IElectronAPI {
@@ -34,6 +35,7 @@ export interface IElectronAPI {
   ) => Promise<void>;
 
   checkCopilotAuth: () => Promise<CopilotAuth>;
+  checkEnvironment: () => Promise<EnvironmentCheckResult>;
   getVersionStatus: () => Promise<UpdateStatus>;
   listCopilotModels: () => Promise<CopilotModel[]>;
   openExternal: (url: string) => Promise<void>;
@@ -41,6 +43,16 @@ export interface IElectronAPI {
     type: 'story' | 'testcase',
     prompts: Record<string, string>,
   ) => Promise<string>;
+  selectDirectory: () => Promise<string | null>;
+  startStoryElaboration: (
+    ticketData: TicketData,
+    repoPath: string | null,
+    additionalContext: string,
+    modelOverride: string,
+  ) => Promise<string>;
+  sendElaborationAnswer: (ticketId: string, answer: string) => Promise<string>;
+  stopStoryElaboration: (ticketId: string) => Promise<void>;
+  onElaborationLine: (callback: (line: string) => void) => () => void;
   isWindows: boolean;
 }
 

@@ -65,11 +65,24 @@ locally on the machine.
   status via the SDK.
 - **Model Selection:** Supports listing available models (e.g., GPT-4o, Claude
   3.5 Sonnet) and allowing users to choose a model for each generation session.
-- **Generation:** Uses a conversation session to pass context (Azure tickets or
-  Confluence requirements) and custom prompts to generate structured output.
-- **Real-time Streaming:** To provide a highly responsive and interactive user experience, generation does not use a blocking request-response model. Instead, the main process streams generated lines progressively to the renderer process via IPC event emitters (`test-case-line` and `story-line`), allowing the UI to parse and render items dynamically in real-time.
+- **Generation & Multi-turn Sessions:**
+  - For single-shot operations (Test Case Writer, Story Writer), it uses a transient session.
+  - For the interactive **Story Elaborator**, `CopilotService` maintains a stateful in-memory registry (`activeElaborations = new Map<string, { client: any, session: any }>()`) that keeps the same session alive across multiple user turns/answers.
+- **Real-time Streaming & JSONL Protocol:**
+  - Does not use a blocking request-response model. Instead, the main process streams generated data progressively to the renderer.
+  - For single-shot tools, lines are pushed via `test-case-line` and `story-line` IPC events.
+  - For the **Story Elaborator**, lines are emitted via `elaboration-line`. The communication uses a strict JSON Lines (JSONL) protocol, streaming objects of type `status` (thoughts and directory search updates), `question` (with suggested answers for the user), or `plan` (the finalized implementation plan).
+  - Inside `sendAndCollectStream`, a newline buffer fallback processes block-delivered responses when incremental token deltas are skipped during tool executions, ensuring smooth UI status tracking.
+- **Workspace Tool Integration (Local Repositories)**:
+  - If a repository directory path is provided to the Story Elaborator, the Copilot session is created with `workingDirectory` set to that directory, giving the model first-party tool capability (e.g., browsing files, reading code, searching with grep). The model is instructed to write the plan to a file in the workspace (e.g. `implementation_plan.md`) using its tools.
+  - If no repository directory is provided, the session is created with `availableTools: []` (empty array) and without workspace bounds, confining the model's operation to the ticket's text context only.
 
 ## Technical Decisions
+
+### Centralized Prompt Management
+
+To prevent mixing LLM instruction wording and custom settings injection with service logic, all prompts are centralized inside [copilotPrompts.ts](file:///Users/markbenson/Code/stitch/src/main/services/copilotPrompts.ts).
+This module exposes prompt builders that merge default constraints with customized guidelines retrieved from settings. It also includes prompt validation logic (`checkPromptComplexity`) which uses a meta-prompt to verify that user-customized prompts do not violate instructions to produce clean JSON/JSONL output.
 
 ### Hybrid ESM/CommonJS Approach
 
@@ -102,3 +115,7 @@ support modern ESM-only libraries like `electron-store` and
 - `list-copilot-models`: Retrieves available GitHub Copilot models.
 - `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
 - `create-ticket`: Creates a new work item (PBI or Task) in Azure DevOps linked to a parent.
+- `select-directory`: Triggers Electron's native `dialog.showOpenDialog` to allow user directory selection.
+- `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, set with the ticket info and workspace path context. Streams lines to the renderer via `elaboration-line`.
+- `send-elaboration-answer`: Sends subsequent replies/responses to the ongoing story elaboration session.
+- `stop-story-elaboration`: Cleans up and destroys an active story elaboration session.

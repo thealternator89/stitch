@@ -1,3 +1,16 @@
+import {
+  TicketData,
+  DocPageData,
+  CopilotModel,
+  AppSettings,
+  EnvironmentCheckResult,
+} from '../../types';
+import {
+  checkEnvironment,
+  getNodePath,
+  getCopilotScriptPath,
+} from './copilotDetector';
+
 // Since we dynamically import the SDK, we need to use any - disable eslint rule
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function createCopilotClient(copilotToken?: string) {
@@ -6,55 +19,115 @@ async function createCopilotClient(copilotToken?: string) {
     'import("@github/copilot-sdk")',
   );
 
-  // Windows has weird redirection issues, where the wrapper exits causing stdio to drop
-  // To get around this, instead of launching `copilot` directly, we launch `node` with the
-  // `copilot` script as an argument. This seems to fix the issue.
-  //
-  // FIXME: Ideally once Copilot CLI or SDK come out of preview it will be working normally
-  // and we can remove this
-  //
-  // DISABLE_COPILOT_WINDOWS_WORKAROUND is provided to simplify periodic compatibility testing
-  // with new Copilot CLI/SDK releases on Windows. If the standard platform-agnostic approach
-  // starts working, the entire Windows workaround block below should be removed.
-  const disableEnvVal = process.env.DISABLE_COPILOT_WINDOWS_WORKAROUND || '';
-  const env = copilotToken
-    ? {
-        ...process.env,
-        GITHUB_TOKEN: copilotToken,
-        COPILOT_TOKEN: copilotToken,
-      }
-    : undefined;
+  const env = {
+    ...process.env,
+    ELECTRON_RUN_AS_NODE: '1',
+    ...(copilotToken
+      ? {
+          GITHUB_TOKEN: copilotToken,
+          COPILOT_TOKEN: copilotToken,
+        }
+      : {}),
+  };
 
-  if (process.platform === 'win32' && !['1', 'true'].includes(disableEnvVal)) {
-    if (!process.env.NODE_PATH || !process.env.COPILOT_SCRIPT_PATH) {
-      throw new Error(
-        'On Windows, both NODE_PATH and COPILOT_SCRIPT_PATH environment variables are required to initialise the Copilot client.',
-      );
-    }
+  const nodePath = await getNodePath();
+  const copilotScriptPath = getCopilotScriptPath();
+
+  // If we found both the system node and the copilot script path, spawn the Copilot CLI
+  // using the system node. This avoids Electron's process.argv parsing issues
+  // (e.g. Commander.js bug) and packaging limitations.
+  if (nodePath && copilotScriptPath) {
     return {
       client: new CopilotClient({
-        cliPath: process.env.NODE_PATH,
-        cliArgs: [process.env.COPILOT_SCRIPT_PATH],
-        useStdio: true,
+        connection: {
+          kind: 'stdio',
+          path: nodePath,
+          args: [copilotScriptPath],
+        },
         env,
       }),
       approveAll,
     };
   }
 
+  // Fallback to the default platform-agnostic approach using process.execPath (Electron)
   return { client: new CopilotClient({ env }), approveAll };
 }
 
 import {
-  TicketData,
-  DocPageData,
-  CopilotModel,
-  AppSettings,
-} from '../../types';
+  buildStoryPrompt,
+  buildTestCasePrompt,
+  buildStoryElaboratorPrompt,
+  buildPromptComplexityCheckPrompt,
+} from './copilotPrompts';
+
+function parseResilientJSONL(
+  text: string,
+  onLine: (line: string) => void,
+): string {
+  let tempBuffer = text;
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    const startIdx = tempBuffer.indexOf('{');
+    if (startIdx === -1) {
+      // Discard all non-JSON prefix noise if there is no opening brace in the buffer
+      tempBuffer = '';
+      break;
+    }
+
+    if (startIdx > 0) {
+      tempBuffer = tempBuffer.slice(startIdx);
+    }
+
+    let searchStart = 1;
+    while (true) {
+      const closeIdx = tempBuffer.indexOf('}', searchStart);
+      if (closeIdx === -1) {
+        break;
+      }
+
+      const candidate = tempBuffer.slice(0, closeIdx + 1);
+      try {
+        JSON.parse(candidate);
+        onLine(candidate);
+        tempBuffer = tempBuffer.slice(closeIdx + 1);
+        changed = true;
+        break; // break inner loop, restart search from the new start of the buffer
+      } catch {
+        searchStart = closeIdx + 1;
+      }
+    }
+  }
+
+  return tempBuffer;
+}
+
+export class TimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`[TIMEOUT_ERROR] Timeout after ${timeoutMs}ms waiting for response`);
+    this.name = 'TimeoutError';
+  }
+}
+
+function getTimeoutMs(): number {
+  if (process.env.STITCH_COPILOT_TIMEOUT) {
+    const parsed = parseInt(process.env.STITCH_COPILOT_TIMEOUT, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 180_000;
+}
 
 export class CopilotService {
-  private model = 'gpt-4.1';
+  private model = 'auto';
   private cachedModels: CopilotModel[] = [];
+
+  async checkEnvironment(): Promise<EnvironmentCheckResult> {
+    return checkEnvironment();
+  }
 
   setModel(model: string) {
     if (model) {
@@ -154,9 +227,16 @@ export class CopilotService {
   private async sendAndCollectStream(
     session: any,
     prompt: string,
-    onLineOrTimeout?: ((line: string) => void) | number,
-    timeoutMs = 180000,
+    onLine?: (line: string) => void,
+    onTool?: (
+      type: 'start' | 'end',
+      tool: string,
+      success?: boolean,
+      error?: string,
+      args?: any,
+    ) => void,
   ): Promise<string> {
+    const timeoutMs = getTimeoutMs();
     const chunks: string[] = [];
     let buffer = '';
     let lastAssistantMessage: any = null;
@@ -168,43 +248,68 @@ export class CopilotService {
       rejectPromise = reject;
     });
 
-    let onLine: ((line: string) => void) | undefined;
-    let actualTimeout = timeoutMs;
-
-    if (typeof onLineOrTimeout === 'number') {
-      actualTimeout = onLineOrTimeout;
-    } else {
-      onLine = onLineOrTimeout;
-    }
-
     let timeoutId: NodeJS.Timeout | undefined;
+    const activeToolCalls = new Map<string, string>();
+
+    const resetTimeout = () => {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+      if (activeToolCalls.size > 0) {
+        return;
+      }
+      timeoutId = setTimeout(() => {
+        rejectPromise(new TimeoutError(timeoutMs));
+      }, timeoutMs);
+    };
 
     const unsubscribe = session.on((event: any) => {
       if (event.type === 'assistant.message_delta') {
+        resetTimeout();
         const delta = event.data?.deltaContent;
         if (delta) {
           chunks.push(delta);
           if (onLine) {
-            buffer += delta;
-            let newlineIndex;
-            while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-              const line = buffer.slice(0, newlineIndex);
-              buffer = buffer.slice(newlineIndex + 1);
-              if (line.trim()) {
-                onLine(line);
-              }
-            }
+            buffer = parseResilientJSONL(buffer + delta, onLine);
           }
         }
       } else if (event.type === 'assistant.message') {
         lastAssistantMessage = event;
       } else if (event.type === 'session.idle') {
         if (onLine && buffer.trim()) {
-          onLine(buffer);
+          buffer = parseResilientJSONL(buffer, onLine);
+          buffer = '';
         }
         const fullContent =
           chunks.join('') || lastAssistantMessage?.data?.content || '';
+
+        // Fallback: If nothing was streamed (e.g. chunks was empty), stream the fullContent
+        if (onLine && chunks.length === 0 && fullContent.trim()) {
+          parseResilientJSONL(fullContent, onLine);
+        }
+
         resolvePromise(fullContent);
+      } else if (event.type === 'tool.execution_start') {
+        const toolName = event.data.toolName;
+        activeToolCalls.set(event.data.toolCallId, toolName);
+        resetTimeout();
+        if (onTool) {
+          onTool('start', toolName, undefined, undefined, event.data.arguments);
+        }
+      } else if (event.type === 'tool.execution_complete') {
+        const toolName =
+          activeToolCalls.get(event.data.toolCallId) || 'unknown';
+        activeToolCalls.delete(event.data.toolCallId);
+        resetTimeout();
+        if (onTool) {
+          onTool(
+            'end',
+            toolName,
+            event.data.success,
+            event.data.error?.message,
+          );
+        }
       } else if (event.type === 'session.error') {
         const error = new Error(
           event.data?.message || 'Session error occurred',
@@ -217,17 +322,9 @@ export class CopilotService {
     });
 
     try {
+      resetTimeout();
       await session.send({ prompt });
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => {
-          reject(
-            new Error(`Timeout after ${actualTimeout}ms waiting for response`),
-          );
-        }, actualTimeout);
-      });
-
-      return await Promise.race([completionPromise, timeoutPromise]);
+      return await completionPromise;
     } finally {
       if (timeoutId !== undefined) {
         clearTimeout(timeoutId);
@@ -269,7 +366,6 @@ export class CopilotService {
         session,
         prompt,
         onLine,
-        180000,
       );
       return responseContent;
     } catch (error) {
@@ -278,7 +374,7 @@ export class CopilotService {
     } finally {
       if (session) {
         try {
-          await session.destroy();
+          await session.disconnect();
         } catch (e) {
           console.error('Error destroying session in generateTestCases:', e);
         }
@@ -322,7 +418,6 @@ export class CopilotService {
         session,
         prompt,
         onLine,
-        180000,
       );
       return responseContent;
     } catch (error) {
@@ -331,7 +426,7 @@ export class CopilotService {
     } finally {
       if (session) {
         try {
-          await session.destroy();
+          await session.disconnect();
         } catch (e) {
           console.error('Error destroying session in generateStories:', e);
         }
@@ -382,27 +477,11 @@ export class CopilotService {
         );
       }
 
-      const metaPrompt = `
-You are an expert AI prompt engineer and validator.
-Review the following prompt template which is intended to guide an AI to generate JSON Lines (JSONL) output.
-Is there anything in the instructions or fields that is likely to confuse you (or any other LLM) or cause you to violate the requirement to produce valid JSONL?
-Specifically check if any of the custom descriptions might encourage code blocks, markdown fences, unescaped double quotes, or raw newlines inside JSON properties.
-
-Avoid being unnecessarily pessimistic. If the prompt is sufficiently clear DO NOT invent potential issues.
-
-Explain any issues detected clearly and suggest action-oriented improvements, or respond with a confirmation that the prompt template looks perfectly safe and compliant. Keep your response brief, clear, and formatted nicely as markdown.
-
-PROMPT TEMPLATE TO REVIEW:
-"""
-${promptToCheck.trim()}
-"""
-      `;
+      const metaPrompt = buildPromptComplexityCheckPrompt(promptToCheck);
 
       const responseContent = await this.sendAndCollectStream(
         session,
         metaPrompt,
-        undefined,
-        180000,
       );
       return responseContent;
     } catch (error) {
@@ -411,7 +490,7 @@ ${promptToCheck.trim()}
     } finally {
       if (session) {
         try {
-          await session.destroy();
+          await session.disconnect();
         } catch (e) {
           console.error(
             'Error destroying session in checkPromptComplexity:',
@@ -427,119 +506,145 @@ ${promptToCheck.trim()}
     }
   }
 
-  async cleanup() {
-    // Connections are now short-lived and cleaned up automatically after each session.
+  private activeElaborations = new Map<string, { client: any; session: any }>();
+
+  async startStoryElaboration(
+    ticketData: TicketData,
+    repoPath: string | null,
+    additionalContext: string,
+    modelOverride: string,
+    settings: AppSettings,
+    onLine?: (line: string) => void,
+  ): Promise<string> {
+    // Stop any existing session for this ticket
+    await this.stopStoryElaboration(ticketData.id || '');
+
+    const { client, approveAll } = await createCopilotClient(
+      settings.copilotToken,
+    );
+    let session: any = null;
+    try {
+      await client.start();
+
+      const sessionOptions: any = {
+        model: modelOverride || this.model,
+        onPermissionRequest: approveAll,
+        streaming: true,
+      };
+
+      if (repoPath) {
+        sessionOptions.workingDirectory = repoPath;
+      } else {
+        sessionOptions.availableTools = [];
+      }
+
+      session = await client.createSession(sessionOptions);
+
+      // Store in map so we can continue or stop later
+      this.activeElaborations.set(ticketData.id || '', { client, session });
+
+      const prompt = buildStoryElaboratorPrompt(
+        ticketData,
+        additionalContext,
+        settings,
+        !!repoPath,
+      );
+
+      const responseContent = await this.sendAndCollectStream(
+        session,
+        prompt,
+        onLine,
+        (type, tool, success, error, args) =>
+          onLine(
+            JSON.stringify({
+              type: 'tool',
+              status: type,
+              name: tool,
+              success,
+              error,
+              arguments: args,
+            }),
+          ),
+      );
+      return responseContent;
+    } catch (error) {
+      console.error('Error starting story elaboration:', error);
+      // Clean up if it failed
+      await this.stopStoryElaboration(ticketData.id || '');
+      throw error;
+    }
   }
-}
 
-export function buildStoryPrompt(
-  pageTitle: string,
-  pageContent: string,
-  additionalContext: string,
-  settings: AppSettings,
-): string {
-  const storyWriter = settings.prompts?.storyWriter || {};
-  const generalPrompt = storyWriter.general || '';
+  async sendElaborationAnswer(
+    ticketId: string,
+    answer: string,
+    onLine?: (line: string) => void,
+  ): Promise<string> {
+    const data = this.activeElaborations.get(ticketId);
+    if (!data) {
+      throw new Error(
+        `No active story elaboration session found for ticket ID: ${ticketId}`,
+      );
+    }
 
-  const titlePrompt = storyWriter.title || 'The title of the story';
-  const descriptionPrompt =
-    storyWriter.description ||
-    'Description. This should contain a statement in the format "As a... I want to... So that..." followed by 2 blank lines and then a longer description of the changes required for story.';
-  const acceptanceCriteriaPrompt =
-    storyWriter.acceptanceCriteria || 'Formatted as a markdown list.';
-  const notesPrompt =
-    storyWriter.notes ||
-    'Any additional notes or assumptions (Optional, can be empty)';
+    const { session } = data;
+    try {
+      const responseContent = await this.sendAndCollectStream(
+        session,
+        answer,
+        onLine,
+        (type, tool, success, error, args) =>
+          onLine(
+            JSON.stringify({
+              type: 'tool',
+              status: type,
+              name: tool,
+              success,
+              error,
+              arguments: args,
+            }),
+          ),
+      );
+      return responseContent;
+    } catch (error) {
+      console.error(
+        `Error sending answer to story elaboration session for ticket ${ticketId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
 
-  return `
-        Generate a set of user stories based on the following functional requirements from a Confluence page.
-        ${generalPrompt ? `\n        ${generalPrompt}\n` : ''}
-        Page Title: ${pageTitle}
-        Page Content: ${pageContent}
-        
-        Additional Context: ${additionalContext || 'None provided'}
-        
-        Please format the output as JSON Lines (JSONL), where each line is a valid JSON object.
-        Do NOT wrap the JSON objects inside a JSON array. Each line MUST be a standalone JSON object.
+  async stopStoryElaboration(ticketId: string): Promise<void> {
+    const data = this.activeElaborations.get(ticketId);
+    if (!data) return;
 
-        Do NOT use markdown code blocks, fences, or any formatting other than plain JSON objects. All newlines within string values must be represented as \`\\n\` (double backslash-n), not as actual newlines.
-        
-        Each JSON object must have exactly the following keys:
-        - "title": (string) ${titlePrompt}
-        - "description": (string) ${descriptionPrompt}
-        - "acceptanceCriteria": (string) ${acceptanceCriteriaPrompt}
-        - "notes": (string) ${notesPrompt}
+    this.activeElaborations.delete(ticketId);
+    const { client, session } = data;
+    try {
+      await session.disconnect();
+    } catch (e) {
+      console.error('Error destroying session in stopStoryElaboration:', e);
+    }
+    try {
+      await client.stop();
+    } catch (e) {
+      console.error('Error stopping client in stopStoryElaboration:', e);
+    }
+  }
 
-        For any fields containing markdown, these MUST be formatted and escaped for JSON.
-
-        For example:
-        {"title": "Title text", "description": "First line\\\\n\\\\nSecond line", "acceptanceCriteria": "* AC 1\\\\n* AC 2\\\\n* AC 3", "notes": "First line\\\\nSecond Line\\\\nThird Line"}
-        
-        All double quotes inside string values must be escaped as \\".
-        Do not use markdown formatting or syntax; only plain text is allowed.
-        Do not use actual newlines inside string values; use \\n instead.
-        Bullet points or numbers should be plain text only (e.g., "1. Step one\\n2. Step two").
-
-        DO NOT create any files, directly output the user stories in your response here.
-        DO NOT include any other text in your response (no explanation, no intro, no outro, no markdown fences).
-  `;
-}
-
-export function buildTestCasePrompt(
-  ticketId: string,
-  ticketTitle: string,
-  ticketDescription: string,
-  ticketAcceptanceCriteria: string,
-  additionalContext: string,
-  settings: AppSettings,
-): string {
-  const testCaseWriter = settings.prompts?.testCaseWriter || {};
-  const generalPrompt = testCaseWriter.general || '';
-
-  const idPrompt = testCaseWriter.id || 'Test Case ID (e.g., "TC01")';
-  const descriptionPrompt =
-    testCaseWriter.description || 'Brief description of the test scenario';
-  const preConditionsPrompt =
-    testCaseWriter.preConditions ||
-    'Any preconditions required before running the test';
-  const stepsPrompt =
-    testCaseWriter.steps ||
-    'Bullet-pointed or numbered steps to execute the test';
-  const expectedResultPrompt =
-    testCaseWriter.expectedResult || 'The expected result';
-
-  return `
-        Generate a set of comprehensive test cases for the following user story/ticket.
-        ${generalPrompt ? `\n        ${generalPrompt}\n` : ''}
-        Ticket ID: ${ticketId}
-        Title: ${ticketTitle}
-        Description: ${ticketDescription}
-        Acceptance Criteria: ${ticketAcceptanceCriteria || 'N/A'}
-        
-        Additional Context: ${additionalContext || 'None provided'}
-        
-        Please format the output as JSON Lines (JSONL), where each line is a valid JSON object.
-        Do NOT wrap the JSON objects inside a JSON array. Each line MUST be a standalone JSON object.
-
-        Do NOT use markdown code blocks, fences, or any formatting other than plain JSON objects. All newlines within string values must be represented as \`\\n\` (double backslash-n), not as actual newlines.
-        
-        Each JSON object must have exactly the following keys:
-        - "id": (string) ${idPrompt}
-        - "description": (string) ${descriptionPrompt}
-        - "preConditions": (string) ${preConditionsPrompt}
-        - "steps": (string) ${stepsPrompt}
-        - "expectedResult": (string) ${expectedResultPrompt}
-        - "priority": (string) Priority of the test (e.g., "High", "Medium", "Low")
-
-        For example:
-        {"id": "", "description": "It works", "preConditions": "* One\\\\n* Two\\\\n* Three", "steps": "1. Step 1\\\\n2. Step 2\\\\n3. Step 3", "expectedResult": "Nothing", "priority": "High"}
-
-        All double quotes inside string values must be escaped as \\".
-        Do not use markdown formatting or syntax; only plain text is allowed.
-        Do not use actual newlines inside string values; use \\n instead.
-        Bullet points or numbers should be plain text only (e.g., "1. Step one\\\\n2. Step two").
-
-        DO NOT create any files, directly output the test cases in your response here.
-        DO NOT include any other text in your response (no explanation, no intro, no outro, no markdown fences).
-  `;
+  async cleanup() {
+    for (const [ticketId, data] of this.activeElaborations.entries()) {
+      try {
+        await data.session.disconnect();
+        await data.client.stop();
+      } catch (e) {
+        console.error(
+          `Error cleaning up active elaboration session for ticket ${ticketId}:`,
+          e,
+        );
+      }
+    }
+    this.activeElaborations.clear();
+  }
 }

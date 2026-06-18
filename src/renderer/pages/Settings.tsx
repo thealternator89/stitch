@@ -43,6 +43,9 @@ const Settings: React.FC = () => {
   const [testCaseSteps, setTestCaseSteps] = useState('');
   const [testCaseExpectedResult, setTestCaseExpectedResult] = useState('');
 
+  // Story Elaborator Custom Prompts
+  const [storyElaboratorGeneral, setStoryElaboratorGeneral] = useState('');
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -61,6 +64,7 @@ const Settings: React.FC = () => {
           const prompts = settings.prompts || {};
           const story = prompts.storyWriter || {};
           const tc = prompts.testCaseWriter || {};
+          const elaborator = prompts.storyElaborator || {};
 
           setStoryGeneral(story.general || '');
           setStoryTitle(story.title || '');
@@ -74,6 +78,8 @@ const Settings: React.FC = () => {
           setTestCasePreConditions(tc.preConditions || '');
           setTestCaseSteps(tc.steps || '');
           setTestCaseExpectedResult(tc.expectedResult || '');
+
+          setStoryElaboratorGeneral(elaborator.general || '');
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -110,6 +116,9 @@ const Settings: React.FC = () => {
             preConditions: testCasePreConditions,
             steps: testCaseSteps,
             expectedResult: testCaseExpectedResult,
+          },
+          storyElaborator: {
+            general: storyElaboratorGeneral,
           },
         },
       });
@@ -208,6 +217,8 @@ const Settings: React.FC = () => {
             setTestCaseSteps={setTestCaseSteps}
             testCaseExpectedResult={testCaseExpectedResult}
             setTestCaseExpectedResult={setTestCaseExpectedResult}
+            storyElaboratorGeneral={storyElaboratorGeneral}
+            setStoryElaboratorGeneral={setStoryElaboratorGeneral}
           />
         );
       default:
