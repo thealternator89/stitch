@@ -118,7 +118,7 @@ function getTimeoutMs(): number {
       return parsed;
     }
   }
-  return 60_000;
+  return 180_000;
 }
 
 export class CopilotService {

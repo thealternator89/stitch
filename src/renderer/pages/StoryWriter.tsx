@@ -165,8 +165,8 @@ const StoryWriter: React.FC = () => {
         const descriptionWithDisclaimer = [
           story.description,
           '',
-          'Generated with Stitch and GitHub Copilot.',
-          'Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
+          '> Generated with Stitch and GitHub Copilot.',
+          '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
         ].join('\n');
 
         await window.electronAPI.createTicket(

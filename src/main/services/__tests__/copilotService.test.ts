@@ -141,11 +141,11 @@ describe('CopilotService', () => {
     await vi.advanceTimersByTimeAsync(10);
 
     const checkExpectation = expect(responsePromise).rejects.toThrow(
-      'Timeout after 60000ms waiting for response',
+      'Timeout after 180000ms waiting for response',
     );
 
-    // Fast-forward past default timeout (60000ms)
-    await vi.advanceTimersByTimeAsync(65000);
+    // Fast-forward past default timeout (180000ms)
+    await vi.advanceTimersByTimeAsync(185000);
 
     await checkExpectation;
   });
@@ -236,7 +236,7 @@ describe('CopilotService', () => {
     });
 
     // Advance some time
-    await vi.advanceTimersByTimeAsync(50000);
+    await vi.advanceTimersByTimeAsync(170000);
 
     // Finish the tool call (timeout resets here)
     sessionListener!({
@@ -245,11 +245,11 @@ describe('CopilotService', () => {
     });
 
     const checkExpectation = expect(responsePromise).rejects.toThrow(
-      'Timeout after 60000ms waiting for response',
+      'Timeout after 180000ms waiting for response',
     );
 
     // Advance time past the timeout (should now time out)
-    await vi.advanceTimersByTimeAsync(65000);
+    await vi.advanceTimersByTimeAsync(185000);
 
     await checkExpectation;
   });
