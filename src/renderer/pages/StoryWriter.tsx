@@ -17,6 +17,7 @@ interface Story {
 
 const StoryWriter: React.FC = () => {
   const { showTimeout } = useTimeoutModal();
+  const isMountedRef = useRef(true);
   const [pageId, setPageId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<DocPageData[]>([]);
@@ -74,6 +75,14 @@ const StoryWriter: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Track component mounting status
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
 
@@ -91,6 +100,7 @@ const StoryWriter: React.FC = () => {
 
     // Set up real-time listener for incoming lines
     const unsubscribe = window.electronAPI.onStoryLine((line: string) => {
+      if (!isMountedRef.current) return;
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('```')) return;
 
@@ -116,6 +126,7 @@ const StoryWriter: React.FC = () => {
     try {
       // 1. Fetch Page Data
       const fetchedPage = await window.electronAPI.fetchConfluencePage(pageId);
+      if (!isMountedRef.current) return;
       setPageData(fetchedPage);
 
       // 2. Generate Stories using Copilot SDK (this will stream lines via event listeners)
@@ -125,6 +136,7 @@ const StoryWriter: React.FC = () => {
         selectedModel,
       );
     } catch (err: unknown) {
+      if (!isMountedRef.current) return;
       console.error(err);
       const errMsg =
         err instanceof Error
@@ -137,7 +149,9 @@ const StoryWriter: React.FC = () => {
       }
     } finally {
       unsubscribe();
-      setIsGenerating(false);
+      if (isMountedRef.current) {
+        setIsGenerating(false);
+      }
     }
   };
 
