@@ -1,7 +1,7 @@
 import * as azdev from 'azure-devops-node-api';
 import { IWorkItemTrackingApi } from 'azure-devops-node-api/WorkItemTrackingApi';
-import { IssueTrackerProvider } from './providers/IssueTrackerProvider';
-import { TicketData } from '../../types';
+import { IssueTrackerProvider } from '../providers/IssueTrackerProvider';
+import { TicketData } from '../../../types';
 
 export class AzureDevOpsService implements IssueTrackerProvider {
   private witApi: IWorkItemTrackingApi | null = null;

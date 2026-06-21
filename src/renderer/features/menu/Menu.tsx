@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import logo from '../../../assets/logo-full.png';
-import UpdateToast from '../components/UpdateToast';
-import { UpdateStatus } from '../../types';
+import logo from '../../../../assets/logo-full.png';
+import UpdateToast from '../../components/UpdateToast';
+import { UpdateStatus } from '../../../types';
 
 interface MenuProps {
   updateStatus: UpdateStatus | null;

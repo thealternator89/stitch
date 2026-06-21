@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CopilotService } from '../copilotService';
-import { AppSettings, TicketData } from '../../../types';
 import fs from 'fs';
 
 // Mock child_process to avoid running real shell commands
@@ -95,20 +94,14 @@ describe('CopilotService', () => {
   });
 
   it('should successfully stream and complete a request', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
-    const responsePromise = service.generateTestCases(ticket, '', '', settings);
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
+    );
 
     // Flush setup microtasks using timer advance
     await vi.advanceTimersByTimeAsync(10);
 
-    // Ensure session is set up and event listener is registered
-    expect(mockClient.createSession).toHaveBeenCalled();
     expect(sessionListener).toBeTypeOf('function');
 
     // Emit some text
@@ -129,14 +122,10 @@ describe('CopilotService', () => {
   });
 
   it('should timeout if there is no activity for the timeout duration', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
-    const responsePromise = service.generateTestCases(ticket, '', '', settings);
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
+    );
 
     await vi.advanceTimersByTimeAsync(10);
 
@@ -151,14 +140,10 @@ describe('CopilotService', () => {
   });
 
   it('should not timeout if assistant.message_delta events keep resetting the timer', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
-    const responsePromise = service.generateTestCases(ticket, '', '', settings);
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
+    );
 
     await vi.advanceTimersByTimeAsync(10);
 
@@ -184,14 +169,10 @@ describe('CopilotService', () => {
   });
 
   it('should not timeout if a tool call is in progress', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
-    const responsePromise = service.generateTestCases(ticket, '', '', settings);
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
+    );
 
     await vi.advanceTimersByTimeAsync(10);
 
@@ -218,14 +199,10 @@ describe('CopilotService', () => {
   });
 
   it('should resume timeout monitoring after a tool call completes', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
-    const responsePromise = service.generateTestCases(ticket, '', '', settings);
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
+    );
 
     await vi.advanceTimersByTimeAsync(10);
 
@@ -255,19 +232,10 @@ describe('CopilotService', () => {
   });
 
   it('should resiliently parse stream with leading noise and markdown wrappers', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
     const lines: string[] = [];
-    const responsePromise = service.generateTestCases(
-      ticket,
-      '',
-      '',
-      settings,
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
       (line) => {
         lines.push(line);
       },
@@ -302,19 +270,10 @@ describe('CopilotService', () => {
   });
 
   it('should resiliently parse streams with nested curly braces', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
     const lines: string[] = [];
-    const responsePromise = service.generateTestCases(
-      ticket,
-      '',
-      '',
-      settings,
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
       (line) => {
         lines.push(line);
       },
@@ -335,19 +294,10 @@ describe('CopilotService', () => {
   });
 
   it('should resiliently parse multiple JSON objects in a single delta', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
     const lines: string[] = [];
-    const responsePromise = service.generateTestCases(
-      ticket,
-      '',
-      '',
-      settings,
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
       (line) => {
         lines.push(line);
       },
@@ -368,19 +318,10 @@ describe('CopilotService', () => {
   });
 
   it('should resiliently parse streams without newlines', async () => {
-    const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-    const ticket: TicketData = {
-      id: '1',
-      title: 'Test ticket',
-      description: 'desc',
-    };
-
     const lines: string[] = [];
-    const responsePromise = service.generateTestCases(
-      ticket,
-      '',
-      '',
-      settings,
+    const responsePromise = service.sendAndCollectStream(
+      mockSession as any,
+      'prompt',
       (line) => {
         lines.push(line);
       },
@@ -407,18 +348,9 @@ describe('CopilotService', () => {
   it('should respect STITCH_COPILOT_TIMEOUT environment variable override', async () => {
     process.env.STITCH_COPILOT_TIMEOUT = '15000';
     try {
-      const settings: AppSettings = { copilotToken: 'test-token', prompts: {} };
-      const ticket: TicketData = {
-        id: '1',
-        title: 'Test ticket',
-        description: 'desc',
-      };
-
-      const responsePromise = service.generateTestCases(
-        ticket,
-        '',
-        '',
-        settings,
+      const responsePromise = service.sendAndCollectStream(
+        mockSession as any,
+        'prompt',
       );
 
       await vi.advanceTimersByTimeAsync(10);
@@ -434,5 +366,31 @@ describe('CopilotService', () => {
     } finally {
       delete process.env.STITCH_COPILOT_TIMEOUT;
     }
+  });
+
+  it('should create client and session correctly', async () => {
+    const result = await service.createClientAndSession(
+      'test-token',
+      'test-model',
+      { availableTools: [] },
+    );
+    expect(result.client).toBe(mockClient);
+    expect(result.session).toBe(mockSession);
+    expect(mockClientClass).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({
+          GITHUB_TOKEN: 'test-token',
+          COPILOT_TOKEN: 'test-token',
+        }),
+      }),
+    );
+    expect(mockClient.start).toHaveBeenCalled();
+    expect(mockClient.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'test-model',
+        availableTools: [],
+        streaming: true,
+      }),
+    );
   });
 });

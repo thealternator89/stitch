@@ -2,7 +2,7 @@ import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
-import { EnvironmentCheckResult } from '../../types';
+import { EnvironmentCheckResult } from '../../../types';
 
 const execPromise = promisify(exec);
 const execFilePromise = promisify(execFile);
