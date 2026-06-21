@@ -15,6 +15,7 @@ import { DocumentationProvider } from './infrastructure/providers/DocumentationP
 import { StoryWriterService } from './features/story-writer/storyWriterService';
 import { TestCaseWriterService } from './features/test-case-writer/testCaseWriterService';
 import { StoryElaboratorService } from './features/story-elaborator/storyElaboratorService';
+import { PromptComplexityService } from './features/settings/promptComplexityService';
 
 // Initialize auto-updates
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -47,6 +48,7 @@ const copilotService = new CopilotService();
 const storyWriterService = new StoryWriterService(copilotService);
 const testCaseWriterService = new TestCaseWriterService(copilotService);
 const storyElaboratorService = new StoryElaboratorService(copilotService);
+const promptComplexityService = new PromptComplexityService(copilotService);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -228,11 +230,7 @@ ipcMain.handle('list-copilot-models', async () => {
 ipcMain.handle('check-prompt-complexity', async (event, type, prompts) => {
   const s = await initStore();
   const settings = (s.get('settings') ?? {}) as AppSettings;
-  if (type === 'story') {
-    return storyWriterService.checkPromptComplexity(prompts, settings);
-  } else {
-    return testCaseWriterService.checkPromptComplexity(prompts, settings);
-  }
+  return promptComplexityService.checkPromptComplexity(type, prompts, settings);
 });
 
 ipcMain.handle('select-directory', async () => {

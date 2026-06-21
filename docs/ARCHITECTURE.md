@@ -84,7 +84,7 @@ locally on the machine.
 To prevent tool-specific logic, UI files, prompts, and backend coordination from spreading across technical layers, the project follows a **Vertical Slice Architecture**:
 
 1. **Symmetrical Feature Slices**: Feature directories under `src/main/features/` and `src/renderer/features/` encapsulate domain-specific code (e.g. `story-writer`, `test-case-writer`, `story-elaborator`, `settings`, `menu`).
-2. **Containment of Prompts**: Rather than using a single centralized prompt file, prompts and prompt complexity validation are contained inside their respective main process feature slices (e.g., `storyWriterPrompts.ts`).
+2. **Containment of Prompts**: Rather than using a single centralized prompt file, prompts are contained inside their respective main process feature slices (e.g., `storyWriterPrompts.ts`). The prompt validation logic (`checkPromptComplexity`) is centralized inside the `settings` feature slice (`promptComplexityService.ts`) which imports prompt templates from the individual slices to validate complexity.
 3. **Decoupled Infrastructure**: Shared, low-level integration services (like `AzureDevOpsService`, `ConfluenceService`, and `CopilotService` connection lifecycle management) reside inside `src/main/infrastructure/`. Feature services leverage these services via constructor dependency injection, keeping tool logic fully decoupled from infrastructure.
 
 ### Hybrid ESM/CommonJS Approach
