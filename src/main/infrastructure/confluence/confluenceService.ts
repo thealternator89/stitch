@@ -1,5 +1,5 @@
-import { DocumentationProvider } from './providers/DocumentationProvider';
-import { DocPageData } from '../../types';
+import { DocumentationProvider } from '../providers/DocumentationProvider';
+import { DocPageData } from '../../../types';
 
 export class ConfluenceService implements DocumentationProvider {
   private url: string;

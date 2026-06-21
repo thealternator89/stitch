@@ -6,12 +6,16 @@ import {
   nativeTheme,
   dialog,
 } from 'electron';
-import { AzureDevOpsService } from './services/azureDevOpsService';
-import { CopilotService } from './services/copilotService';
-import { ConfluenceService } from './services/confluenceService';
+import { AzureDevOpsService } from './infrastructure/azure/azureDevOpsService';
+import { CopilotService } from './infrastructure/copilot/copilotService';
+import { ConfluenceService } from './infrastructure/confluence/confluenceService';
 import { AppSettings } from '../types';
-import { IssueTrackerProvider } from './services/providers/IssueTrackerProvider';
-import { DocumentationProvider } from './services/providers/DocumentationProvider';
+import { IssueTrackerProvider } from './infrastructure/providers/IssueTrackerProvider';
+import { DocumentationProvider } from './infrastructure/providers/DocumentationProvider';
+import { StoryWriterService } from './features/story-writer/storyWriterService';
+import { TestCaseWriterService } from './features/test-case-writer/testCaseWriterService';
+import { StoryElaboratorService } from './features/story-elaborator/storyElaboratorService';
+import { PromptComplexityService } from './features/settings/promptComplexityService';
 
 // Initialize auto-updates
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -41,6 +45,10 @@ async function initStore() {
 let azureService: IssueTrackerProvider | null = null;
 let confluenceService: DocumentationProvider | null = null;
 const copilotService = new CopilotService();
+const storyWriterService = new StoryWriterService(copilotService);
+const testCaseWriterService = new TestCaseWriterService(copilotService);
+const storyElaboratorService = new StoryElaboratorService(copilotService);
+const promptComplexityService = new PromptComplexityService(copilotService);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -144,7 +152,7 @@ ipcMain.handle(
   async (event, ticketData, additionalContext, modelOverride) => {
     const s = await initStore();
     const settings = (s.get('settings') ?? {}) as AppSettings;
-    return copilotService.generateTestCases(
+    return testCaseWriterService.generateTestCases(
       ticketData,
       additionalContext,
       modelOverride,
@@ -191,7 +199,7 @@ ipcMain.handle(
   async (event, pageData, additionalContext, modelOverride) => {
     const s = await initStore();
     const settings = (s.get('settings') ?? {}) as AppSettings;
-    return copilotService.generateStories(
+    return storyWriterService.generateStories(
       pageData,
       additionalContext,
       modelOverride,
@@ -222,7 +230,7 @@ ipcMain.handle('list-copilot-models', async () => {
 ipcMain.handle('check-prompt-complexity', async (event, type, prompts) => {
   const s = await initStore();
   const settings = (s.get('settings') ?? {}) as AppSettings;
-  return copilotService.checkPromptComplexity(type, prompts, settings);
+  return promptComplexityService.checkPromptComplexity(type, prompts, settings);
 });
 
 ipcMain.handle('select-directory', async () => {
@@ -240,7 +248,7 @@ ipcMain.handle(
   async (event, ticketData, repoPath, additionalContext, modelOverride) => {
     const s = await initStore();
     const settings = (s.get('settings') ?? {}) as AppSettings;
-    return copilotService.startStoryElaboration(
+    return storyElaboratorService.startStoryElaboration(
       ticketData,
       repoPath,
       additionalContext,
@@ -254,7 +262,7 @@ ipcMain.handle(
 );
 
 ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
-  return copilotService.sendElaborationAnswer(
+  return storyElaboratorService.sendElaborationAnswer(
     ticketId,
     answer,
     (line: string) => {
@@ -264,7 +272,7 @@ ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
 });
 
 ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
-  return copilotService.stopStoryElaboration(ticketId);
+  return storyElaboratorService.stopStoryElaboration(ticketId);
 });
 
 ipcMain.handle('add-comment', async (event, ticketId, text) => {
@@ -342,5 +350,5 @@ app.on('activate', () => {
 // code. You can also put them in separate files and import them here.
 
 app.on('will-quit', async () => {
-  await copilotService.cleanup();
+  await storyElaboratorService.cleanup();
 });

@@ -67,7 +67,7 @@ locally on the machine.
   3.5 Sonnet) and allowing users to choose a model for each generation session.
 - **Generation & Multi-turn Sessions:**
   - For single-shot operations (Test Case Writer, Story Writer), it uses a transient session.
-  - For the interactive **Story Elaborator**, `CopilotService` maintains a stateful in-memory registry (`activeElaborations = new Map<string, { client: any, session: any }>()`) that keeps the same session alive across multiple user turns/answers.
+  - For the interactive **Story Elaborator**, `StoryElaboratorService` maintains a stateful in-memory registry (`activeElaborations = new Map<string, { client: any, session: any }>()`) that keeps the same session alive across multiple user turns/answers.
 - **Real-time Streaming & JSONL Protocol:**
   - Does not use a blocking request-response model. Instead, the main process streams generated data progressively to the renderer.
   - For single-shot tools, lines are pushed via `test-case-line` and `story-line` IPC events.
@@ -79,10 +79,13 @@ locally on the machine.
 
 ## Technical Decisions
 
-### Centralized Prompt Management
+### Vertical Slice Architecture & Prompt Management
 
-To prevent mixing LLM instruction wording and custom settings injection with service logic, all prompts are centralized inside [copilotPrompts.ts](file:///Users/markbenson/Code/stitch/src/main/services/copilotPrompts.ts).
-This module exposes prompt builders that merge default constraints with customized guidelines retrieved from settings. It also includes prompt validation logic (`checkPromptComplexity`) which uses a meta-prompt to verify that user-customized prompts do not violate instructions to produce clean JSON/JSONL output.
+To prevent tool-specific logic, UI files, prompts, and backend coordination from spreading across technical layers, the project follows a **Vertical Slice Architecture**:
+
+1. **Symmetrical Feature Slices**: Feature directories under `src/main/features/` and `src/renderer/features/` encapsulate domain-specific code (e.g. `story-writer`, `test-case-writer`, `story-elaborator`, `settings`, `menu`).
+2. **Containment of Prompts**: Rather than using a single centralized prompt file, prompts are contained inside their respective main process feature slices (e.g., `storyWriterPrompts.ts`). The prompt validation logic (`checkPromptComplexity`) is centralized inside the `settings` feature slice (`promptComplexityService.ts`) which imports prompt templates from the individual slices to validate complexity.
+3. **Decoupled Infrastructure**: Shared, low-level integration services (like `AzureDevOpsService`, `ConfluenceService`, and `CopilotService` connection lifecycle management) reside inside `src/main/infrastructure/`. Feature services leverage these services via constructor dependency injection, keeping tool logic fully decoupled from infrastructure.
 
 ### Hybrid ESM/CommonJS Approach
 

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
-import Menu from './pages/Menu';
-import TestCaseWriter from './pages/TestCaseWriter';
-import StoryWriter from './pages/StoryWriter';
-import StoryElaborator from './pages/StoryElaborator';
-import Settings from './pages/Settings';
+import Menu from './features/menu/Menu';
+import TestCaseWriter from './features/test-case-writer/TestCaseWriter';
+import StoryWriter from './features/story-writer/StoryWriter';
+import StoryElaborator from './features/story-elaborator/StoryElaborator';
+import Settings from './features/settings/components/Settings';
 import { TimeoutProvider } from './context/TimeoutContext';
 import { UpdateStatus, EnvironmentCheckResult } from '../types';
 

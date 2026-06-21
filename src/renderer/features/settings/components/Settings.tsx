@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useCopilotModels } from '../hooks/useCopilotModels';
-import PageLayout from '../components/PageLayout';
-import { CopilotAuth } from '../../types';
+import { useCopilotModels } from '../../../hooks/useCopilotModels';
+import PageLayout from '../../../components/PageLayout';
+import { CopilotAuth } from '../../../../types';
 
-import GeneralSettings from '../components/settings/GeneralSettings';
-import AzureSettings from '../components/settings/AzureSettings';
-import ConfluenceSettings from '../components/settings/ConfluenceSettings';
-import CopilotSettings from '../components/settings/CopilotSettings';
-import PromptSettings from '../components/settings/PromptSettings';
+import GeneralSettings from './GeneralSettings';
+import AzureSettings from './AzureSettings';
+import ConfluenceSettings from './ConfluenceSettings';
+import CopilotSettings from './CopilotSettings';
+import PromptSettings from './PromptSettings';
 
 const Settings: React.FC = () => {
   const [azureOrg, setAzureOrg] = useState('');

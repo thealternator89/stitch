@@ -1,10 +1,4 @@
-import {
-  TicketData,
-  DocPageData,
-  CopilotModel,
-  AppSettings,
-  EnvironmentCheckResult,
-} from '../../types';
+import { CopilotModel, EnvironmentCheckResult } from '../../../types';
 import {
   checkEnvironment,
   getNodePath,
@@ -53,13 +47,6 @@ async function createCopilotClient(copilotToken?: string) {
   // Fallback to the default platform-agnostic approach using process.execPath (Electron)
   return { client: new CopilotClient({ env }), approveAll };
 }
-
-import {
-  buildStoryPrompt,
-  buildTestCasePrompt,
-  buildStoryElaboratorPrompt,
-  buildPromptComplexityCheckPrompt,
-} from './copilotPrompts';
 
 function parseResilientJSONL(
   text: string,
@@ -133,6 +120,10 @@ export class CopilotService {
     if (model) {
       this.model = model;
     }
+  }
+
+  getModel(): string {
+    return this.model;
   }
 
   async initializeAsync(copilotToken?: string): Promise<void> {
@@ -224,7 +215,32 @@ export class CopilotService {
     });
   }
 
-  private async sendAndCollectStream(
+  async createClientAndSession(
+    copilotToken: string | undefined,
+    modelOverride: string | undefined,
+    options: {
+      workingDirectory?: string | null;
+      availableTools?: any[];
+      streaming?: boolean;
+    },
+  ): Promise<{ client: any; session: any; approveAll: any }> {
+    const { client, approveAll } = await createCopilotClient(copilotToken);
+    await client.start();
+    const sessionOptions: any = {
+      model: modelOverride || this.model,
+      onPermissionRequest: approveAll,
+      streaming: options.streaming ?? true,
+    };
+    if (options.workingDirectory) {
+      sessionOptions.workingDirectory = options.workingDirectory;
+    } else if (options.availableTools) {
+      sessionOptions.availableTools = options.availableTools;
+    }
+    const session = await client.createSession(sessionOptions);
+    return { client, session, approveAll };
+  }
+
+  async sendAndCollectStream(
     session: any,
     prompt: string,
     onLine?: (line: string) => void,
@@ -331,320 +347,5 @@ export class CopilotService {
       }
       unsubscribe();
     }
-  }
-
-  async generateTestCases(
-    ticketData: TicketData,
-    additionalContext: string,
-    modelOverride: string,
-    settings: AppSettings,
-    onLine?: (line: string) => void,
-  ) {
-    const { client, approveAll } = await createCopilotClient(
-      settings.copilotToken,
-    );
-    let session: any = null;
-    try {
-      await client.start();
-      session = await client.createSession({
-        model: modelOverride || this.model,
-        availableTools: [],
-        onPermissionRequest: approveAll,
-        streaming: true,
-      });
-
-      const prompt = buildTestCasePrompt(
-        ticketData.id || '',
-        ticketData.title,
-        ticketData.description,
-        ticketData.acceptanceCriteria || '',
-        additionalContext,
-        settings,
-      );
-
-      const responseContent = await this.sendAndCollectStream(
-        session,
-        prompt,
-        onLine,
-      );
-      return responseContent;
-    } catch (error) {
-      console.error('Error generating test cases:', error);
-      throw error;
-    } finally {
-      if (session) {
-        try {
-          await session.disconnect();
-        } catch (e) {
-          console.error('Error destroying session in generateTestCases:', e);
-        }
-      }
-      try {
-        await client.stop();
-      } catch (e) {
-        console.error('Error stopping client in generateTestCases:', e);
-      }
-    }
-  }
-
-  async generateStories(
-    pageData: DocPageData,
-    additionalContext: string,
-    modelOverride: string,
-    settings: AppSettings,
-    onLine?: (line: string) => void,
-  ): Promise<string> {
-    const { client, approveAll } = await createCopilotClient(
-      settings.copilotToken,
-    );
-    let session: any = null;
-    try {
-      await client.start();
-      session = await client.createSession({
-        model: modelOverride || this.model,
-        availableTools: [],
-        onPermissionRequest: approveAll,
-        streaming: true,
-      });
-
-      const prompt = buildStoryPrompt(
-        pageData.title,
-        pageData.body,
-        additionalContext,
-        settings,
-      );
-
-      const responseContent = await this.sendAndCollectStream(
-        session,
-        prompt,
-        onLine,
-      );
-      return responseContent;
-    } catch (error) {
-      console.error('Error generating stories:', error);
-      throw error;
-    } finally {
-      if (session) {
-        try {
-          await session.disconnect();
-        } catch (e) {
-          console.error('Error destroying session in generateStories:', e);
-        }
-      }
-      try {
-        await client.stop();
-      } catch (e) {
-        console.error('Error stopping client in generateStories:', e);
-      }
-    }
-  }
-
-  async checkPromptComplexity(
-    type: 'story' | 'testcase',
-    prompts: any,
-    settings: AppSettings,
-    modelOverride?: string,
-  ): Promise<string> {
-    const { client, approveAll } = await createCopilotClient(
-      settings.copilotToken,
-    );
-    let session: any = null;
-    try {
-      await client.start();
-      session = await client.createSession({
-        model: modelOverride || this.model,
-        availableTools: [],
-        onPermissionRequest: approveAll,
-        streaming: false,
-      });
-
-      let promptToCheck = '';
-      if (type === 'story') {
-        promptToCheck = buildStoryPrompt(
-          '[Page Title Placeholder]',
-          '[Page Content Placeholder]',
-          '[Additional Context Placeholder]',
-          { prompts: { storyWriter: prompts } },
-        );
-      } else {
-        promptToCheck = buildTestCasePrompt(
-          '[Ticket ID Placeholder]',
-          '[Title Placeholder]',
-          '[Description Placeholder]',
-          '[Acceptance Criteria Placeholder]',
-          '[Additional Context Placeholder]',
-          { prompts: { testCaseWriter: prompts } },
-        );
-      }
-
-      const metaPrompt = buildPromptComplexityCheckPrompt(promptToCheck);
-
-      const responseContent = await this.sendAndCollectStream(
-        session,
-        metaPrompt,
-      );
-      return responseContent;
-    } catch (error) {
-      console.error('Error checking prompt complexity:', error);
-      throw error;
-    } finally {
-      if (session) {
-        try {
-          await session.disconnect();
-        } catch (e) {
-          console.error(
-            'Error destroying session in checkPromptComplexity:',
-            e,
-          );
-        }
-      }
-      try {
-        await client.stop();
-      } catch (e) {
-        console.error('Error stopping client in checkPromptComplexity:', e);
-      }
-    }
-  }
-
-  private activeElaborations = new Map<string, { client: any; session: any }>();
-
-  async startStoryElaboration(
-    ticketData: TicketData,
-    repoPath: string | null,
-    additionalContext: string,
-    modelOverride: string,
-    settings: AppSettings,
-    onLine?: (line: string) => void,
-  ): Promise<string> {
-    // Stop any existing session for this ticket
-    await this.stopStoryElaboration(ticketData.id || '');
-
-    const { client, approveAll } = await createCopilotClient(
-      settings.copilotToken,
-    );
-    let session: any = null;
-    try {
-      await client.start();
-
-      const sessionOptions: any = {
-        model: modelOverride || this.model,
-        onPermissionRequest: approveAll,
-        streaming: true,
-      };
-
-      if (repoPath) {
-        sessionOptions.workingDirectory = repoPath;
-      } else {
-        sessionOptions.availableTools = [];
-      }
-
-      session = await client.createSession(sessionOptions);
-
-      // Store in map so we can continue or stop later
-      this.activeElaborations.set(ticketData.id || '', { client, session });
-
-      const prompt = buildStoryElaboratorPrompt(
-        ticketData,
-        additionalContext,
-        settings,
-        !!repoPath,
-      );
-
-      const responseContent = await this.sendAndCollectStream(
-        session,
-        prompt,
-        onLine,
-        (type, tool, success, error, args) =>
-          onLine(
-            JSON.stringify({
-              type: 'tool',
-              status: type,
-              name: tool,
-              success,
-              error,
-              arguments: args,
-            }),
-          ),
-      );
-      return responseContent;
-    } catch (error) {
-      console.error('Error starting story elaboration:', error);
-      // Clean up if it failed
-      await this.stopStoryElaboration(ticketData.id || '');
-      throw error;
-    }
-  }
-
-  async sendElaborationAnswer(
-    ticketId: string,
-    answer: string,
-    onLine?: (line: string) => void,
-  ): Promise<string> {
-    const data = this.activeElaborations.get(ticketId);
-    if (!data) {
-      throw new Error(
-        `No active story elaboration session found for ticket ID: ${ticketId}`,
-      );
-    }
-
-    const { session } = data;
-    try {
-      const responseContent = await this.sendAndCollectStream(
-        session,
-        answer,
-        onLine,
-        (type, tool, success, error, args) =>
-          onLine(
-            JSON.stringify({
-              type: 'tool',
-              status: type,
-              name: tool,
-              success,
-              error,
-              arguments: args,
-            }),
-          ),
-      );
-      return responseContent;
-    } catch (error) {
-      console.error(
-        `Error sending answer to story elaboration session for ticket ${ticketId}:`,
-        error,
-      );
-      throw error;
-    }
-  }
-
-  async stopStoryElaboration(ticketId: string): Promise<void> {
-    const data = this.activeElaborations.get(ticketId);
-    if (!data) return;
-
-    this.activeElaborations.delete(ticketId);
-    const { client, session } = data;
-    try {
-      await session.disconnect();
-    } catch (e) {
-      console.error('Error destroying session in stopStoryElaboration:', e);
-    }
-    try {
-      await client.stop();
-    } catch (e) {
-      console.error('Error stopping client in stopStoryElaboration:', e);
-    }
-  }
-
-  async cleanup() {
-    for (const [ticketId, data] of this.activeElaborations.entries()) {
-      try {
-        await data.session.disconnect();
-        await data.client.stop();
-      } catch (e) {
-        console.error(
-          `Error cleaning up active elaboration session for ticket ${ticketId}:`,
-          e,
-        );
-      }
-    }
-    this.activeElaborations.clear();
   }
 }

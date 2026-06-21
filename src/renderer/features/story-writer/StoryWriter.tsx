@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useCopilotModels } from '../hooks/useCopilotModels';
-import ModelDropdown from '../components/ModelDropdown';
-import PageLayout from '../components/PageLayout';
-import { DocPageData } from '../../types';
-import { useTimeoutModal, isTimeoutError } from '../context/TimeoutContext';
+import { useCopilotModels } from '../../hooks/useCopilotModels';
+import ModelDropdown from '../../components/ModelDropdown';
+import PageLayout from '../../components/PageLayout';
+import { DocPageData } from '../../../types';
+import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
 
 interface Story {
   title: string;

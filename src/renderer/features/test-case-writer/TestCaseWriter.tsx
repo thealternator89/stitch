@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useCopilotModels } from '../hooks/useCopilotModels';
-import ModelDropdown from '../components/ModelDropdown';
-import PageLayout from '../components/PageLayout';
-import { TicketData } from '../../types';
-import { useTimeoutModal, isTimeoutError } from '../context/TimeoutContext';
+import { useCopilotModels } from '../../hooks/useCopilotModels';
+import ModelDropdown from '../../components/ModelDropdown';
+import PageLayout from '../../components/PageLayout';
+import { TicketData } from '../../../types';
+import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
 
 interface TestCase {
   id: string;

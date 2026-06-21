@@ -1,6 +1,6 @@
 import React from 'react';
-import ModelDropdown from '../ModelDropdown';
-import { CopilotAuth, CopilotModel } from '../../../types';
+import ModelDropdown from '../../../components/ModelDropdown';
+import { CopilotAuth, CopilotModel } from '../../../../types';
 
 interface CopilotSettingsProps {
   copilotToken: string;
