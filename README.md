@@ -126,11 +126,13 @@ npm run make
 │   ├── main/           # Main process logic (Node.js environment)
 │   │   ├── index.ts    # Main process entry point & IPC Handlers
 │   │   ├── preload.ts  # Preload script for IPC and secure bridge
-│   │   └── services/   # Encapsulated backend API services (Azure, Copilot, Confluence, and copilotPrompts.ts)
+│   │   ├── infrastructure/ # Low-level shared infrastructure (Azure, Confluence, Copilot SDK lifecycle)
+│   │   └── features/       # Self-contained main-side backend feature slices (story-writer, test-case-writer, story-elaborator)
 │   └── renderer/       # Renderer process (React environment)
-│       ├── components/ # Shared React components
-│       ├── hooks/      # Custom React hooks (e.g., useCopilotModels)
-│       ├── pages/      # Application views (Menu, Settings, TestCaseWriter, StoryWriter, StoryElaborator)
+│       ├── components/ # Shared React UI components
+│       ├── hooks/      # Shared React hooks (e.g., useCopilotModels)
+│       ├── context/    # Shared React context (e.g., TimeoutContext)
+│       ├── features/   # Symmetrical front-end feature slices (menu, settings, story-writer, test-case-writer, story-elaborator)
 │       ├── App.tsx     # Main React component with Routing
 │       ├── index.css   # Global styles & Markdown overrides
 │       ├── index.html  # Main HTML template
