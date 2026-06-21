@@ -56,6 +56,7 @@ const convertToMarkdownTable = (tcList: TestCase[]): string => {
 
 const TestCaseWriter: React.FC = () => {
   const { showTimeout } = useTimeoutModal();
+  const isMountedRef = useRef(true);
   const [ticketId, setTicketId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TicketData[]>([]);
@@ -110,6 +111,14 @@ const TestCaseWriter: React.FC = () => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Track component mounting status
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
@@ -167,6 +176,7 @@ const TestCaseWriter: React.FC = () => {
 
     // Set up real-time listener for incoming lines
     const unsubscribe = window.electronAPI.onTestCaseLine((line: string) => {
+      if (!isMountedRef.current) return;
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('```')) return;
 
@@ -189,6 +199,7 @@ const TestCaseWriter: React.FC = () => {
     try {
       // 1. Fetch Ticket Data
       const fetchedTicket = await window.electronAPI.fetchTicket(ticketId);
+      if (!isMountedRef.current) return;
       setTicketData(fetchedTicket);
 
       // 2. Generate Test Cases using Copilot SDK (this will stream lines via event listeners)
@@ -198,6 +209,7 @@ const TestCaseWriter: React.FC = () => {
         selectedModel,
       );
     } catch (err: unknown) {
+      if (!isMountedRef.current) return;
       console.error(err);
       const errMsg =
         err instanceof Error
@@ -210,7 +222,9 @@ const TestCaseWriter: React.FC = () => {
       }
     } finally {
       unsubscribe();
-      setIsGenerating(false);
+      if (isMountedRef.current) {
+        setIsGenerating(false);
+      }
     }
   };
 

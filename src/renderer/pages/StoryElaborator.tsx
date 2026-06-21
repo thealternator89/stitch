@@ -14,6 +14,8 @@ interface ChatMessage {
 
 const StoryElaborator: React.FC = () => {
   const { showTimeout } = useTimeoutModal();
+  const isMountedRef = useRef(true);
+  const ticketIdRef = useRef('');
   const [ticketId, setTicketId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TicketData[]>([]);
@@ -117,6 +119,19 @@ const StoryElaborator: React.FC = () => {
       return;
     }
 
+    // Clean up any previous session/listener first
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+    if (ticketIdRef.current) {
+      try {
+        await window.electronAPI.stopStoryElaboration(ticketIdRef.current);
+      } catch (err) {
+        console.error('Error stopping previous story elaboration:', err);
+      }
+    }
+
     setError('');
     setStage('elaborating');
     setIsGenerating(true);
@@ -129,6 +144,7 @@ const StoryElaborator: React.FC = () => {
 
     // Setup listener for incoming lines
     const unsubscribe = window.electronAPI.onElaborationLine((line: string) => {
+      if (!isMountedRef.current) return;
       const trimmed = line.trim();
       if (!trimmed) return;
 
@@ -184,6 +200,8 @@ const StoryElaborator: React.FC = () => {
       // 1. Fetch Ticket details
       const fetchedTicket = await window.electronAPI.fetchTicket(ticketId);
 
+      if (!isMountedRef.current) return;
+
       // 2. Start session
       await window.electronAPI.startStoryElaboration(
         fetchedTicket,
@@ -192,6 +210,7 @@ const StoryElaborator: React.FC = () => {
         selectedModel,
       );
     } catch (err: unknown) {
+      if (!isMountedRef.current) return;
       console.error(err);
       const errMsg =
         err instanceof Error
@@ -205,9 +224,11 @@ const StoryElaborator: React.FC = () => {
       setStage('idle');
       setIsGenerating(false);
     } finally {
-      // We keep unsubscribe active because we need it for follow-up turns
-      // We will clean it up in useEffect or during cancel/restart.
-      unsubscribeRef.current = unsubscribe;
+      if (isMountedRef.current) {
+        unsubscribeRef.current = unsubscribe;
+      } else {
+        unsubscribe();
+      }
     }
   };
 
@@ -224,6 +245,7 @@ const StoryElaborator: React.FC = () => {
     try {
       await window.electronAPI.sendElaborationAnswer(ticketId, answer);
     } catch (err: unknown) {
+      if (!isMountedRef.current) return;
       console.error(err);
       const errMsg =
         err instanceof Error
@@ -247,6 +269,7 @@ const StoryElaborator: React.FC = () => {
     try {
       await window.electronAPI.sendElaborationAnswer(ticketId, suggestion);
     } catch (err: unknown) {
+      if (!isMountedRef.current) return;
       console.error(err);
       const errMsg =
         err instanceof Error
@@ -300,12 +323,26 @@ const StoryElaborator: React.FC = () => {
     }
   };
 
+  // Keep track of ticketId in a ref to clean up on unmount/resets
+  useEffect(() => {
+    ticketIdRef.current = ticketId;
+  }, [ticketId]);
+
   // Cleanup on unmount
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null;
+      }
+      if (ticketIdRef.current) {
+        window.electronAPI
+          .stopStoryElaboration(ticketIdRef.current)
+          .catch((err) => {
+            console.error('Failed to stop story elaboration on unmount:', err);
+          });
       }
     };
   }, []);
@@ -733,7 +770,23 @@ const StoryElaborator: React.FC = () => {
                 <div className="card-footer bg-body-tertiary py-3 d-flex justify-content-between align-items-center border-top flex-shrink-0">
                   <button
                     className="btn btn-outline-secondary px-4 py-2 fw-semibold"
-                    onClick={() => {
+                    onClick={async () => {
+                      if (unsubscribeRef.current) {
+                        unsubscribeRef.current();
+                        unsubscribeRef.current = null;
+                      }
+                      if (ticketId) {
+                        try {
+                          await window.electronAPI.stopStoryElaboration(
+                            ticketId,
+                          );
+                        } catch (err) {
+                          console.error(
+                            'Error stopping story elaboration:',
+                            err,
+                          );
+                        }
+                      }
                       setStage('idle');
                     }}
                   >
