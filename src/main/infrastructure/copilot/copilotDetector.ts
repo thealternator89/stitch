@@ -49,14 +49,18 @@ export function getRequiredCopilotVersion(): string {
   return '1.0.61'; // Fallback
 }
 
-function isVersionOlder(v1: string, v2: string): boolean {
-  const parts1 = v1.split('.').map(Number);
-  const parts2 = v2.split('.').map(Number);
-  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-    const p1 = parts1[i] || 0;
-    const p2 = parts2[i] || 0;
-    if (p1 < p2) return true;
-    if (p1 > p2) return false;
+function isVersionOlder(toCheck: string, baseline: string): boolean {
+  const partsToCheck = toCheck.split('.').map(Number);
+  const partsBaseline = baseline.split('.').map(Number);
+  for (
+    let i = 0;
+    i < Math.max(partsToCheck.length, partsBaseline.length);
+    i++
+  ) {
+    const pToCheck = partsToCheck[i] || 0;
+    const pBaseline = partsBaseline[i] || 0;
+    if (pToCheck < pBaseline) return true;
+    if (pToCheck > pBaseline) return false;
   }
   return false;
 }
