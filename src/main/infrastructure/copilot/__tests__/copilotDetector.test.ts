@@ -153,20 +153,21 @@ describe('copilotDetector', () => {
       });
 
       vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
-        // SDK package.json exists, copilot package.json exists
+        const np = p.replace(/\\/g, '/');
         return (
-          p.includes('copilot-sdk/package.json') ||
-          p.includes('copilot/package.json')
+          np.includes('copilot-sdk/package.json') ||
+          np.includes('copilot/package.json')
         );
       });
 
       vi.spyOn(fs, 'readFileSync').mockImplementation((p: any) => {
-        if (p.includes('copilot-sdk/package.json')) {
+        const np = p.replace(/\\/g, '/');
+        if (np.includes('copilot-sdk/package.json')) {
           return JSON.stringify({
             dependencies: { '@github/copilot': '^1.0.61' },
           });
         }
-        if (p.includes('copilot/package.json')) {
+        if (np.includes('copilot/package.json')) {
           return JSON.stringify({ version: '1.0.60' });
         }
         return '';
@@ -190,12 +191,13 @@ describe('copilotDetector', () => {
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
 
       vi.spyOn(fs, 'readFileSync').mockImplementation((p: any) => {
-        if (p.includes('copilot-sdk/package.json')) {
+        const np = p.replace(/\\/g, '/');
+        if (np.includes('copilot-sdk/package.json')) {
           return JSON.stringify({
             dependencies: { '@github/copilot': '^1.0.61' },
           });
         }
-        if (p.includes('copilot/package.json')) {
+        if (np.includes('copilot/package.json')) {
           return JSON.stringify({ version: '1.0.61' });
         }
         return '';
@@ -267,12 +269,13 @@ describe('copilotDetector', () => {
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
 
       vi.spyOn(fs, 'readFileSync').mockImplementation((p: any) => {
-        if (p.includes('copilot-sdk/package.json')) {
+        const np = p.replace(/\\/g, '/');
+        if (np.includes('copilot-sdk/package.json')) {
           return JSON.stringify({
             dependencies: { '@github/copilot': '^1.0.61' },
           });
         }
-        if (p.includes('copilot/package.json')) {
+        if (np.includes('copilot/package.json')) {
           return JSON.stringify({ version: '1.0.61' });
         }
         return '';
@@ -355,6 +358,7 @@ describe('copilotDetector', () => {
       });
 
       vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
+        const np = p.replace(/\\/g, '/');
         const normalized = path.normalize(p);
         return (
           normalized ===
@@ -362,19 +366,20 @@ describe('copilotDetector', () => {
               '/mock/node_modules/@github/copilot-sdk/package.json',
             ) ||
           normalized === path.normalize('/usr/bin/node') ||
-          normalized.includes('copilot/package.json') ||
-          normalized.includes('copilot/index.js') ||
-          normalized.includes('copilot-cli')
+          np.includes('copilot/package.json') ||
+          np.includes('copilot/index.js') ||
+          np.includes('copilot-cli')
         );
       });
 
       vi.spyOn(fs, 'readFileSync').mockImplementation((p: any) => {
-        if (p.includes('copilot-sdk/package.json')) {
+        const np = p.replace(/\\/g, '/');
+        if (np.includes('copilot-sdk/package.json')) {
           return JSON.stringify({
             dependencies: { '@github/copilot': '^1.0.61' },
           });
         }
-        if (p.includes('copilot/package.json')) {
+        if (np.includes('copilot/package.json')) {
           return JSON.stringify({ version: '1.0.61' });
         }
         return '';
