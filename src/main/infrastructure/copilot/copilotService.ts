@@ -3,6 +3,7 @@ import {
   checkEnvironment,
   getNodePath,
   getCopilotScriptPath,
+  installCopilotCli,
 } from './copilotDetector';
 
 // Since we dynamically import the SDK, we need to use any - disable eslint rule
@@ -114,6 +115,10 @@ export class CopilotService {
 
   async checkEnvironment(): Promise<EnvironmentCheckResult> {
     return checkEnvironment();
+  }
+
+  async installCopilotCli(): Promise<{ success: boolean; error?: string }> {
+    return installCopilotCli();
   }
 
   setModel(model: string) {

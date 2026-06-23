@@ -221,6 +221,10 @@ ipcMain.handle('check-environment', async () => {
   return copilotService.checkEnvironment();
 });
 
+ipcMain.handle('install-copilot-cli', async () => {
+  return copilotService.installCopilotCli();
+});
+
 ipcMain.handle('list-copilot-models', async () => {
   const s = await initStore();
   const settings = (s.get('settings') ?? {}) as AppSettings;
