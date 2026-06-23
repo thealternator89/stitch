@@ -63,6 +63,10 @@ locally on the machine.
 - **Authentication:** Relies on the machine's local GitHub CLI authentication
   (`gh auth login`). The application checks the active connection and auth
   status via the SDK.
+- **Self-Managed Copilot CLI Installer:**
+  - To prevent cross-platform execution issues in packaged environments (e.g., on Windows where system Node spawned as a child process cannot access files inside Electron's read-only `app.asar` package), Stitch manages `@github/copilot` (Copilot CLI) locally in a dedicated directory inside the application's user data path (`<userData>/copilot-cli`).
+  - On launch, Stitch verifies that Node.js v22+ is installed, checks for the existence of `@github/copilot` in the managed directory, and matches the installed version against the required version range declared by `@github/copilot-sdk`.
+  - If the CLI dependency is missing or outdated, an automated setup wizard displays in the UI to perform the installation seamlessly in the background via NPM.
 - **Model Selection:** Supports listing available models (e.g., GPT-4o, Claude
   3.5 Sonnet) and allowing users to choose a model for each generation session.
 - **Generation & Multi-turn Sessions:**
@@ -115,6 +119,8 @@ support modern ESM-only libraries like `electron-store` and
 - `generate-stories`: Interfaces with Copilot to produce structured JSON
   stories. Streams output line-by-line via `story-line` IPC events and resolves once concluded. Supports `modelOverride`.
 - `check-copilot-auth`: Checks Copilot CLI authentication and connection status.
+- `check-environment`: Validates the environment by checking that Node.js is present (v22+) and checking the local `@github/copilot` installation version.
+- `install-copilot-cli`: Performs the automated local installation of `@github/copilot` in the application data directory.
 - `list-copilot-models`: Retrieves available GitHub Copilot models.
 - `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
 - `create-ticket`: Creates a new work item (PBI or Task) in Azure DevOps linked to a parent.

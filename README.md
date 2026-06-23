@@ -63,12 +63,10 @@ TypeScript using Electron Forge.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (LTS recommended)
+- [Node.js](https://nodejs.org/) (v22 or above recommended)
 - **GitHub Copilot CLI**: You must be authenticated via the Copilot CLI on your
   machine (launch `copilot`, enter `/login` and follow the prompts).
-  - **Note for Windows Users**: You must set the `NODE_PATH` (path to Node.js
-    executable) and `COPILOT_SCRIPT_PATH` (path to the Copilot JS script)
-    environment variables for the Copilot client to initialize correctly.
+  - **Note**: Stitch requires Node.js v22+ to run the Copilot CLI. On launch, Stitch will check if the `@github/copilot` CLI is installed locally in the application's user data directory. If it is missing or outdated, an interactive setup wizard will install it automatically using your system's Node and NPM.
 - **Azure DevOps PAT**: A Personal Access Token with "Work Items: Read & Write"
   permissions.
 - **Confluence API Token**: An Atlassian API Token generated from your profile
