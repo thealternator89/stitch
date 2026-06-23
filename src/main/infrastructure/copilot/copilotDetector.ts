@@ -17,7 +17,7 @@ const DISABLE_WINDOWS_WORKAROUND = ['1', 'true'].includes(
 export function getManagedCopilotDir(): string {
   try {
     return path.join(app.getPath('userData'), 'copilot-cli');
-  } catch (err) {
+  } catch {
     // Fallback for tests or when app is not ready/mocked
     return path.join(process.cwd(), '.copilot-cli-test');
   }
@@ -123,12 +123,13 @@ export async function checkCopilotCli(): Promise<{
       installedVersion,
       requiredVersion,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
     return {
       success: false,
       errorType: 'COPILOT_CLI_MISSING',
       requiredVersion,
-      message: `Failed to read local Copilot CLI installation: ${err.message}`,
+      message: `Failed to read local Copilot CLI installation: ${errMsg}`,
     };
   }
 }
@@ -437,11 +438,12 @@ export async function installCopilotCli(): Promise<{
     }
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error installing Copilot CLI:', err);
+    const errMsg = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      error: err.message || 'An unknown error occurred during installation.',
+      error: errMsg || 'An unknown error occurred during installation.',
     };
   }
 }

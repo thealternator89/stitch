@@ -49,10 +49,11 @@ const App: React.FC = () => {
         setInstallStatus('error');
         setInstallError(res.error || 'Unknown error occurred.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setInstallStatus('error');
+      const errMsg = err instanceof Error ? err.message : String(err);
       setInstallError(
-        err.message || 'An error occurred during installer execution.',
+        errMsg || 'An error occurred during installer execution.',
       );
     }
   };
