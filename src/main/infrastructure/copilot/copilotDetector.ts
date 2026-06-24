@@ -424,7 +424,10 @@ export async function installCopilotCli(): Promise<{
     );
 
     if (path.isAbsolute(npmCmd)) {
-      await execFilePromise(npmCmd, args, { cwd: managedDir });
+      await execFilePromise(npmCmd, args, {
+        cwd: managedDir,
+        shell: process.platform === 'win32',
+      });
     } else {
       // Fallback: run via shell if npmCmd is just 'npm'
       await execPromise(`npm install --no-audit --no-fund ${pkgToInstall}`, {
