@@ -17,6 +17,46 @@ const App: React.FC = () => {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [envCheckResult, setEnvCheckResult] =
     useState<EnvironmentCheckResult | null>(null);
+  const [installStatus, setInstallStatus] = useState<
+    'idle' | 'installing' | 'success' | 'error'
+  >('idle');
+  const [installError, setInstallError] = useState<string | null>(null);
+
+  const handleInstallCopilot = async () => {
+    setInstallStatus('installing');
+    setInstallError(null);
+    try {
+      const res = await window.electronAPI.installCopilotCli();
+      if (res.success) {
+        setInstallStatus('success');
+        setTimeout(async () => {
+          try {
+            const result = await window.electronAPI.checkEnvironment();
+            if (result.success) {
+              setEnvCheckResult(null);
+            } else {
+              setEnvCheckResult(result);
+            }
+          } catch (err) {
+            console.error(
+              'Failed to run environment check after install:',
+              err,
+            );
+          }
+          setInstallStatus('idle');
+        }, 1500);
+      } else {
+        setInstallStatus('error');
+        setInstallError(res.error || 'Unknown error occurred.');
+      }
+    } catch (err: unknown) {
+      setInstallStatus('error');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setInstallError(
+        errMsg || 'An error occurred during installer execution.',
+      );
+    }
+  };
 
   useEffect(() => {
     const runEnvCheck = async () => {
@@ -127,34 +167,126 @@ const App: React.FC = () => {
 
         {envCheckResult && (
           <div className="env-error-overlay">
-            <div className="env-error-modal">
-              <div className="env-error-icon">
-                <i className="fas fa-exclamation-triangle"></i>
+            {envCheckResult.errorType === 'NODE_NOT_FOUND' ||
+            envCheckResult.errorType === 'NODE_VERSION_TOO_LOW' ? (
+              <div className="env-error-modal">
+                <div className="env-error-icon">
+                  <i className="fas fa-exclamation-triangle"></i>
+                </div>
+                <h4 className="env-error-title">Node.js Upgrade Required</h4>
+                <p className="env-error-message text-center">
+                  {envCheckResult.message}
+                </p>
+                <div className="env-error-details">
+                  Stitch requires Node.js v{envCheckResult.minRequiredVersion}{' '}
+                  or above to communicate with the GitHub Copilot CLI safely and
+                  reliably. Please install the latest LTS version of Node.js and
+                  restart the application.
+                </div>
+                <div className="env-error-actions">
+                  <button
+                    className="btn btn-indigo btn-lg"
+                    onClick={async () => {
+                      await window.electronAPI.openExternal(
+                        'https://nodejs.org/',
+                      );
+                    }}
+                  >
+                    <i className="fas fa-download me-2"></i>
+                    Download Node.js
+                  </button>
+                </div>
               </div>
-              <h4 className="env-error-title">Node.js Upgrade Required</h4>
-              <p className="env-error-message text-center">
-                {envCheckResult.message}
-              </p>
-              <div className="env-error-details">
-                Stitch requires Node.js v{envCheckResult.minRequiredVersion} or
-                above to communicate with the GitHub Copilot CLI safely and
-                reliably. Please install the latest LTS version of Node.js and
-                restart the application.
+            ) : (
+              <div className="env-error-modal">
+                {installStatus === 'idle' && (
+                  <>
+                    <div className="env-error-icon info">
+                      <i className="fas fa-cloud-download-alt"></i>
+                    </div>
+                    <h4 className="env-error-title">
+                      {envCheckResult.errorType === 'COPILOT_CLI_OUTDATED'
+                        ? 'Update Required'
+                        : 'Setup Required'}
+                    </h4>
+                    <p className="env-error-message text-center">
+                      {envCheckResult.errorType === 'COPILOT_CLI_OUTDATED'
+                        ? 'Stitch needs to update its internal copy of GitHub Copilot CLI.'
+                        : 'Stitch needs to install an internal copy of GitHub Copilot CLI.'}
+                    </p>
+                    <div className="env-error-details">
+                      This process is automated. We will set up this dependency
+                      securely within the application data directory.
+                    </div>
+                    <div className="env-error-actions">
+                      <button
+                        className="btn btn-indigo btn-lg"
+                        onClick={handleInstallCopilot}
+                      >
+                        <i className="fas fa-tools me-2"></i>
+                        {envCheckResult.errorType === 'COPILOT_CLI_OUTDATED'
+                          ? 'Update CLI'
+                          : 'Install CLI'}
+                      </button>
+                    </div>
+                  </>
+                )}
+                {installStatus === 'installing' && (
+                  <>
+                    <div className="env-error-icon info">
+                      <i className="fas fa-circle-notch fa-spin"></i>
+                    </div>
+                    <h4 className="env-error-title">Installing Dependency</h4>
+                    <p className="env-error-message text-center">
+                      Downloading and setting up the internal GitHub Copilot
+                      CLI...
+                    </p>
+                    <div className="env-error-details">
+                      This may take a moment. Please keep the application
+                      running.
+                    </div>
+                  </>
+                )}
+                {installStatus === 'success' && (
+                  <>
+                    <div className="env-error-icon success">
+                      <i className="fas fa-check-circle"></i>
+                    </div>
+                    <h4 className="env-error-title">Installation Complete</h4>
+                    <p className="env-error-message text-center">
+                      GitHub Copilot CLI was successfully installed.
+                    </p>
+                    <div className="env-error-details">
+                      Verifying setup and loading Stitch dashboard...
+                    </div>
+                  </>
+                )}
+                {installStatus === 'error' && (
+                  <>
+                    <div className="env-error-icon">
+                      <i className="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h4 className="env-error-title">Installation Failed</h4>
+                    <p className="env-error-message text-center text-danger">
+                      {installError || 'An unexpected error occurred.'}
+                    </p>
+                    <div className="env-error-details">
+                      Please make sure you have an active internet connection
+                      and that Node.js is configured correctly.
+                    </div>
+                    <div className="env-error-actions">
+                      <button
+                        className="btn btn-indigo btn-lg"
+                        onClick={handleInstallCopilot}
+                      >
+                        <i className="fas fa-redo me-2"></i>
+                        Retry Installation
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="env-error-actions">
-                <button
-                  className="btn btn-indigo btn-lg"
-                  onClick={async () => {
-                    await window.electronAPI.openExternal(
-                      'https://nodejs.org/',
-                    );
-                  }}
-                >
-                  <i className="fas fa-download me-2"></i>
-                  Download Node.js
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </Router>

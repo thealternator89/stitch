@@ -81,6 +81,13 @@ export interface EnvironmentCheckResult {
   nodePath: string | null;
   nodeVersion: string | null;
   minRequiredVersion: number;
-  errorType: 'NODE_NOT_FOUND' | 'NODE_VERSION_TOO_LOW' | null;
+  errorType:
+    | 'NODE_NOT_FOUND'
+    | 'NODE_VERSION_TOO_LOW'
+    | 'COPILOT_CLI_MISSING'
+    | 'COPILOT_CLI_OUTDATED'
+    | null;
   message: string | null;
+  requiredCopilotVersion?: string;
+  installedCopilotVersion?: string;
 }

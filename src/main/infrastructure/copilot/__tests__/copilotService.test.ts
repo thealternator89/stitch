@@ -3,6 +3,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CopilotService } from '../copilotService';
 import fs from 'fs';
 
+// Mock electron
+vi.mock('electron', () => {
+  return {
+    app: {
+      getPath: (name: string) => {
+        if (name === 'userData') {
+          return '/mock/userData';
+        }
+        return '/mock/path';
+      },
+    },
+  };
+});
+
 // Mock child_process to avoid running real shell commands
 vi.mock('child_process', () => {
   return {
@@ -38,6 +52,7 @@ const mockApproveAll = vi.fn();
 
 const originalEval = global.eval;
 const originalExistsSync = fs.existsSync;
+const originalReadFileSync = fs.readFileSync;
 
 describe('CopilotService', () => {
   let service: CopilotService;
@@ -64,11 +79,31 @@ describe('CopilotService', () => {
       }
     });
 
-    vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
-      if (p === '/mock/node' || p === '/mock/copilot/index.js') {
+    vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
+      const normalized = p.toString().replace(/\\/g, '/');
+      if (
+        normalized === '/mock/node' ||
+        normalized ===
+          '/mock/userData/copilot-cli/node_modules/@github/copilot' ||
+        normalized ===
+          '/mock/userData/copilot-cli/node_modules/@github/copilot/package.json' ||
+        normalized ===
+          '/mock/userData/copilot-cli/node_modules/@github/copilot/npm-loader.js'
+      ) {
         return true;
       }
       return originalExistsSync(p);
+    });
+
+    vi.spyOn(fs, 'readFileSync').mockImplementation((p: any, options?: any) => {
+      const normalized = p.toString().replace(/\\/g, '/');
+      if (
+        normalized ===
+        '/mock/userData/copilot-cli/node_modules/@github/copilot/package.json'
+      ) {
+        return JSON.stringify({ version: '1.0.61', bin: 'npm-loader.js' });
+      }
+      return originalReadFileSync(p, options);
     });
 
     service = new CopilotService();
@@ -90,6 +125,8 @@ describe('CopilotService', () => {
 
   afterEach(() => {
     global.eval = originalEval;
+    fs.readFileSync = originalReadFileSync;
+    fs.existsSync = originalExistsSync;
     vi.useRealTimers();
   });
 
@@ -391,6 +428,16 @@ describe('CopilotService', () => {
         availableTools: [],
         streaming: true,
       }),
+    );
+  });
+
+  it('should throw an error if Node.js path or Copilot script path cannot be resolved', async () => {
+    // Mock files not existing so paths cannot be resolved
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+    await expect(
+      service.createClientAndSession('test-token', 'test-model', {}),
+    ).rejects.toThrow(
+      'Copilot CLI client cannot be started: Node.js executable or Copilot CLI script path could not be resolved',
     );
   });
 });
