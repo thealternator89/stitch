@@ -351,9 +351,11 @@ export function getCopilotScriptPath(): string | null {
   );
   if (fs.existsSync(copilotDir)) {
     const pkgInfo = getCopilotPackageInfo(copilotDir);
-    const candidate = path.join(copilotDir, pkgInfo.binScript);
-    if (fs.existsSync(candidate)) {
-      return candidate;
+    if (pkgInfo) {
+      const candidate = path.join(copilotDir, pkgInfo.binScript);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
     }
   }
 

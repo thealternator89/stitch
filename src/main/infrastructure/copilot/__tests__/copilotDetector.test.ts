@@ -317,7 +317,7 @@ describe('copilotDetector', () => {
       expect(scriptPath).toBe('/custom/copilot/index.js');
     });
 
-    it('should return the path in the managed directory if it exists', () => {
+    it('should return the path in the managed directory if it and package.json exists', () => {
       const expectedPath = path.join(
         '/mock/userData',
         'copilot-cli',
@@ -327,8 +327,11 @@ describe('copilotDetector', () => {
         'npm-loader.js',
       );
 
-      vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
-        return p === expectedPath || p === path.dirname(expectedPath);
+      // pretend every file exists
+      vi.spyOn(fs, 'existsSync').mockImplementation(() => true);
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+        return JSON.stringify({ version: '1.0.61', bin: 'npm-loader.js' });
       });
 
       const scriptPath = getCopilotScriptPath();
