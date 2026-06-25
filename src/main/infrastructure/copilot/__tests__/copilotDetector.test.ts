@@ -68,11 +68,6 @@ describe('copilotDetector', () => {
     mockExec = null;
     mockExecFile = null;
 
-    // Default NODE_PATH and COPILOT_SCRIPT_PATH to undefined for standard test cases
-    delete process.env.NODE_PATH;
-    delete process.env.COPILOT_SCRIPT_PATH;
-    delete process.env.DISABLE_COPILOT_WINDOWS_WORKAROUND;
-
     // Mock write operations to avoid making directories or files
     vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
     vi.spyOn(fs, 'writeFileSync').mockImplementation(() => undefined as any);
@@ -311,12 +306,6 @@ describe('copilotDetector', () => {
   });
 
   describe('getCopilotScriptPath', () => {
-    it('should respect COPILOT_SCRIPT_PATH if defined', () => {
-      process.env.COPILOT_SCRIPT_PATH = '/custom/copilot/index.js';
-      const scriptPath = getCopilotScriptPath();
-      expect(scriptPath).toBe('/custom/copilot/index.js');
-    });
-
     it('should return the path in the managed directory if it and package.json exists', () => {
       const expectedPath = path.join(
         '/mock/userData',

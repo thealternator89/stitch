@@ -10,10 +10,6 @@ const execFilePromise = promisify(execFile);
 
 const MIN_NODE_VERSION = 22;
 
-const DISABLE_WINDOWS_WORKAROUND = ['1', 'true'].includes(
-  process.env.DISABLE_COPILOT_WINDOWS_WORKAROUND || '',
-);
-
 export function getManagedCopilotDir(): string {
   try {
     return path.join(app.getPath('userData'), 'copilot-cli');
@@ -171,40 +167,6 @@ async function checkNodeEnvironment(): Promise<{
   errorType: 'NODE_NOT_FOUND' | 'NODE_VERSION_TOO_LOW' | null;
   message: string | null;
 }> {
-  // Respect user-specified NODE_PATH first
-  if (!DISABLE_WINDOWS_WORKAROUND && process.env.NODE_PATH) {
-    const nodePath = process.env.NODE_PATH;
-    if (fs.existsSync(nodePath)) {
-      try {
-        const { stdout } = await execFilePromise(nodePath, ['--version']);
-        const versionStr = stdout.trim();
-        const match = versionStr.match(/^v?(\d+)\./);
-        if (match) {
-          const majorVersion = parseInt(match[1], 10);
-          if (majorVersion >= MIN_NODE_VERSION) {
-            return {
-              success: true,
-              nodePath,
-              nodeVersion: versionStr,
-              errorType: null,
-              message: null,
-            };
-          } else {
-            return {
-              success: false,
-              nodePath,
-              nodeVersion: versionStr,
-              errorType: 'NODE_VERSION_TOO_LOW',
-              message: `The resolved Node.js version is ${versionStr}. Version ${MIN_NODE_VERSION} or above is required to run the Copilot CLI.`,
-            };
-          }
-        }
-      } catch (error: unknown) {
-        console.warn(`Failed to verify NODE_PATH version:`, error);
-      }
-    }
-  }
-
   const cmd = process.platform === 'win32' ? 'where node' : 'which -a node';
   let stdout = '';
   try {
@@ -336,11 +298,6 @@ export async function getNodePath(): Promise<string | null> {
 }
 
 export function getCopilotScriptPath(): string | null {
-  // Respect user-specified COPILOT_SCRIPT_PATH first (unless the workaround test bypass is active)
-  if (!DISABLE_WINDOWS_WORKAROUND && process.env.COPILOT_SCRIPT_PATH) {
-    return process.env.COPILOT_SCRIPT_PATH;
-  }
-
   // Check the managed directory first
   const managedDir = getManagedCopilotDir();
   const copilotDir = path.join(
