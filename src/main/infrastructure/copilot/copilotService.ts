@@ -28,25 +28,23 @@ async function createCopilotClient(copilotToken?: string) {
   const nodePath = await getNodePath();
   const copilotScriptPath = getCopilotScriptPath();
 
-  // If we found both the system node and the copilot script path, spawn the Copilot CLI
-  // using the system node. This avoids Electron's process.argv parsing issues
-  // (e.g. Commander.js bug) and packaging limitations.
-  if (nodePath && copilotScriptPath) {
-    return {
-      client: new CopilotClient({
-        connection: {
-          kind: 'stdio',
-          path: nodePath,
-          args: [copilotScriptPath],
-        },
-        env,
-      }),
-      approveAll,
-    };
+  if (!nodePath || !copilotScriptPath) {
+    throw new Error(
+      `Copilot CLI client cannot be started: Node.js executable or Copilot CLI script path could not be resolved. Node.js path: ${nodePath}, Copilot script path: ${copilotScriptPath}`,
+    );
   }
 
-  // Fallback to the default platform-agnostic approach using process.execPath (Electron)
-  return { client: new CopilotClient({ env }), approveAll };
+  return {
+    client: new CopilotClient({
+      connection: {
+        kind: 'stdio',
+        path: nodePath,
+        args: [copilotScriptPath],
+      },
+      env,
+    }),
+    approveAll,
+  };
 }
 
 function parseResilientJSONL(
