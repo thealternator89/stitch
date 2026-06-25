@@ -324,11 +324,11 @@ describe('copilotDetector', () => {
         'node_modules',
         '@github',
         'copilot',
-        'index.js',
+        'npm-loader.js',
       );
 
       vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
-        return p === expectedPath;
+        return p === expectedPath || p === path.dirname(expectedPath);
       });
 
       const scriptPath = getCopilotScriptPath();
@@ -368,6 +368,7 @@ describe('copilotDetector', () => {
           normalized === path.normalize('/usr/bin/node') ||
           np.includes('copilot/package.json') ||
           np.includes('copilot/index.js') ||
+          np.includes('copilot/npm-loader.js') ||
           np.includes('copilot-cli')
         );
       });

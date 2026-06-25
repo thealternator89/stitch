@@ -49,6 +49,31 @@ export function getRequiredCopilotVersion(): string {
   return '1.0.61'; // Fallback
 }
 
+function getCopilotPackageInfo(copilotPkgDir: string): {
+  version: string;
+  binScript: string;
+} | null {
+  try {
+    const pkgJsonPath = path.join(copilotPkgDir, 'package.json');
+    if (fs.existsSync(pkgJsonPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+      let binScript = 'npm-loader.js';
+      if (pkg.bin && typeof pkg.bin === 'object' && pkg.bin.copilot) {
+        binScript = pkg.bin.copilot;
+      } else if (typeof pkg.bin === 'string') {
+        binScript = pkg.bin;
+      }
+      return {
+        version: pkg.version,
+        binScript,
+      };
+    }
+  } catch (err) {
+    console.warn('Failed to parse Copilot CLI package.json:', err);
+  }
+  return null;
+}
+
 function isVersionOlder(toCheck: string, baseline: string): boolean {
   const partsToCheck = toCheck.split('.').map(Number);
   const partsBaseline = baseline.split('.').map(Number);
@@ -73,13 +98,13 @@ export async function checkCopilotCli(): Promise<{
   message?: string;
 }> {
   const managedDir = getManagedCopilotDir();
-  const pkgJsonPath = path.join(
+  const copilotDir = path.join(
     managedDir,
     'node_modules',
     '@github',
     'copilot',
-    'package.json',
   );
+  const pkgJsonPath = path.join(copilotDir, 'package.json');
   const requiredVersion = getRequiredCopilotVersion();
 
   if (!fs.existsSync(pkgJsonPath)) {
@@ -92,26 +117,27 @@ export async function checkCopilotCli(): Promise<{
   }
 
   try {
-    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
-    const installedVersion = pkg.version;
-
-    if (isVersionOlder(installedVersion, requiredVersion)) {
+    const pkgInfo = getCopilotPackageInfo(copilotDir);
+    if (!pkgInfo) {
       return {
         success: false,
-        errorType: 'COPILOT_CLI_OUTDATED',
-        installedVersion,
+        errorType: 'COPILOT_CLI_MISSING',
         requiredVersion,
-        message: `GitHub Copilot CLI is outdated. Installed: ${installedVersion}, Required: ${requiredVersion}`,
+        message: 'Failed to read version from local Copilot CLI installation.',
       };
     }
 
-    const scriptPath = path.join(
-      managedDir,
-      'node_modules',
-      '@github',
-      'copilot',
-      'index.js',
-    );
+    if (isVersionOlder(pkgInfo.version, requiredVersion)) {
+      return {
+        success: false,
+        errorType: 'COPILOT_CLI_OUTDATED',
+        installedVersion: pkgInfo.version,
+        requiredVersion,
+        message: `GitHub Copilot CLI is outdated. Installed: ${pkgInfo.version}, Required: ${requiredVersion}`,
+      };
+    }
+
+    const scriptPath = path.join(copilotDir, pkgInfo.binScript);
     if (!fs.existsSync(scriptPath)) {
       return {
         success: false,
@@ -124,7 +150,7 @@ export async function checkCopilotCli(): Promise<{
     return {
       success: true,
       errorType: null,
-      installedVersion,
+      installedVersion: pkgInfo.version,
       requiredVersion,
     };
   } catch (err: unknown) {
@@ -317,15 +343,18 @@ export function getCopilotScriptPath(): string | null {
 
   // Check the managed directory first
   const managedDir = getManagedCopilotDir();
-  const candidate = path.join(
+  const copilotDir = path.join(
     managedDir,
     'node_modules',
     '@github',
     'copilot',
-    'index.js',
   );
-  if (fs.existsSync(candidate)) {
-    return candidate;
+  if (fs.existsSync(copilotDir)) {
+    const pkgInfo = getCopilotPackageInfo(copilotDir);
+    const candidate = path.join(copilotDir, pkgInfo.binScript);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
 
   // Fallback to peer package resolution if running in dev/test environment
@@ -333,14 +362,13 @@ export function getCopilotScriptPath(): string | null {
     const sdkEntryPoint = eval("require.resolve('@github/copilot-sdk')");
     let dir = path.dirname(sdkEntryPoint);
     for (let i = 0; i < 5; i++) {
-      const fallbackCandidate = path.join(
-        dir,
-        '@github',
-        'copilot',
-        'index.js',
-      );
-      if (fs.existsSync(fallbackCandidate)) {
-        return fallbackCandidate;
+      const fallbackDir = path.join(dir, '@github', 'copilot');
+      if (fs.existsSync(fallbackDir)) {
+        const pkgInfo = getCopilotPackageInfo(fallbackDir);
+        const fallbackCandidate = path.join(fallbackDir, pkgInfo.binScript);
+        if (fs.existsSync(fallbackCandidate)) {
+          return fallbackCandidate;
+        }
       }
       const parent = path.dirname(dir);
       if (parent === dir) break;
@@ -424,9 +452,13 @@ export async function installCopilotCli(): Promise<{
     );
 
     if (path.isAbsolute(npmCmd)) {
-      await execFilePromise(npmCmd, args, {
+      const finalCmd =
+        isWin && npmCmd.includes(' ') && !npmCmd.startsWith('"')
+          ? `"${npmCmd}"`
+          : npmCmd;
+      await execFilePromise(finalCmd, args, {
         cwd: managedDir,
-        shell: process.platform === 'win32',
+        shell: isWin,
       });
     } else {
       // Fallback: run via shell if npmCmd is just 'npm'
