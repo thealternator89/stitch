@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { AppSettings, TicketData, DocPageData } from '../types';
+import {
+  AppSettings,
+  TicketData,
+  DocPageData,
+  PRMetadata,
+  PRDiffFile,
+} from '../types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -80,5 +86,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('elaboration-line', listener);
     };
   },
+  getPRDetails: (repoPath: string, prUrlOrId: string): Promise<PRMetadata> =>
+    ipcRenderer.invoke('pr-reviewer:get-details', repoPath, prUrlOrId),
+  checkoutPR: (
+    repoPath: string,
+    prNumber: number,
+  ): Promise<{ commitSha: string }> =>
+    ipcRenderer.invoke('pr-reviewer:checkout', repoPath, prNumber),
+  getPRDiffFiles: (
+    repoPath: string,
+    targetBranch: string,
+  ): Promise<PRDiffFile[]> =>
+    ipcRenderer.invoke('pr-reviewer:get-diff-files', repoPath, targetBranch),
+  getPRFileDiff: (
+    repoPath: string,
+    targetBranch: string,
+    filePath: string,
+  ): Promise<string> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:get-file-diff',
+      repoPath,
+      targetBranch,
+      filePath,
+    ),
   isWindows: process.platform === 'win32',
 });

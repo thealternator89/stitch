@@ -97,12 +97,24 @@ const Menu: React.FC<MenuProps> = ({
             </div>
           </div>
         </div>
-        {/* Placeholder for future tools */}
         <div className="col-md-4 mb-4">
-          <div className="card shadow-sm h-100 border-dashed">
-            <div className="card-body d-flex flex-column justify-content-center align-items-center opacity-50 mt-4 mb-4">
-              <i className="fas fa-plus-circle fa-2x mb-2"></i>
-              <p className="card-text">More tools coming soon...</p>
+          <div className="card shadow-sm h-100">
+            <div className="card-body d-flex flex-column">
+              <h5 className="card-title text-primary">
+                <i className="fas fa-code-pull-request me-2"></i>
+                PR Reviewer
+              </h5>
+              <p className="card-text text-muted">
+                Review pull requests and branch differences locally.
+              </p>
+              <div className="mt-auto">
+                <Link
+                  to="/pr-reviewer"
+                  className="btn btn-outline-primary w-100"
+                >
+                  Open
+                </Link>
+              </div>
             </div>
           </div>
         </div>

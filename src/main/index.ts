@@ -16,6 +16,8 @@ import { StoryWriterService } from './features/story-writer/storyWriterService';
 import { TestCaseWriterService } from './features/test-case-writer/testCaseWriterService';
 import { StoryElaboratorService } from './features/story-elaborator/storyElaboratorService';
 import { PromptComplexityService } from './features/settings/promptComplexityService';
+import { GitService } from './infrastructure/git/gitService';
+import { PRReviewerService } from './features/pr-reviewer/prReviewerService';
 
 // Initialize auto-updates
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -58,6 +60,8 @@ const storyElaboratorService = new StoryElaboratorService(
   },
 );
 const promptComplexityService = new PromptComplexityService(copilotService);
+const gitService = new GitService();
+const prReviewerService = new PRReviewerService(gitService);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -287,6 +291,33 @@ ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
 ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
   return storyElaboratorService.stopStoryElaboration(ticketId);
 });
+
+ipcMain.handle(
+  'pr-reviewer:get-details',
+  async (event, repoPath, prUrlOrId) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
+    return prReviewerService.getPRDetails(repoPath, prUrlOrId, settings);
+  },
+);
+
+ipcMain.handle('pr-reviewer:checkout', async (event, repoPath, prNumber) => {
+  return prReviewerService.checkoutAndDiff(repoPath, prNumber);
+});
+
+ipcMain.handle(
+  'pr-reviewer:get-diff-files',
+  async (event, repoPath, targetBranch) => {
+    return gitService.getDiffFiles(repoPath, targetBranch);
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:get-file-diff',
+  async (event, repoPath, targetBranch, filePath) => {
+    return gitService.getFileDiff(repoPath, targetBranch, filePath);
+  },
+);
 
 ipcMain.handle('add-comment', async (event, ticketId, text) => {
   const service = await getAzureService();

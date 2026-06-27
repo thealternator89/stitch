@@ -583,3 +583,51 @@ textarea,
   max-height: 120px;
   overflow-y: auto;
 }
+
+/* PR Reviewer Styles */
+.pr-file-item {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.pr-file-item:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+.pr-file-item.active {
+  background-color: var(--bs-primary-bg-subtle);
+  border-left: 3px solid var(--bs-primary);
+}
+
+.git-diff-viewer {
+  font-family: var(--bs-font-monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  background-color: var(--bs-dark-bg-subtle);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  max-height: 600px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diff-line-added {
+  background-color: rgba(46, 160, 67, 0.15);
+  color: #3fb950;
+  display: block;
+  padding: 0 4px;
+}
+
+.diff-line-removed {
+  background-color: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+  display: block;
+  padding: 0 4px;
+}
+
+.diff-line-normal {
+  display: block;
+  padding: 0 4px;
+}

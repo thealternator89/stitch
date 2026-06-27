@@ -6,6 +6,8 @@ import {
   CopilotModel,
   UpdateStatus,
   EnvironmentCheckResult,
+  PRMetadata,
+  PRDiffFile,
 } from '../types';
 
 export interface IElectronAPI {
@@ -54,6 +56,20 @@ export interface IElectronAPI {
   sendElaborationAnswer: (ticketId: string, answer: string) => Promise<string>;
   stopStoryElaboration: (ticketId: string) => Promise<void>;
   onElaborationLine: (callback: (line: string) => void) => () => void;
+  getPRDetails: (repoPath: string, prUrlOrId: string) => Promise<PRMetadata>;
+  checkoutPR: (
+    repoPath: string,
+    prNumber: number,
+  ) => Promise<{ commitSha: string }>;
+  getPRDiffFiles: (
+    repoPath: string,
+    targetBranch: string,
+  ) => Promise<PRDiffFile[]>;
+  getPRFileDiff: (
+    repoPath: string,
+    targetBranch: string,
+    filePath: string,
+  ) => Promise<string>;
   isWindows: boolean;
 }
 
