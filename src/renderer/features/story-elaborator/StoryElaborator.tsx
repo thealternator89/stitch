@@ -616,7 +616,7 @@ const StoryElaborator: React.FC = () => {
                           return (
                             <div
                               key={idx}
-                              className="d-flex justify-content-center my-1"
+                              className="d-flex justify-content-start my-1"
                             >
                               <div
                                 className="px-3 py-1.5 rounded-3 text-body-secondary font-monospace bg-body-secondary border d-flex align-items-center gap-2"
