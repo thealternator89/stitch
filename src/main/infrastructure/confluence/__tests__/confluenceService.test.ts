@@ -278,4 +278,107 @@ describe('ConfluenceService', () => {
       ]);
     });
   });
+
+  describe('isDocPageUrl and extractPageId', () => {
+    const service = new ConfluenceService(
+      'myorg.atlassian.net',
+      'user',
+      'token',
+    );
+
+    describe('isDocPageUrl', () => {
+      it('should return true for valid confluence URLs matching base URL and containing a numeric page ID', () => {
+        expect(
+          service.isDocPageUrl(
+            'https://myorg.atlassian.net/wiki/spaces/SPACE/pages/12345',
+          ),
+        ).toBe(true);
+        expect(
+          service.isDocPageUrl(
+            'https://myorg.atlassian.net/wiki/spaces/SPACE/pages/12345/Title',
+          ),
+        ).toBe(true);
+        expect(
+          service.isDocPageUrl(
+            'https://myorg.atlassian.net/wiki/pages/viewpage.action?pageId=12345',
+          ),
+        ).toBe(true);
+        expect(
+          service.isDocPageUrl(
+            'http://myorg.atlassian.net/wiki/pages/viewpage.action?pageId=12345',
+          ),
+        ).toBe(true);
+      });
+
+      it('should return false for different hostnames or invalid patterns', () => {
+        expect(
+          service.isDocPageUrl(
+            'https://otherorg.atlassian.net/wiki/spaces/SPACE/pages/12345',
+          ),
+        ).toBe(false);
+        expect(
+          service.isDocPageUrl(
+            'https://myorg.atlassian.net/wiki/spaces/SPACE/pages/abc',
+          ),
+        ).toBe(false);
+        expect(
+          service.isDocPageUrl(
+            'https://myorg.atlassian.net/wiki/spaces/SPACE/',
+          ),
+        ).toBe(false);
+        expect(service.isDocPageUrl('https://google.com')).toBe(false);
+        expect(service.isDocPageUrl('')).toBe(false);
+      });
+    });
+
+    describe('extractPageId', () => {
+      it('should extract numeric page ID from path patterns', () => {
+        expect(
+          service.extractPageId(
+            'https://myorg.atlassian.net/wiki/spaces/SPACE/pages/12345',
+          ),
+        ).toBe('12345');
+        expect(
+          service.extractPageId(
+            'https://myorg.atlassian.net/wiki/spaces/SPACE/pages/12345/Page+Title',
+          ),
+        ).toBe('12345');
+      });
+
+      it('should extract numeric page ID from query param patterns', () => {
+        expect(
+          service.extractPageId(
+            'https://myorg.atlassian.net/wiki/pages/viewpage.action?pageId=67890',
+          ),
+        ).toBe('67890');
+        expect(
+          service.extractPageId(
+            'https://myorg.atlassian.net/wiki/pages/viewpage.action?foo=bar&pageId=67890',
+          ),
+        ).toBe('67890');
+      });
+
+      it('should return null if no numeric page ID can be found', () => {
+        expect(
+          service.extractPageId(
+            'https://myorg.atlassian.net/wiki/spaces/SPACE/pages/',
+          ),
+        ).toBe(null);
+        expect(
+          service.extractPageId(
+            'https://myorg.atlassian.net/wiki/spaces/SPACE/pages/abc',
+          ),
+        ).toBe(null);
+        expect(
+          service.extractPageId(
+            'https://myorg.atlassian.net/wiki/pages/viewpage.action?pageId=abc',
+          ),
+        ).toBe(null);
+        expect(service.extractPageId('https://myorg.atlassian.net/')).toBe(
+          null,
+        );
+        expect(service.extractPageId('')).toBe(null);
+      });
+    });
+  });
 });

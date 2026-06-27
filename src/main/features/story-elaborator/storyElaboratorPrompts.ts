@@ -5,6 +5,7 @@ export function buildStoryElaboratorPrompt(
   additionalContext: string,
   settings: AppSettings,
   hasRepo: boolean,
+  knownDocs?: { id: string; title: string }[],
 ): string {
   const customGeneral = settings.prompts?.storyElaborator?.general || '';
 
@@ -22,6 +23,17 @@ Do NOT attempt to run any filesystem or command tools, as no repository context 
 `;
   }
 
+  let docsInstructions = '';
+  if (knownDocs && knownDocs.length > 0) {
+    const docsList = knownDocs
+      .map((d) => `- "${d.title}" (ID: ${d.id})`)
+      .join('\n');
+    docsInstructions = `
+You have identified the following documentation links in this ticket. You can request the content of any of these documents using the "request_doc" command.
+${docsList}
+`;
+  }
+
   return `
 You are a Story Elaborator. Your task is to elaborate the following user story / ticket into a detailed implementation plan.
 ${customGeneral ? `\n${customGeneral}\n` : ''}
@@ -33,6 +45,7 @@ Acceptance Criteria: ${ticketData.acceptanceCriteria || 'N/A'}
 Additional Context: ${additionalContext || 'None provided'}
 
 ${repoInstructions}
+${docsInstructions}
 
 Once you have enough information, generate the final plan in markdown format and output it in a "plan" message.
 If you have access to the repository you are forbidden from modifying, creating, or deleting any files. You must only read.
@@ -52,12 +65,16 @@ You must choose one of the following JSON formats for each line you output:
 3. The Final Plan (when all questions are answered and the plan is ready. In this case, output a single JSON object:
    \`{"type": "plan", "text": "# Detailed Implementation Plan\\n\\n### Proposed Changes..."}\`
 
+4. Request Documentation (if you want to fetch and read the content of a known Confluence page):
+   \`{"type": "request_doc", "documentId": "12345"}\` or \`{"type": "request_doc", "id": "12345"}\`
+   *IMPORTANT*: When you request documentation, you must not output any other JSON lines in that turn. You must end your turn immediately so the host application can retrieve the document and provide it to you.
+
 Follow this process:
-1. Analyze the ticket and, if a repository is available, inspect the files using your tools to understand the codebase.
-2. If you are still analyzing or reading files, call your filesystem/grep tools to continue. Each turn where you do not call a tool must ask the user a clarifying question or present the final plan. Do not stop without either calling a tool or asking a question/plan.
-3. Ask clarifying questions one by one, stopping after each question to wait for the user's response.
-4. Once all details are resolved, draft the detailed implementation plan.
-6. Finally, return the "plan" message in JSONL format.
+1. Analyze the ticket, and if a repository is available, inspect the files using your tools.
+2. If you want to request any of the known documents, output the "request_doc" message in JSONL and end your turn. The host application will fetch it and provide the document content in the next turn.
+3. If you are still analyzing or reading files, call your filesystem/grep tools to continue. Each turn where you do not call a tool must ask the user a clarifying question, request a document, or present the final plan. Do not stop without either calling a tool or asking a question/requesting a document/plan.
+4. Ask clarifying questions one by one, stopping after each question to wait for the user's response.
+5. Once all details are resolved, draft the detailed implementation plan and return the "plan" message in JSONL format.
 
 You are forbidden from ending the interaction without returning the "plan" message in JSONL format.
 
