@@ -11,7 +11,6 @@ interface FeedItem {
   type: 'chat' | 'status';
   sender?: 'copilot' | 'user';
   text: string;
-  timestamp: Date;
 }
 
 const StoryElaborator: React.FC = () => {
@@ -144,10 +143,7 @@ const StoryElaborator: React.FC = () => {
       try {
         const data = JSON.parse(trimmed);
         if (data.type === 'status') {
-          setFeed((prev) => [
-            ...prev,
-            { type: 'status', text: data.text, timestamp: new Date() },
-          ]);
+          setFeed((prev) => [...prev, { type: 'status', text: data.text }]);
         } else if (data.type === 'tool') {
           let statusText = '';
           if (data.name === 'report_intent') {
@@ -165,10 +161,7 @@ const StoryElaborator: React.FC = () => {
                 ? `Tool failed: ${data.name} ${data.error ? `- ${data.error}` : ''}`
                 : `Tool: ${data.name}`;
           }
-          setFeed((prev) => [
-            ...prev,
-            { type: 'status', text: statusText, timestamp: new Date() },
-          ]);
+          setFeed((prev) => [...prev, { type: 'status', text: statusText }]);
         } else if (data.type === 'question') {
           setIsGenerating(false);
           setIsWaitingForUser(true);
@@ -178,7 +171,6 @@ const StoryElaborator: React.FC = () => {
               type: 'chat',
               sender: 'copilot',
               text: data.text,
-              timestamp: new Date(),
             },
           ]);
           setCurrentSuggestions(data.suggestedAnswers || []);
@@ -236,7 +228,7 @@ const StoryElaborator: React.FC = () => {
     const answer = userAnswer.trim();
     setFeed((prev) => [
       ...prev,
-      { type: 'chat', sender: 'user', text: answer, timestamp: new Date() },
+      { type: 'chat', sender: 'user', text: answer },
     ]);
     setUserAnswer('');
     setCurrentSuggestions([]);
@@ -264,7 +256,7 @@ const StoryElaborator: React.FC = () => {
   const handleSendSuggestion = async (suggestion: string) => {
     setFeed((prev) => [
       ...prev,
-      { type: 'chat', sender: 'user', text: suggestion, timestamp: new Date() },
+      { type: 'chat', sender: 'user', text: suggestion },
     ]);
     setCurrentSuggestions([]);
     setIsGenerating(true);
@@ -627,10 +619,7 @@ const StoryElaborator: React.FC = () => {
                                 }}
                               >
                                 <i className="fas fa-terminal opacity-75 flex-shrink-0"></i>
-                                <span className="text-start">
-                                  [{item.timestamp.toLocaleTimeString()}]{' '}
-                                  {item.text}
-                                </span>
+                                <span className="text-start">{item.text}</span>
                               </div>
                             </div>
                           );
