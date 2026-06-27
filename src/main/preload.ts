@@ -91,8 +91,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkoutPR: (
     repoPath: string,
     prNumber: number,
+    expectedRepoName?: string,
   ): Promise<{ commitSha: string }> =>
-    ipcRenderer.invoke('pr-reviewer:checkout', repoPath, prNumber),
+    ipcRenderer.invoke(
+      'pr-reviewer:checkout',
+      repoPath,
+      prNumber,
+      expectedRepoName,
+    ),
   getPRDiffFiles: (
     repoPath: string,
     targetBranch: string,
@@ -108,6 +114,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       repoPath,
       targetBranch,
       filePath,
+    ),
+  searchPRs: (
+    searchType: 'assigned' | 'created' | 'all',
+  ): Promise<PRMetadata[]> =>
+    ipcRenderer.invoke('pr-reviewer:search-prs', searchType),
+  getRepoPathHistory: (repoName: string): Promise<string | null> =>
+    ipcRenderer.invoke('pr-reviewer:get-repo-path-history', repoName),
+  saveRepoPathHistory: (repoName: string, repoPath: string): Promise<boolean> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:save-repo-path-history',
+      repoName,
+      repoPath,
     ),
   isWindows: process.platform === 'win32',
 });

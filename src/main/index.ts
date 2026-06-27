@@ -301,9 +301,16 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('pr-reviewer:checkout', async (event, repoPath, prNumber) => {
-  return prReviewerService.checkoutAndDiff(repoPath, prNumber);
-});
+ipcMain.handle(
+  'pr-reviewer:checkout',
+  async (event, repoPath, prNumber, expectedRepoName) => {
+    return prReviewerService.checkoutAndDiff(
+      repoPath,
+      prNumber,
+      expectedRepoName,
+    );
+  },
+);
 
 ipcMain.handle(
   'pr-reviewer:get-diff-files',
@@ -316,6 +323,26 @@ ipcMain.handle(
   'pr-reviewer:get-file-diff',
   async (event, repoPath, targetBranch, filePath) => {
     return gitService.getFileDiff(repoPath, targetBranch, filePath);
+  },
+);
+
+ipcMain.handle('pr-reviewer:search-prs', async (event, searchType) => {
+  const s = await initStore();
+  const settings = (s.get('settings') ?? {}) as AppSettings;
+  return prReviewerService.getProjectPRs(searchType, settings);
+});
+
+ipcMain.handle('pr-reviewer:get-repo-path-history', async (event, repoName) => {
+  const s = await initStore();
+  return s.get(`repo-paths.${repoName}`) || null;
+});
+
+ipcMain.handle(
+  'pr-reviewer:save-repo-path-history',
+  async (event, repoName, repoPath) => {
+    const s = await initStore();
+    s.set(`repo-paths.${repoName}`, repoPath);
+    return true;
   },
 );
 

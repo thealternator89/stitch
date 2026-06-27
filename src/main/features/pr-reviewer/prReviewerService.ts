@@ -1,5 +1,6 @@
 import * as azdev from 'azure-devops-node-api';
 import { IGitApi } from 'azure-devops-node-api/GitApi';
+import { GitPullRequestSearchCriteria } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { GitService } from '../../infrastructure/git/gitService';
 import { PRMetadata, AppSettings } from '../../../types';
 
@@ -94,6 +95,13 @@ export class PRReviewerService {
     return null;
   }
 
+  private getOrgUrl(org: string): string {
+    if (org.startsWith('http://') || org.startsWith('https://')) {
+      return org;
+    }
+    return `https://dev.azure.com/${org}`;
+  }
+
   async getPRDetails(
     repoPath: string,
     prUrlOrId: string,
@@ -140,7 +148,7 @@ export class PRReviewerService {
       );
     }
 
-    const orgUrl = `https://dev.azure.com/${org}`;
+    const orgUrl = this.getOrgUrl(org);
     const authHandler = azdev.getPersonalAccessTokenHandler(pat);
     const connection = new azdev.WebApi(orgUrl, authHandler);
     const gitApi: IGitApi = await connection.getGitApi();
@@ -166,6 +174,7 @@ export class PRReviewerService {
         sourceBranch: cleanRef(pr.sourceRefName || ''),
         targetBranch: cleanRef(pr.targetRefName || ''),
         author: pr.createdBy?.displayName || '',
+        repositoryName: pr.repository?.name || '',
         hostType: 'azure',
       };
     } catch (error: unknown) {
@@ -174,10 +183,105 @@ export class PRReviewerService {
     }
   }
 
+  async getProjectPRs(
+    searchType: 'assigned' | 'created' | 'all',
+    settings: AppSettings,
+  ): Promise<PRMetadata[]> {
+    const org = settings.azureOrg || '';
+    const project = settings.azureProject || '';
+    const pat = settings.azurePat;
+
+    if (!org) {
+      throw new Error(
+        'Azure DevOps Organization is not configured in settings.',
+      );
+    }
+    if (!project) {
+      throw new Error('Azure DevOps Project is not configured in settings.');
+    }
+    if (!pat) {
+      throw new Error(
+        'Azure DevOps PAT token is missing. Please configure it in Settings.',
+      );
+    }
+
+    const orgUrl = this.getOrgUrl(org);
+    const authHandler = azdev.getPersonalAccessTokenHandler(pat);
+    const connection = new azdev.WebApi(orgUrl, authHandler);
+    const gitApi: IGitApi = await connection.getGitApi();
+
+    try {
+      let reviewerId: string | undefined;
+      let creatorId: string | undefined;
+
+      if (searchType === 'assigned' || searchType === 'created') {
+        const connectionData = await connection.connect();
+        const currentUserId = connectionData.authorizedUser?.id;
+        if (!currentUserId) {
+          throw new Error(
+            'Could not resolve current authenticated user identity ID.',
+          );
+        }
+        if (searchType === 'assigned') {
+          reviewerId = currentUserId;
+        } else {
+          creatorId = currentUserId;
+        }
+      }
+
+      const searchCriteria: GitPullRequestSearchCriteria = {
+        status: 1, // Active
+      };
+      if (reviewerId) searchCriteria.reviewerId = reviewerId;
+      if (creatorId) searchCriteria.creatorId = creatorId;
+
+      const prs = await gitApi.getPullRequestsByProject(
+        project,
+        searchCriteria,
+      );
+      const cleanRef = (ref: string) => ref.replace(/^refs\/heads\//, '');
+
+      return prs.map((pr) => ({
+        id: pr.pullRequestId?.toString() || '',
+        title: pr.title || '',
+        description: pr.description || '',
+        sourceBranch: cleanRef(pr.sourceRefName || ''),
+        targetBranch: cleanRef(pr.targetRefName || ''),
+        author: pr.createdBy?.displayName || '',
+        repositoryName: pr.repository?.name || '',
+        hostType: 'azure',
+      }));
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to query PRs from Azure DevOps: ${errMsg}`);
+    }
+  }
+
   async checkoutAndDiff(
     repoPath: string,
     prNumber: number,
+    expectedRepoName?: string,
   ): Promise<{ commitSha: string }> {
+    const isRepo = await this.gitService.checkGitRepo(repoPath);
+    if (!isRepo) {
+      throw new Error('The selected path is not a valid Git repository.');
+    }
+
+    if (expectedRepoName) {
+      const remoteUrl = await this.gitService.getRemoteUrl(repoPath);
+      if (remoteUrl) {
+        const parsedRemote = this.parseRemoteUrl(remoteUrl);
+        if (
+          parsedRemote &&
+          parsedRemote.repoName.toLowerCase() !== expectedRepoName.toLowerCase()
+        ) {
+          throw new Error(
+            `The selected repository "${parsedRemote.repoName}" does not match the Pull Request repository "${expectedRepoName}".`,
+          );
+        }
+      }
+    }
+
     const isDirty = await this.gitService.hasUncommittedChanges(repoPath);
     if (isDirty) {
       throw new Error(

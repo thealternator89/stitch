@@ -1,20 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { PRMetadata, PRDiffFile } from '../../../types';
 
 const PRReviewer: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<
+    'assigned' | 'created' | 'all' | 'manual'
+  >('assigned');
+  const [prList, setPrList] = useState<PRMetadata[]>([]);
+  const [isLoadingPRs, setIsLoadingPRs] = useState(false);
+  const [prSearchQuery, setPrSearchQuery] = useState('');
+
+  // Selected PR details
+  const [selectedPR, setSelectedPR] = useState<PRMetadata | null>(null);
   const [repoPath, setRepoPath] = useState('');
-  const [prUrlOrId, setPrUrlOrId] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
 
-  // PR info and file changes
-  const [prMetadata, setPrMetadata] = useState<PRMetadata | null>(null);
+  // Manual PR URL / ID input
+  const [manualPrUrlOrId, setManualPrUrlOrId] = useState('');
+
+  // Diff results
   const [commitSha, setCommitSha] = useState('');
   const [changedFiles, setChangedFiles] = useState<PRDiffFile[]>([]);
   const [fileFilter, setFileFilter] = useState('');
-
-  // Selected file diff
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [selectedFileDiff, setSelectedFileDiff] = useState<string>('');
   const [isLoadingDiff, setIsLoadingDiff] = useState(false);
@@ -23,6 +31,68 @@ const PRReviewer: React.FC = () => {
   const [showDirtyModal, setShowDirtyModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Fetch PRs when activeTab changes (unless tab is manual)
+  useEffect(() => {
+    if (activeTab === 'manual') return;
+    loadProjectPRs();
+  }, [activeTab]);
+
+  const loadProjectPRs = async () => {
+    setIsLoadingPRs(true);
+    setPrList([]);
+    try {
+      if (activeTab !== 'manual') {
+        const results = await window.electronAPI.searchPRs(activeTab);
+        setPrList(results);
+      }
+    } catch (err: unknown) {
+      console.error('Failed to load project pull requests:', err);
+    } finally {
+      setIsLoadingPRs(false);
+    }
+  };
+
+  const handleSelectPR = async (pr: PRMetadata) => {
+    setSelectedPR(pr);
+    setRepoPath('');
+    setCommitSha('');
+    setChangedFiles([]);
+    setSelectedFilePath(null);
+    setSelectedFileDiff('');
+
+    // Fetch local path history for this repository name
+    try {
+      const historyPath = await window.electronAPI.getRepoPathHistory(
+        pr.repositoryName,
+      );
+      if (historyPath) {
+        setRepoPath(historyPath);
+      }
+    } catch (err) {
+      console.error('Failed to get repo path history:', err);
+    }
+  };
+
+  const handleManualPRSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualPrUrlOrId.trim()) return;
+
+    setIsLoadingPRs(true);
+    try {
+      // Fetch details using dummy/empty path first or settings-based lookup
+      const details = await window.electronAPI.getPRDetails(
+        '',
+        manualPrUrlOrId.trim(),
+      );
+      await handleSelectPR(details);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showError(msg);
+    } finally {
+      setIsLoadingPRs(false);
+    }
+  };
 
   const handleBrowseFolder = async () => {
     try {
@@ -35,49 +105,44 @@ const PRReviewer: React.FC = () => {
     }
   };
 
-  const handleFetchAndCheckout = async () => {
+  const handleCheckoutAndDiff = async () => {
+    if (!selectedPR) return;
     if (!repoPath) {
-      showError('Please select a local git repository path.');
-      return;
-    }
-    if (!prUrlOrId.trim()) {
-      showError('Please enter a Pull Request URL or ID.');
+      showError('Please select a local repository path.');
       return;
     }
 
-    setIsLoading(true);
-    setLoadingStatus('Connecting to Azure DevOps and fetching PR details...');
-    setPrMetadata(null);
+    setIsLoadingCheckout(true);
+    setLoadingStatus('Running repository checks and checking out branch...');
     setCommitSha('');
     setChangedFiles([]);
     setSelectedFilePath(null);
     setSelectedFileDiff('');
 
     try {
-      // 1. Get PR Details
-      const details = await window.electronAPI.getPRDetails(
+      // 1. Checkout (runs dirty checking and remote URL matching internally on backend)
+      const res = await window.electronAPI.checkoutPR(
         repoPath,
-        prUrlOrId.trim(),
+        parseInt(selectedPR.id),
+        selectedPR.repositoryName,
       );
-      setPrMetadata(details);
+      setCommitSha(res.commitSha);
 
-      // 2. Checkout the PR branch
-      setLoadingStatus('Checking out PR branch locally (detached HEAD)...');
-      const checkoutRes = await window.electronAPI.checkoutPR(
+      // Save successful path to history mapping
+      await window.electronAPI.saveRepoPathHistory(
+        selectedPR.repositoryName,
         repoPath,
-        parseInt(details.id),
       );
-      setCommitSha(checkoutRes.commitSha);
 
-      // 3. Get changed files
+      // 2. Load Diff Files
       setLoadingStatus('Retrieving changed files list...');
       const files = await window.electronAPI.getPRDiffFiles(
         repoPath,
-        details.targetBranch,
+        selectedPR.targetBranch,
       );
       setChangedFiles(files);
     } catch (err: unknown) {
-      console.error('PR review checkout failed:', err);
+      console.error('Checkout failed:', err);
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('uncommitted changes')) {
         setShowDirtyModal(true);
@@ -85,13 +150,13 @@ const PRReviewer: React.FC = () => {
         showError(msg);
       }
     } finally {
-      setIsLoading(false);
+      setIsLoadingCheckout(false);
       setLoadingStatus('');
     }
   };
 
   const handleSelectFile = async (filePath: string) => {
-    if (!prMetadata) return;
+    if (!selectedPR) return;
     setSelectedFilePath(filePath);
     setIsLoadingDiff(true);
     setSelectedFileDiff('');
@@ -99,7 +164,7 @@ const PRReviewer: React.FC = () => {
     try {
       const diff = await window.electronAPI.getPRFileDiff(
         repoPath,
-        prMetadata.targetBranch,
+        selectedPR.targetBranch,
         filePath,
       );
       setSelectedFileDiff(diff);
@@ -164,6 +229,13 @@ const PRReviewer: React.FC = () => {
     }
   };
 
+  const filteredPRs = prList.filter(
+    (pr) =>
+      pr.title.toLowerCase().includes(prSearchQuery.toLowerCase()) ||
+      pr.id.toString().includes(prSearchQuery) ||
+      pr.repositoryName.toLowerCase().includes(prSearchQuery.toLowerCase()),
+  );
+
   const filteredFiles = changedFiles.filter((f) =>
     f.path.toLowerCase().includes(fileFilter.toLowerCase()),
   );
@@ -171,26 +243,190 @@ const PRReviewer: React.FC = () => {
   return (
     <PageLayout title="PR Reviewer">
       <div className="row g-4">
-        {/* Repository & PR Selection Form */}
-        <div className="col-12">
-          <div className="card shadow-sm border-0 bg-body-tertiary">
-            <div className="card-body p-4">
+        {/* Left Column: PR Lists / Selection */}
+        <div className={selectedPR ? 'col-md-5' : 'col-12'}>
+          <div className="card shadow-sm border-0 bg-body-tertiary h-100">
+            <div
+              className="card-body p-4 d-flex flex-column"
+              style={{ minHeight: '400px' }}
+            >
               <h5 className="card-title fw-bold mb-3">
-                <i className="fas fa-search me-2 text-primary"></i>
-                Select Repository & Pull Request
+                <i className="fas fa-code-pull-request me-2 text-primary"></i>
+                Select Pull Request
               </h5>
 
-              <div className="row g-3">
-                {/* Local Repository Directory */}
-                <div className="col-md-6">
+              {/* Navigation Tabs */}
+              <ul className="nav nav-pills mb-3 gap-1">
+                <li className="nav-item">
+                  <button
+                    className={`btn btn-sm ${activeTab === 'assigned' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    onClick={() => setActiveTab('assigned')}
+                  >
+                    Assigned to Me
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    className={`btn btn-sm ${activeTab === 'created' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    onClick={() => setActiveTab('created')}
+                  >
+                    Created by Me
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    className={`btn btn-sm ${activeTab === 'all' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    onClick={() => setActiveTab('all')}
+                  >
+                    All Active PRs
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    className={`btn btn-sm ${activeTab === 'manual' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    onClick={() => setActiveTab('manual')}
+                  >
+                    Manual ID/URL
+                  </button>
+                </li>
+              </ul>
+
+              {activeTab === 'manual' ? (
+                /* Manual Input Form */
+                <form onSubmit={handleManualPRSubmit} className="mt-2">
+                  <div className="mb-3">
+                    <label className="form-label text-muted small fw-semibold">
+                      Azure DevOps PR URL or ID
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="https://dev.azure.com/.../pullrequest/123 or just PR ID"
+                      value={manualPrUrlOrId}
+                      onChange={(e) => setManualPrUrlOrId(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="btn btn-outline-primary w-100"
+                    disabled={isLoadingPRs || !manualPrUrlOrId.trim()}
+                  >
+                    Load PR Details
+                  </button>
+                </form>
+              ) : (
+                /* Search Results / List */
+                <div className="d-flex flex-column flex-grow-1">
+                  <div className="input-group input-group-sm mb-3">
+                    <span className="input-group-text bg-body-secondary border-end-0">
+                      <i className="fas fa-search text-muted"></i>
+                    </span>
+                    <input
+                      type="text"
+                      className="form-control border-start-0"
+                      placeholder="Search title, ID, or repo..."
+                      value={prSearchQuery}
+                      onChange={(e) => setPrSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  <div
+                    className="overflow-y-auto flex-grow-1"
+                    style={{ maxHeight: '450px' }}
+                  >
+                    {isLoadingPRs ? (
+                      <div className="text-center py-5 text-muted">
+                        <span className="spinner-border spinner-border-sm mb-2"></span>
+                        <p className="small mb-0">Querying Azure DevOps...</p>
+                      </div>
+                    ) : filteredPRs.length === 0 ? (
+                      <div className="text-center py-5 text-muted small">
+                        No active PRs found matching the criteria.
+                      </div>
+                    ) : (
+                      <div className="list-group list-group-flush border-top border-bottom">
+                        {filteredPRs.map((pr) => (
+                          <button
+                            key={pr.id}
+                            type="button"
+                            className={`list-group-item list-group-item-action p-3 text-start ${
+                              selectedPR?.id === pr.id
+                                ? 'active bg-primary text-white'
+                                : ''
+                            }`}
+                            onClick={() => handleSelectPR(pr)}
+                          >
+                            <div className="d-flex w-100 justify-content-between mb-1">
+                              <span className="fw-semibold small">
+                                PR #{pr.id}
+                              </span>
+                              <span className="small opacity-75">
+                                {pr.repositoryName}
+                              </span>
+                            </div>
+                            <div
+                              className="fw-bold mb-1 text-truncate"
+                              title={pr.title}
+                            >
+                              {pr.title}
+                            </div>
+                            <div className="small opacity-75 d-flex justify-content-between">
+                              <span>By: {pr.author}</span>
+                              <span>
+                                {pr.sourceBranch} &rarr; {pr.targetBranch}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Local Path Configuration (Only displays when a PR is selected) */}
+        {selectedPR && (
+          <div className="col-md-7">
+            <div className="card shadow-sm border-0">
+              <div className="card-body p-4">
+                <h5 className="card-title fw-bold mb-3 text-primary">
+                  PR Details & Checkout
+                </h5>
+
+                <div className="p-3 bg-body-tertiary rounded mb-4">
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <span className="badge bg-primary">
+                      Repo: {selectedPR.repositoryName}
+                    </span>
+                    <span className="badge bg-secondary-subtle text-secondary-emphasis">
+                      PR #{selectedPR.id}
+                    </span>
+                  </div>
+                  <h4 className="fw-bold text-body mb-2">{selectedPR.title}</h4>
+                  <div className="row g-2 text-muted small">
+                    <div className="col-6">
+                      <strong>Author:</strong> {selectedPR.author}
+                    </div>
+                    <div className="col-6">
+                      <strong>Branches:</strong> {selectedPR.sourceBranch}{' '}
+                      &rarr; {selectedPR.targetBranch}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Local Repository Path Picker */}
+                <div className="mb-4">
                   <label className="form-label fw-semibold text-muted">
-                    Locally Cloned Git Repo
+                    Locally Cloned Repo Path for "{selectedPR.repositoryName}"
                   </label>
                   <div className="input-group">
                     <input
                       type="text"
-                      className="form-control"
-                      placeholder="Select git repository path..."
+                      className="form-control text-muted"
+                      placeholder="Select the local clone directory..."
                       value={repoPath}
                       readOnly
                     />
@@ -198,121 +434,55 @@ const PRReviewer: React.FC = () => {
                       className="btn btn-outline-secondary"
                       type="button"
                       onClick={handleBrowseFolder}
-                      disabled={isLoading}
+                      disabled={isLoadingCheckout}
                     >
                       <i className="fas fa-folder-open me-1"></i>
                       Browse
                     </button>
                   </div>
+                  <div className="form-text small">
+                    {repoPath
+                      ? 'Local clone matches mapping history.'
+                      : `Please select the directory where repository "${selectedPR.repositoryName}" is cloned.`}
+                  </div>
                 </div>
 
-                {/* PR URL / ID */}
-                <div className="col-md-6">
-                  <label className="form-label fw-semibold text-muted">
-                    Azure DevOps PR URL or ID
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="https://dev.azure.com/.../pullrequest/123 or just PR ID"
-                    value={prUrlOrId}
-                    onChange={(e) => setPrUrlOrId(e.target.value)}
-                    disabled={isLoading}
-                  />
-                </div>
-
-                {/* Fetch and Checkout Button */}
-                <div className="col-12 mt-4 text-end">
+                <div className="text-end">
                   <button
-                    className="btn btn-primary px-4 py-2 fw-semibold shadow-sm"
-                    onClick={handleFetchAndCheckout}
-                    disabled={isLoading || !repoPath || !prUrlOrId}
+                    className="btn btn-primary px-4 shadow-sm fw-semibold"
+                    onClick={handleCheckoutAndDiff}
+                    disabled={isLoadingCheckout || !repoPath}
                   >
-                    {isLoading ? (
+                    {isLoadingCheckout ? (
                       <>
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                          aria-hidden="true"
-                        ></span>
-                        Fetching & Checking Out...
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Checking Out...
                       </>
                     ) : (
                       <>
                         <i className="fas fa-cloud-arrow-down me-2"></i>
-                        Fetch & Checkout Branch
+                        Fetch & Checkout PR
                       </>
                     )}
                   </button>
                 </div>
-              </div>
 
-              {/* Status/Loading Indicator */}
-              {isLoading && loadingStatus && (
-                <div className="mt-3 text-muted small d-flex align-items-center">
-                  <i className="fas fa-circle-notch fa-spin me-2 text-primary"></i>
-                  {loadingStatus}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* PR Details Summary */}
-        {prMetadata && (
-          <div className="col-12">
-            <div className="card shadow-sm border-0 border-start border-primary border-4">
-              <div className="card-body p-4">
-                <div className="d-flex align-items-center justify-content-between mb-2">
-                  <span className="badge bg-primary">
-                    Azure DevOps PR #{prMetadata.id}
-                  </span>
-                  <span className="text-muted small">
-                    <i className="fas fa-code-commit me-1"></i>
-                    {commitSha ? commitSha.substring(0, 8) : 'unknown'}
-                  </span>
-                </div>
-                <h4 className="fw-bold mb-2">{prMetadata.title}</h4>
-                {prMetadata.description && (
-                  <p
-                    className="text-muted mb-3"
-                    style={{
-                      whiteSpace: 'pre-wrap',
-                      maxHeight: '100px',
-                      overflowY: 'auto',
-                    }}
-                  >
-                    {prMetadata.description}
-                  </p>
+                {isLoadingCheckout && loadingStatus && (
+                  <div className="mt-3 text-muted small d-flex align-items-center">
+                    <i className="fas fa-circle-notch fa-spin me-2 text-primary"></i>
+                    {loadingStatus}
+                  </div>
                 )}
-
-                <div className="row g-3 text-muted small">
-                  <div className="col-md-4">
-                    <strong>Author:</strong> {prMetadata.author || 'Unknown'}
-                  </div>
-                  <div className="col-md-4">
-                    <strong>Source Branch:</strong>{' '}
-                    <code className="text-primary">
-                      {prMetadata.sourceBranch}
-                    </code>
-                  </div>
-                  <div className="col-md-4">
-                    <strong>Target Branch:</strong>{' '}
-                    <code className="text-secondary">
-                      {prMetadata.targetBranch}
-                    </code>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* PR Files and Diff Viewer */}
-        {prMetadata && (
-          <div className="col-12">
+        {/* Git Diffs Segment (Displays once checked out and commitSha is generated) */}
+        {selectedPR && commitSha && (
+          <div className="col-12 mt-4">
             <div className="row g-4">
-              {/* Left Column: Changed Files List */}
+              {/* Changed Files Side Column */}
               <div className="col-md-4">
                 <div className="card shadow-sm border-0 h-100">
                   <div
@@ -371,7 +541,7 @@ const PRReviewer: React.FC = () => {
                 </div>
               </div>
 
-              {/* Right Column: File Diff Viewer */}
+              {/* Diffs Screen */}
               <div className="col-md-8">
                 <div className="card shadow-sm border-0 h-100">
                   <div

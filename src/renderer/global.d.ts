@@ -60,6 +60,7 @@ export interface IElectronAPI {
   checkoutPR: (
     repoPath: string,
     prNumber: number,
+    expectedRepoName?: string,
   ) => Promise<{ commitSha: string }>;
   getPRDiffFiles: (
     repoPath: string,
@@ -70,6 +71,11 @@ export interface IElectronAPI {
     targetBranch: string,
     filePath: string,
   ) => Promise<string>;
+  searchPRs: (
+    searchType: 'assigned' | 'created' | 'all',
+  ) => Promise<PRMetadata[]>;
+  getRepoPathHistory: (repoName: string) => Promise<string | null>;
+  saveRepoPathHistory: (repoName: string, repoPath: string) => Promise<boolean>;
   isWindows: boolean;
 }
 
