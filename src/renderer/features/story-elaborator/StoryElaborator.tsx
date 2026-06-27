@@ -7,8 +7,9 @@ import PageLayout from '../../components/PageLayout';
 import { TicketData } from '../../../types';
 import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
 
-interface ChatMessage {
-  sender: 'copilot' | 'user';
+interface FeedItem {
+  type: 'chat' | 'status';
+  sender?: 'copilot' | 'user';
   text: string;
 }
 
@@ -34,10 +35,7 @@ const StoryElaborator: React.FC = () => {
   const [error, setError] = useState<string>('');
 
   // Elaboration Content
-  const [statusLogs, setStatusLogs] = useState<
-    { message: string; timestamp: Date }[]
-  >([]);
-  const [conversation, setConversation] = useState<ChatMessage[]>([]);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
   const [userAnswer, setUserAnswer] = useState('');
   const [planMarkdown, setPlanMarkdown] = useState('');
   const [planFilePath, setPlanFilePath] = useState('');
@@ -47,7 +45,6 @@ const StoryElaborator: React.FC = () => {
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const logEndRef = useRef<HTMLDivElement>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const { models, selectedModel, setSelectedModel, loadingModels } =
@@ -93,14 +90,10 @@ const StoryElaborator: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Scroll to bottom of chat/logs
+  // Scroll to bottom of chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation]);
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [statusLogs]);
+  }, [feed, isGenerating]);
 
   const handleBrowseFolder = async () => {
     try {
@@ -136,8 +129,7 @@ const StoryElaborator: React.FC = () => {
     setStage('elaborating');
     setIsGenerating(true);
     setIsWaitingForUser(false);
-    setStatusLogs([]);
-    setConversation([]);
+    setFeed([]);
     setPlanMarkdown('');
     setPlanFilePath('');
     setCurrentSuggestions([]);
@@ -151,10 +143,7 @@ const StoryElaborator: React.FC = () => {
       try {
         const data = JSON.parse(trimmed);
         if (data.type === 'status') {
-          setStatusLogs((prev) => [
-            ...prev,
-            { message: data.text, timestamp: new Date() },
-          ]);
+          setFeed((prev) => [...prev, { type: 'status', text: data.text }]);
         } else if (data.type === 'tool') {
           let statusText = '';
           if (data.name === 'report_intent') {
@@ -172,16 +161,17 @@ const StoryElaborator: React.FC = () => {
                 ? `Tool failed: ${data.name} ${data.error ? `- ${data.error}` : ''}`
                 : `Tool: ${data.name}`;
           }
-          setStatusLogs((prev) => [
-            ...prev,
-            { message: statusText, timestamp: new Date() },
-          ]);
+          setFeed((prev) => [...prev, { type: 'status', text: statusText }]);
         } else if (data.type === 'question') {
           setIsGenerating(false);
           setIsWaitingForUser(true);
-          setConversation((prev) => [
+          setFeed((prev) => [
             ...prev,
-            { sender: 'copilot', text: data.text },
+            {
+              type: 'chat',
+              sender: 'copilot',
+              text: data.text,
+            },
           ]);
           setCurrentSuggestions(data.suggestedAnswers || []);
         } else if (data.type === 'plan') {
@@ -236,7 +226,10 @@ const StoryElaborator: React.FC = () => {
     if (!userAnswer.trim()) return;
 
     const answer = userAnswer.trim();
-    setConversation((prev) => [...prev, { sender: 'user', text: answer }]);
+    setFeed((prev) => [
+      ...prev,
+      { type: 'chat', sender: 'user', text: answer },
+    ]);
     setUserAnswer('');
     setCurrentSuggestions([]);
     setIsGenerating(true);
@@ -261,7 +254,10 @@ const StoryElaborator: React.FC = () => {
   };
 
   const handleSendSuggestion = async (suggestion: string) => {
-    setConversation((prev) => [...prev, { sender: 'user', text: suggestion }]);
+    setFeed((prev) => [
+      ...prev,
+      { type: 'chat', sender: 'user', text: suggestion },
+    ]);
     setCurrentSuggestions([]);
     setIsGenerating(true);
     setIsWaitingForUser(false);
@@ -541,9 +537,16 @@ const StoryElaborator: React.FC = () => {
           >
             {/* Header */}
             <div className="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-shrink-0">
-              <h5 className="mb-0 fw-semibold">
-                <i className="fas fa-comments-dollar me-2"></i>Elaboration
-                Console
+              <h5 className="mb-0 fw-semibold d-flex align-items-center gap-2">
+                <i className="fas fa-comments-dollar"></i>
+                <span>Elaboration Session</span>
+                {stage === 'elaborating' && isGenerating && (
+                  <span
+                    className="spinner-grow spinner-grow-sm text-indigo ms-2"
+                    role="status"
+                    style={{ width: '0.75rem', height: '0.75rem' }}
+                  ></span>
+                )}
               </h5>
               <div className="d-flex align-items-center gap-3">
                 {stage === 'idle' && (
@@ -586,162 +589,146 @@ const StoryElaborator: React.FC = () => {
             )}
 
             {stage === 'elaborating' && (
-              <div className="card-body p-0 d-flex flex-column flex-grow-1 overflow-hidden">
-                <div
-                  className="row g-0 flex-grow-1 overflow-hidden"
-                  style={{ height: '100%' }}
-                >
-                  {/* Chat Panel */}
-                  <div className="col-md-8 d-flex flex-column border-end h-100">
-                    <div className="flex-grow-1 p-4 overflow-auto bg-body-tertiary">
-                      {conversation.length === 0 ? (
-                        <div className="text-center py-5 my-5 text-muted">
-                          <div
-                            className="spinner-border text-indigo mb-3"
-                            role="status"
-                          ></div>
-                          <p className="fw-medium small">
-                            {statusLogs.length === 0
-                              ? 'Initializing Copilot agent session...'
-                              : 'Copilot is thinking...'}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="d-flex flex-column gap-3">
-                          {conversation.map((msg, idx) => (
+              <div className="card-body p-0 d-flex flex-column flex-grow-1 overflow-hidden bg-body-tertiary">
+                <div className="flex-grow-1 p-4 overflow-auto">
+                  {feed.length === 0 ? (
+                    <div className="text-center py-5 my-5 text-muted">
+                      <div
+                        className="spinner-border text-indigo mb-3"
+                        role="status"
+                      ></div>
+                      <p className="fw-medium small">
+                        Initializing Copilot agent session...
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="d-flex flex-column gap-3">
+                      {feed.map((item, idx) => {
+                        if (item.type === 'status') {
+                          return (
                             <div
                               key={idx}
-                              className={`d-flex ${msg.sender === 'user' ? 'justify-content-end' : 'justify-content-start'}`}
+                              className="d-flex justify-content-start my-1"
                             >
                               <div
-                                className={`p-3 rounded-4 shadow-sm max-w-75 ${
-                                  msg.sender === 'user'
-                                    ? 'bg-indigo text-white rounded-br-0'
-                                    : 'bg-body border rounded-bl-0 text-body'
-                                }`}
-                                style={
-                                  msg.sender === 'user'
-                                    ? { backgroundColor: '#4f46e5' }
-                                    : {}
-                                }
+                                className="px-3 py-1.5 rounded-3 text-body-secondary font-monospace bg-body-secondary border d-flex align-items-center gap-2"
+                                style={{
+                                  maxWidth: '90%',
+                                  fontSize: '0.75rem',
+                                  wordBreak: 'break-word',
+                                }}
                               >
-                                <span className="small fw-semibold d-block mb-1 opacity-75">
-                                  {msg.sender === 'user' ? 'You' : 'Copilot'}
-                                </span>
-                                <p
-                                  className="mb-0 small whitespace-pre-wrap"
-                                  style={{ whiteSpace: 'pre-wrap' }}
-                                >
-                                  {msg.text}
-                                </p>
+                                <i className="fas fa-terminal opacity-75 flex-shrink-0"></i>
+                                <span className="text-start">{item.text}</span>
                               </div>
                             </div>
-                          ))}
-                          <div ref={chatEndRef} />
-                        </div>
-                      )}
-                    </div>
+                          );
+                        }
 
-                    {/* Chat Input */}
-                    <div className="p-3 border-top bg-body flex-shrink-0">
-                      {isWaitingForUser && currentSuggestions.length > 0 && (
-                        <div className="mb-3 d-flex flex-wrap gap-2 animate__animated animate__fadeIn">
-                          {currentSuggestions.map((suggestion, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              className="btn btn-sm btn-outline-indigo rounded-pill shadow-sm py-1.5 px-3 fw-medium"
-                              onClick={() => handleSendSuggestion(suggestion)}
-                              disabled={isGenerating}
-                            >
-                              {suggestion}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <div className="input-group">
-                        <textarea
-                          rows={2}
-                          className="form-control border-2"
-                          placeholder={
-                            isWaitingForUser
-                              ? 'Type your answer here...'
-                              : 'Waiting for Copilot...'
-                          }
-                          value={userAnswer}
-                          onChange={(e) => setUserAnswer(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              handleSendAnswer();
-                            }
-                          }}
-                          disabled={!isWaitingForUser || isGenerating}
-                        />
-                        <button
-                          className="btn text-white px-4 fw-semibold"
-                          style={{ backgroundColor: '#4f46e5' }}
-                          onClick={handleSendAnswer}
-                          disabled={
-                            !isWaitingForUser ||
-                            isGenerating ||
-                            !userAnswer.trim()
-                          }
-                        >
-                          {isGenerating ? (
-                            <span
-                              className="spinner-border spinner-border-sm"
-                              role="status"
-                            ></span>
-                          ) : (
-                            <i className="fas fa-paper-plane"></i>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status / Activity Panel */}
-                  <div
-                    className="col-md-4 d-flex flex-column h-100 bg-dark text-light border-start"
-                    data-bs-theme="dark"
-                  >
-                    <div className="p-3 border-bottom border-secondary flex-shrink-0 d-flex align-items-center justify-content-between">
-                      <span className="small fw-bold text-uppercase text-secondary tracking-wider">
-                        Copilot Status Log
-                      </span>
-                      {isGenerating && (
-                        <span
-                          className="spinner-grow spinner-grow-sm text-indigo"
-                          role="status"
-                        ></span>
-                      )}
-                    </div>
-                    <div
-                      className="flex-grow-1 p-3 overflow-auto font-monospace small"
-                      style={{ backgroundColor: '#111827' }}
-                    >
-                      {statusLogs.length === 0 ? (
-                        <div className="text-body-secondary small italic">
-                          {conversation.length === 0
-                            ? 'Awaiting connection...'
-                            : 'Copilot is thinking...'}
-                        </div>
-                      ) : (
-                        statusLogs.map((log, idx) => (
+                        // Chat message (user or copilot)
+                        return (
                           <div
                             key={idx}
-                            className="mb-2 text-indigo-light border-start border-indigo border-2 ps-2 py-0.5"
+                            className={`d-flex ${item.sender === 'user' ? 'justify-content-end' : 'justify-content-start'}`}
                           >
-                            <span className="text-body-secondary small">
-                              [{log.timestamp.toLocaleTimeString()}]
-                            </span>{' '}
-                            {log.message}
+                            <div
+                              className={`p-3 rounded-4 shadow-sm max-w-75 ${
+                                item.sender === 'user'
+                                  ? 'bg-indigo text-white rounded-br-0'
+                                  : 'bg-body border rounded-bl-0 text-body'
+                              }`}
+                              style={
+                                item.sender === 'user'
+                                  ? { backgroundColor: '#4f46e5' }
+                                  : {}
+                              }
+                            >
+                              <span className="small fw-semibold d-block mb-1 opacity-75">
+                                {item.sender === 'user' ? 'You' : 'Copilot'}
+                              </span>
+                              <p
+                                className="mb-0 small whitespace-pre-wrap"
+                                style={{ whiteSpace: 'pre-wrap' }}
+                              >
+                                {item.text}
+                              </p>
+                            </div>
                           </div>
-                        ))
+                        );
+                      })}
+                      {isGenerating && (
+                        <div className="d-flex justify-content-start align-items-center gap-2 text-muted ps-2 my-1">
+                          <span
+                            className="spinner-grow spinner-grow-sm text-indigo"
+                            role="status"
+                            style={{ width: '0.75rem', height: '0.75rem' }}
+                          ></span>
+                          <span
+                            className="small italic font-monospace"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Copilot is working...
+                          </span>
+                        </div>
                       )}
-                      <div ref={logEndRef} />
+                      <div ref={chatEndRef} />
                     </div>
+                  )}
+                </div>
+
+                {/* Chat Input */}
+                <div className="p-3 border-top bg-body flex-shrink-0">
+                  {isWaitingForUser && currentSuggestions.length > 0 && (
+                    <div className="mb-3 d-flex flex-wrap gap-2 animate__animated animate__fadeIn">
+                      {currentSuggestions.map((suggestion, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="btn btn-sm btn-outline-indigo rounded-pill shadow-sm py-1.5 px-3 fw-medium"
+                          onClick={() => handleSendSuggestion(suggestion)}
+                          disabled={isGenerating}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="input-group">
+                    <textarea
+                      rows={2}
+                      className="form-control border-2"
+                      placeholder={
+                        isWaitingForUser
+                          ? 'Type your answer here...'
+                          : 'Waiting for Copilot...'
+                      }
+                      value={userAnswer}
+                      onChange={(e) => setUserAnswer(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendAnswer();
+                        }
+                      }}
+                      disabled={!isWaitingForUser || isGenerating}
+                    />
+                    <button
+                      className="btn text-white px-4 fw-semibold"
+                      style={{ backgroundColor: '#4f46e5' }}
+                      onClick={handleSendAnswer}
+                      disabled={
+                        !isWaitingForUser || isGenerating || !userAnswer.trim()
+                      }
+                    >
+                      {isGenerating ? (
+                        <span
+                          className="spinner-border spinner-border-sm"
+                          role="status"
+                        ></span>
+                      ) : (
+                        <i className="fas fa-paper-plane"></i>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
