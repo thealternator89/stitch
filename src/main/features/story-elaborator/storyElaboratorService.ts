@@ -174,14 +174,6 @@ export class StoryElaboratorService {
         );
       } else {
         try {
-          if (onLine) {
-            onLine(
-              JSON.stringify({
-                type: 'status',
-                text: `Agent requesting document ID: ${requestedDocId}...`,
-              }),
-            );
-          }
           const page = await docProvider.fetchPage(requestedDocId);
           providedDocIds.add(requestedDocId);
 

@@ -253,11 +253,6 @@ describe('StoryElaborator feature', () => {
       // Verify the status updates were streamed back to the renderer
       expect(onLineSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          '"type":"status","text":"Agent requesting document ID: 123..."',
-        ),
-      );
-      expect(onLineSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
           '"type":"status","text":"Agent viewed document: Doc 123"',
         ),
       );
