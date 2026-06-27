@@ -85,7 +85,10 @@ describe('StoryElaborator feature', () => {
         sendAndCollectStream: vi.fn().mockResolvedValue('Mocked response'),
         getModel: vi.fn().mockReturnValue('auto'),
       };
-      service = new StoryElaboratorService(mockCopilotService);
+      service = new StoryElaboratorService(
+        mockCopilotService,
+        async () => null,
+      );
     });
 
     it('should start story elaboration and store session in active map', async () => {
@@ -132,6 +135,186 @@ describe('StoryElaborator feature', () => {
       await service.stopStoryElaboration('US-1');
       expect(mockSession.disconnect).toHaveBeenCalled();
       expect(mockClient.stop).toHaveBeenCalled();
+    });
+  });
+
+  describe('StoryElaboratorService with Documentation Retrieval', () => {
+    let mockCopilotService: any;
+    let mockDocProvider: any;
+    let service: StoryElaboratorService;
+    const mockClient = { stop: vi.fn() };
+    const mockSession = { disconnect: vi.fn() };
+
+    beforeEach(() => {
+      mockDocProvider = {
+        isDocPageUrl: vi.fn((url) => url.includes('confluence.com')),
+        extractPageId: vi.fn((url) => {
+          const match = url.match(/pages\/(\d+)/);
+          return match ? match[1] : null;
+        }),
+        fetchPage: vi.fn((id) =>
+          Promise.resolve({
+            id,
+            title: `Doc ${id}`,
+            body: `Content of Doc ${id}`,
+          }),
+        ),
+      };
+
+      mockCopilotService = {
+        createClientAndSession: vi
+          .fn()
+          .mockResolvedValue({ client: mockClient, session: mockSession }),
+        sendAndCollectStream: vi.fn(),
+      };
+
+      service = new StoryElaboratorService(
+        mockCopilotService,
+        async () => mockDocProvider,
+      );
+    });
+
+    it('should find Confluence links in description/acceptance criteria, fetch metadata, and pass to prompt', async () => {
+      const ticket: TicketData = {
+        id: 'US-100',
+        title: 'Need info from doc',
+        description: 'See https://confluence.com/pages/11111 for details.',
+        acceptanceCriteria: 'Must adhere to https://confluence.com/pages/22222',
+      };
+
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        JSON.stringify({ type: 'status', text: 'Elaborating...' }),
+      );
+
+      await service.startStoryElaboration(
+        ticket,
+        null,
+        '',
+        'gpt-4',
+        defaultSettings,
+      );
+
+      // Verify page metadata was fetched
+      expect(mockDocProvider.fetchPage).toHaveBeenCalledWith('11111');
+      expect(mockDocProvider.fetchPage).toHaveBeenCalledWith('22222');
+
+      // Verify the prompt passed to copilot contained the known docs list
+      expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
+        mockSession,
+        expect.stringContaining('- "Doc 11111" (ID: 11111)'),
+        undefined,
+        expect.any(Function),
+      );
+    });
+
+    it('should recursively fetch and feed back documents requested via request_doc', async () => {
+      const ticket: TicketData = {
+        id: 'US-200',
+        title: 'Story 200',
+        description: 'No links here',
+      };
+
+      // 1. Initial turn: Agent requests doc 123
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        JSON.stringify({ type: 'request_doc', documentId: '123' }),
+      );
+
+      // 2. Second turn: Agent gets doc content, then responds with a clarifying question
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        JSON.stringify({ type: 'question', text: 'Which DB field?' }),
+      );
+
+      const onLineSpy = vi.fn();
+
+      const result = await service.startStoryElaboration(
+        ticket,
+        null,
+        '',
+        'gpt-4',
+        defaultSettings,
+        onLineSpy,
+      );
+
+      // Verify final response is the question
+      expect(result).toContain('Which DB field?');
+
+      // Verify Confluence fetch occurred
+      expect(mockDocProvider.fetchPage).toHaveBeenCalledWith('123');
+
+      // Verify the document content was sent back to copilot
+      expect(mockCopilotService.sendAndCollectStream).toHaveBeenNthCalledWith(
+        2,
+        mockSession,
+        expect.stringContaining('Content of Doc 123'),
+        onLineSpy,
+        expect.any(Function),
+      );
+
+      // Verify the status updates were streamed back to the renderer
+      expect(onLineSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '"type":"status","text":"Agent requesting document ID: 123..."',
+        ),
+      );
+      expect(onLineSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '"type":"status","text":"Agent viewed document: Doc 123"',
+        ),
+      );
+    });
+
+    it('should refuse to fetch a document that has already been provided to prevent loops', async () => {
+      const ticket: TicketData = {
+        id: 'US-300',
+        title: 'Story 300',
+        description: 'No links',
+      };
+
+      // 1. Initial turn: Agent requests doc 999
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        JSON.stringify({ type: 'request_doc', documentId: '999' }),
+      );
+
+      // 2. Second turn: Agent receives doc 999, then requests it AGAIN (duplicate)
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        JSON.stringify({ type: 'request_doc', documentId: '999' }),
+      );
+
+      // 3. Third turn: Agent receives error about duplicate request, then asks a question
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        JSON.stringify({ type: 'question', text: 'Understood' }),
+      );
+
+      const onLineSpy = vi.fn();
+
+      await service.startStoryElaboration(
+        ticket,
+        null,
+        '',
+        'gpt-4',
+        defaultSettings,
+        onLineSpy,
+      );
+
+      // Verify doc 999 was only fetched ONCE from confluence
+      expect(mockDocProvider.fetchPage).toHaveBeenCalledTimes(1);
+
+      // Verify that the duplicate warning was fed back to copilot
+      expect(mockCopilotService.sendAndCollectStream).toHaveBeenLastCalledWith(
+        mockSession,
+        expect.stringContaining(
+          'already been provided to you. Do not request it again',
+        ),
+        onLineSpy,
+        expect.any(Function),
+      );
+
+      // Verify status update for duplicate warning was streamed to user
+      expect(onLineSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '"type":"status","text":"Agent requested duplicate document ID: 999 (declined)"',
+        ),
+      );
     });
   });
 });

@@ -160,4 +160,49 @@ export class ConfluenceService implements DocumentationProvider {
       throw error;
     }
   }
+
+  isDocPageUrl(url: string): boolean {
+    if (!this.url || !url) return false;
+    try {
+      let base = this.url.trim();
+      if (!base.startsWith('http://') && !base.startsWith('https://')) {
+        base = `https://${base}`;
+      }
+      const configUrl = new URL(base);
+
+      const targetUrl = new URL(url.trim());
+      if (targetUrl.hostname !== configUrl.hostname) {
+        return false;
+      }
+
+      return this.extractPageId(url) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  extractPageId(url: string): string | null {
+    if (!url) return null;
+    try {
+      const parsedUrl = new URL(url.trim());
+
+      const pageId = parsedUrl.searchParams.get('pageId');
+      if (pageId && /^\d+$/.test(pageId)) {
+        return pageId;
+      }
+
+      const pathParts = parsedUrl.pathname.split('/');
+      const pagesIndex = pathParts.indexOf('pages');
+      if (pagesIndex !== -1 && pagesIndex + 1 < pathParts.length) {
+        const nextPart = pathParts[pagesIndex + 1];
+        if (/^\d+$/.test(nextPart)) {
+          return nextPart;
+        }
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }

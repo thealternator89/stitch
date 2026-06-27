@@ -47,7 +47,16 @@ let confluenceService: DocumentationProvider | null = null;
 const copilotService = new CopilotService();
 const storyWriterService = new StoryWriterService(copilotService);
 const testCaseWriterService = new TestCaseWriterService(copilotService);
-const storyElaboratorService = new StoryElaboratorService(copilotService);
+const storyElaboratorService = new StoryElaboratorService(
+  copilotService,
+  async () => {
+    try {
+      return await getConfluenceService();
+    } catch {
+      return null;
+    }
+  },
+);
 const promptComplexityService = new PromptComplexityService(copilotService);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
