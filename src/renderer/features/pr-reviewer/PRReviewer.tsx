@@ -26,6 +26,7 @@ const PRReviewer: React.FC = () => {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [selectedFileDiff, setSelectedFileDiff] = useState<string>('');
   const [isLoadingDiff, setIsLoadingDiff] = useState(false);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
 
   // Modals
   const [showDirtyModal, setShowDirtyModal] = useState(false);
@@ -60,6 +61,7 @@ const PRReviewer: React.FC = () => {
     setChangedFiles([]);
     setSelectedFilePath(null);
     setSelectedFileDiff('');
+    setIsHeaderCollapsed(false);
 
     // Fetch local path history for this repository name
     try {
@@ -141,6 +143,7 @@ const PRReviewer: React.FC = () => {
         selectedPR.targetBranch,
       );
       setChangedFiles(files);
+      setIsHeaderCollapsed(true);
     } catch (err: unknown) {
       console.error('Checkout failed:', err);
       const msg = err instanceof Error ? err.message : String(err);
@@ -243,239 +246,317 @@ const PRReviewer: React.FC = () => {
   return (
     <PageLayout title="PR Reviewer">
       <div className="row g-4">
-        {/* Left Column: PR Lists / Selection */}
-        <div className={selectedPR ? 'col-md-5' : 'col-12'}>
-          <div className="card shadow-sm border-0 bg-body-tertiary h-100">
-            <div
-              className="card-body p-4 d-flex flex-column"
-              style={{ minHeight: '400px' }}
-            >
-              <h5 className="card-title fw-bold mb-3">
-                <i className="fas fa-code-pull-request me-2 text-primary"></i>
-                Select Pull Request
-              </h5>
-
-              {/* Navigation Tabs */}
-              <ul className="nav nav-pills mb-3 gap-1">
-                <li className="nav-item">
-                  <button
-                    className={`btn btn-sm ${activeTab === 'assigned' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => setActiveTab('assigned')}
-                  >
-                    Assigned to Me
-                  </button>
-                </li>
-                <li className="nav-item">
-                  <button
-                    className={`btn btn-sm ${activeTab === 'created' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => setActiveTab('created')}
-                  >
-                    Created by Me
-                  </button>
-                </li>
-                <li className="nav-item">
-                  <button
-                    className={`btn btn-sm ${activeTab === 'all' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => setActiveTab('all')}
-                  >
-                    All Active PRs
-                  </button>
-                </li>
-                <li className="nav-item">
-                  <button
-                    className={`btn btn-sm ${activeTab === 'manual' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => setActiveTab('manual')}
-                  >
-                    Manual ID/URL
-                  </button>
-                </li>
-              </ul>
-
-              {activeTab === 'manual' ? (
-                /* Manual Input Form */
-                <form onSubmit={handleManualPRSubmit} className="mt-2">
-                  <div className="mb-3">
-                    <label className="form-label text-muted small fw-semibold">
-                      Azure DevOps PR URL or ID
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="https://dev.azure.com/.../pullrequest/123 or just PR ID"
-                      value={manualPrUrlOrId}
-                      onChange={(e) => setManualPrUrlOrId(e.target.value)}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="btn btn-outline-primary w-100"
-                    disabled={isLoadingPRs || !manualPrUrlOrId.trim()}
-                  >
-                    Load PR Details
-                  </button>
-                </form>
-              ) : (
-                /* Search Results / List */
-                <div className="d-flex flex-column flex-grow-1">
-                  <div className="input-group input-group-sm mb-3">
-                    <span className="input-group-text bg-body-secondary border-end-0">
-                      <i className="fas fa-search text-muted"></i>
-                    </span>
-                    <input
-                      type="text"
-                      className="form-control border-start-0"
-                      placeholder="Search title, ID, or repo..."
-                      value={prSearchQuery}
-                      onChange={(e) => setPrSearchQuery(e.target.value)}
-                    />
-                  </div>
-
+        {selectedPR && commitSha && isHeaderCollapsed ? (
+          /* Collapsed Header Panel */
+          <div className="col-12">
+            <div className="card shadow-sm border-0 bg-body-tertiary">
+              <div className="card-body p-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <div className="d-flex align-items-center gap-3">
                   <div
-                    className="overflow-y-auto flex-grow-1"
-                    style={{ maxHeight: '450px' }}
+                    className="d-flex align-items-center justify-content-center bg-primary text-white rounded-circle"
+                    style={{ width: '40px', height: '40px', flexShrink: 0 }}
                   >
-                    {isLoadingPRs ? (
-                      <div className="text-center py-5 text-muted">
-                        <span className="spinner-border spinner-border-sm mb-2"></span>
-                        <p className="small mb-0">Querying Azure DevOps...</p>
-                      </div>
-                    ) : filteredPRs.length === 0 ? (
-                      <div className="text-center py-5 text-muted small">
-                        No active PRs found matching the criteria.
-                      </div>
-                    ) : (
-                      <div className="list-group list-group-flush border-top border-bottom">
-                        {filteredPRs.map((pr) => (
-                          <button
-                            key={pr.id}
-                            type="button"
-                            className={`list-group-item list-group-item-action p-3 text-start ${
-                              selectedPR?.id === pr.id
-                                ? 'active bg-primary text-white'
-                                : ''
-                            }`}
-                            onClick={() => handleSelectPR(pr)}
-                          >
-                            <div className="d-flex w-100 justify-content-between mb-1">
-                              <span className="fw-semibold small">
-                                PR #{pr.id}
-                              </span>
-                              <span className="small opacity-75">
-                                {pr.repositoryName}
-                              </span>
-                            </div>
-                            <div
-                              className="fw-bold mb-1 text-truncate"
-                              title={pr.title}
-                            >
-                              {pr.title}
-                            </div>
-                            <div className="small opacity-75 d-flex justify-content-between">
-                              <span>By: {pr.author}</span>
-                              <span>
-                                {pr.sourceBranch} &rarr; {pr.targetBranch}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    <i className="fas fa-code-pull-request"></i>
+                  </div>
+                  <div>
+                    <div className="d-flex align-items-center flex-wrap gap-2">
+                      <span className="fw-bold text-primary font-monospace small">
+                        PR #{selectedPR.id}
+                      </span>
+                      <span className="badge bg-secondary-subtle text-secondary-emphasis font-monospace small">
+                        {selectedPR.repositoryName}
+                      </span>
+                      <span className="text-muted small">
+                        | By {selectedPR.author}
+                      </span>
+                    </div>
+                    <h5 className="fw-bold mb-0 text-body mt-1">
+                      {selectedPR.title}
+                    </h5>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* Right Column: Local Path Configuration (Only displays when a PR is selected) */}
-        {selectedPR && (
-          <div className="col-md-7">
-            <div className="card shadow-sm border-0">
-              <div className="card-body p-4">
-                <h5 className="card-title fw-bold mb-3 text-primary">
-                  PR Details & Checkout
-                </h5>
-
-                <div className="p-3 bg-body-tertiary rounded mb-4">
-                  <div className="d-flex align-items-center justify-content-between mb-2">
-                    <span className="badge bg-primary">
-                      Repo: {selectedPR.repositoryName}
-                    </span>
-                    <span className="badge bg-secondary-subtle text-secondary-emphasis">
-                      PR #{selectedPR.id}
+                <div className="d-flex align-items-center flex-wrap gap-3">
+                  <div className="text-muted small">
+                    <strong>Branches:</strong>{' '}
+                    <span className="font-monospace bg-light px-2 py-1 rounded">
+                      {selectedPR.sourceBranch}
+                    </span>{' '}
+                    &rarr;{' '}
+                    <span className="font-monospace bg-light px-2 py-1 rounded">
+                      {selectedPR.targetBranch}
                     </span>
                   </div>
-                  <h4 className="fw-bold text-body mb-2">{selectedPR.title}</h4>
-                  <div className="row g-2 text-muted small">
-                    <div className="col-6">
-                      <strong>Author:</strong> {selectedPR.author}
-                    </div>
-                    <div className="col-6">
-                      <strong>Branches:</strong> {selectedPR.sourceBranch}{' '}
-                      &rarr; {selectedPR.targetBranch}
-                    </div>
+                  <div className="text-muted small">
+                    <strong>Commit:</strong>{' '}
+                    <span className="badge bg-light text-dark font-monospace border">
+                      {commitSha.slice(0, 7)}
+                    </span>
                   </div>
-                </div>
-
-                {/* Local Repository Path Picker */}
-                <div className="mb-4">
-                  <label className="form-label fw-semibold text-muted">
-                    Locally Cloned Repo Path for "{selectedPR.repositoryName}"
-                  </label>
-                  <div className="input-group">
-                    <input
-                      type="text"
-                      className="form-control text-muted"
-                      placeholder="Select the local clone directory..."
-                      value={repoPath}
-                      readOnly
-                    />
-                    <button
-                      className="btn btn-outline-secondary"
-                      type="button"
-                      onClick={handleBrowseFolder}
-                      disabled={isLoadingCheckout}
-                    >
-                      <i className="fas fa-folder-open me-1"></i>
-                      Browse
-                    </button>
-                  </div>
-                  <div className="form-text small">
-                    {repoPath
-                      ? 'Local clone matches mapping history.'
-                      : `Please select the directory where repository "${selectedPR.repositoryName}" is cloned.`}
-                  </div>
-                </div>
-
-                <div className="text-end">
                   <button
-                    className="btn btn-primary px-4 shadow-sm fw-semibold"
-                    onClick={handleCheckoutAndDiff}
-                    disabled={isLoadingCheckout || !repoPath}
+                    className="btn btn-sm btn-outline-primary fw-semibold shadow-sm"
+                    onClick={() => setIsHeaderCollapsed(false)}
                   >
-                    {isLoadingCheckout ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2"></span>
-                        Checking Out...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-cloud-arrow-down me-2"></i>
-                        Fetch & Checkout PR
-                      </>
-                    )}
+                    <i className="fas fa-expand me-1"></i>
+                    Expand Settings
                   </button>
                 </div>
-
-                {isLoadingCheckout && loadingStatus && (
-                  <div className="mt-3 text-muted small d-flex align-items-center">
-                    <i className="fas fa-circle-notch fa-spin me-2 text-primary"></i>
-                    {loadingStatus}
-                  </div>
-                )}
               </div>
             </div>
           </div>
+        ) : (
+          /* Expanded Configuration Panel */
+          <>
+            {/* Left Column: PR Lists / Selection */}
+            <div className={selectedPR ? 'col-md-5' : 'col-12'}>
+              <div className="card shadow-sm border-0 bg-body-tertiary h-100">
+                <div
+                  className="card-body p-4 d-flex flex-column"
+                  style={{ minHeight: '400px' }}
+                >
+                  <h5 className="card-title fw-bold mb-3">
+                    <i className="fas fa-code-pull-request me-2 text-primary"></i>
+                    Select Pull Request
+                  </h5>
+
+                  {/* Navigation Tabs */}
+                  <ul className="nav nav-pills mb-3 gap-1">
+                    <li className="nav-item">
+                      <button
+                        className={`btn btn-sm ${activeTab === 'assigned' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        onClick={() => setActiveTab('assigned')}
+                      >
+                        Assigned to Me
+                      </button>
+                    </li>
+                    <li className="nav-item">
+                      <button
+                        className={`btn btn-sm ${activeTab === 'created' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        onClick={() => setActiveTab('created')}
+                      >
+                        Created by Me
+                      </button>
+                    </li>
+                    <li className="nav-item">
+                      <button
+                        className={`btn btn-sm ${activeTab === 'all' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        onClick={() => setActiveTab('all')}
+                      >
+                        All Active PRs
+                      </button>
+                    </li>
+                    <li className="nav-item">
+                      <button
+                        className={`btn btn-sm ${activeTab === 'manual' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        onClick={() => setActiveTab('manual')}
+                      >
+                        Manual ID/URL
+                      </button>
+                    </li>
+                  </ul>
+
+                  {activeTab === 'manual' ? (
+                    /* Manual Input Form */
+                    <form onSubmit={handleManualPRSubmit} className="mt-2">
+                      <div className="mb-3">
+                        <label className="form-label text-muted small fw-semibold">
+                          Azure DevOps PR URL or ID
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="https://dev.azure.com/.../pullrequest/123 or just PR ID"
+                          value={manualPrUrlOrId}
+                          onChange={(e) => setManualPrUrlOrId(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="btn btn-outline-primary w-100"
+                        disabled={isLoadingPRs || !manualPrUrlOrId.trim()}
+                      >
+                        Load PR Details
+                      </button>
+                    </form>
+                  ) : (
+                    /* Search Results / List */
+                    <div className="d-flex flex-column flex-grow-1">
+                      <div className="input-group input-group-sm mb-3">
+                        <span className="input-group-text bg-body-secondary border-end-0">
+                          <i className="fas fa-search text-muted"></i>
+                        </span>
+                        <input
+                          type="text"
+                          className="form-control border-start-0"
+                          placeholder="Search title, ID, or repo..."
+                          value={prSearchQuery}
+                          onChange={(e) => setPrSearchQuery(e.target.value)}
+                        />
+                      </div>
+
+                      <div
+                        className="overflow-y-auto flex-grow-1"
+                        style={{ maxHeight: '450px' }}
+                      >
+                        {isLoadingPRs ? (
+                          <div className="text-center py-5 text-muted">
+                            <span className="spinner-border spinner-border-sm mb-2"></span>
+                            <p className="small mb-0">
+                              Querying Azure DevOps...
+                            </p>
+                          </div>
+                        ) : filteredPRs.length === 0 ? (
+                          <div className="text-center py-5 text-muted small">
+                            No active PRs found matching the criteria.
+                          </div>
+                        ) : (
+                          <div className="list-group list-group-flush border-top border-bottom">
+                            {filteredPRs.map((pr) => (
+                              <button
+                                key={pr.id}
+                                type="button"
+                                className={`list-group-item list-group-item-action p-3 text-start ${
+                                  selectedPR?.id === pr.id
+                                    ? 'active bg-primary text-white'
+                                    : ''
+                                }`}
+                                onClick={() => handleSelectPR(pr)}
+                              >
+                                <div className="d-flex w-100 justify-content-between mb-1">
+                                  <span className="fw-semibold small">
+                                    PR #{pr.id}
+                                  </span>
+                                  <span className="small opacity-75">
+                                    {pr.repositoryName}
+                                  </span>
+                                </div>
+                                <div
+                                  className="fw-bold mb-1 text-truncate"
+                                  title={pr.title}
+                                >
+                                  {pr.title}
+                                </div>
+                                <div className="small opacity-75 d-flex justify-content-between">
+                                  <span>By: {pr.author}</span>
+                                  <span>
+                                    {pr.sourceBranch} &rarr; {pr.targetBranch}
+                                  </span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Local Path Configuration (Only displays when a PR is selected) */}
+            {selectedPR && (
+              <div className="col-md-7">
+                <div className="card shadow-sm border-0">
+                  <div className="card-body p-4">
+                    <h5 className="card-title fw-bold mb-3 text-primary">
+                      PR Details & Checkout
+                    </h5>
+
+                    <div className="p-3 bg-body-tertiary rounded mb-4">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <span className="badge bg-primary">
+                          Repo: {selectedPR.repositoryName}
+                        </span>
+                        <span className="badge bg-secondary-subtle text-secondary-emphasis">
+                          PR #{selectedPR.id}
+                        </span>
+                      </div>
+                      <h4 className="fw-bold text-body mb-2">
+                        {selectedPR.title}
+                      </h4>
+                      <div className="row g-2 text-muted small">
+                        <div className="col-6">
+                          <strong>Author:</strong> {selectedPR.author}
+                        </div>
+                        <div className="col-6">
+                          <strong>Branches:</strong> {selectedPR.sourceBranch}{' '}
+                          &rarr; {selectedPR.targetBranch}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Local Repository Path Picker */}
+                    <div className="mb-4">
+                      <label className="form-label fw-semibold text-muted">
+                        Locally Cloned Repo Path for "
+                        {selectedPR.repositoryName}"
+                      </label>
+                      <div className="input-group">
+                        <input
+                          type="text"
+                          className="form-control text-muted"
+                          placeholder="Select the local clone directory..."
+                          value={repoPath}
+                          readOnly
+                        />
+                        <button
+                          className="btn btn-outline-secondary"
+                          type="button"
+                          onClick={handleBrowseFolder}
+                          disabled={isLoadingCheckout}
+                        >
+                          <i className="fas fa-folder-open me-1"></i>
+                          Browse
+                        </button>
+                      </div>
+                      <div className="form-text small">
+                        {repoPath
+                          ? 'Local clone matches mapping history.'
+                          : `Please select the directory where repository "${selectedPR.repositoryName}" is cloned.`}
+                      </div>
+                    </div>
+
+                    <div className="text-end">
+                      {commitSha && (
+                        <button
+                          className="btn btn-outline-secondary px-3 me-2 fw-semibold"
+                          onClick={() => setIsHeaderCollapsed(true)}
+                          type="button"
+                        >
+                          <i className="fas fa-compress me-1"></i>
+                          Collapse Settings
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-primary px-4 shadow-sm fw-semibold"
+                        onClick={handleCheckoutAndDiff}
+                        disabled={isLoadingCheckout || !repoPath}
+                      >
+                        {isLoadingCheckout ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2"></span>
+                            Checking Out...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fas fa-cloud-arrow-down me-2"></i>
+                            Fetch & Checkout PR
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {isLoadingCheckout && loadingStatus && (
+                      <div className="mt-3 text-muted small d-flex align-items-center">
+                        <i className="fas fa-circle-notch fa-spin me-2 text-primary"></i>
+                        {loadingStatus}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Git Diffs Segment (Displays once checked out and commitSha is generated) */}
@@ -487,7 +568,12 @@ const PRReviewer: React.FC = () => {
                 <div className="card shadow-sm border-0 h-100">
                   <div
                     className="card-body p-3 d-flex flex-column"
-                    style={{ maxHeight: '600px' }}
+                    style={{
+                      height: isHeaderCollapsed
+                        ? 'calc(100vh - 275px)'
+                        : '600px',
+                      minHeight: '400px',
+                    }}
                   >
                     <h6 className="fw-bold mb-3">
                       Changed Files ({filteredFiles.length} of{' '}
@@ -546,7 +632,12 @@ const PRReviewer: React.FC = () => {
                 <div className="card shadow-sm border-0 h-100">
                   <div
                     className="card-body p-3 d-flex flex-column"
-                    style={{ minHeight: '400px' }}
+                    style={{
+                      height: isHeaderCollapsed
+                        ? 'calc(100vh - 275px)'
+                        : '600px',
+                      minHeight: '400px',
+                    }}
                   >
                     {selectedFilePath ? (
                       <>
@@ -574,7 +665,10 @@ const PRReviewer: React.FC = () => {
                           </div>
                         ) : selectedFileDiff ? (
                           <div className="flex-grow-1 overflow-y-auto">
-                            <pre className="git-diff-viewer m-0">
+                            <pre
+                              className="git-diff-viewer m-0"
+                              style={{ maxHeight: 'none' }}
+                            >
                               {selectedFileDiff
                                 .split('\n')
                                 .map((line, index) =>
