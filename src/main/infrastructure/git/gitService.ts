@@ -76,14 +76,31 @@ export class GitService {
     }
   }
 
+  async getDiffTarget(repoPath: string, targetBranch: string): Promise<string> {
+    try {
+      const parents = await this.runCommand(
+        repoPath,
+        'git log -1 --format="%P" HEAD',
+      );
+      const parentList = parents.trim().split(/\s+/).filter(Boolean);
+      if (parentList.length > 1) {
+        return 'HEAD^1';
+      }
+    } catch {
+      // Fallback to targetBranch
+    }
+    return targetBranch;
+  }
+
   async getDiffFiles(
     repoPath: string,
     targetBranch: string,
   ): Promise<PRDiffFile[]> {
     try {
+      const diffTarget = await this.getDiffTarget(repoPath, targetBranch);
       const output = await this.runCommand(
         repoPath,
-        `git diff --name-status ${targetBranch}...HEAD`,
+        `git diff --name-status ${diffTarget}...HEAD`,
       );
       if (!output) {
         return [];
@@ -131,9 +148,10 @@ export class GitService {
     filePath: string,
   ): Promise<string> {
     try {
+      const diffTarget = await this.getDiffTarget(repoPath, targetBranch);
       return await this.runCommand(
         repoPath,
-        `git diff ${targetBranch}...HEAD -- "${filePath}"`,
+        `git diff ${diffTarget}...HEAD -- "${filePath}"`,
       );
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);

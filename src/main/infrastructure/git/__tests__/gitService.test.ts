@@ -149,13 +149,17 @@ describe('GitService', () => {
   });
 
   describe('getDiffFiles', () => {
-    it('should return parsed files with correct status', async () => {
+    it('should return parsed files with correct status (single parent)', async () => {
       mockExec = (cmd: string, options: any, cb: any) => {
-        expect(cmd).toBe('git diff --name-status main...HEAD');
-        cb(null, {
-          stdout:
-            'A\tfile1.txt\nM\tfile2.txt\nD\tfile3.txt\nR100\told.txt\tnew.txt\nT\ttypechange.txt\n',
-        });
+        if (cmd.includes('git log')) {
+          cb(null, { stdout: 'parent1\n' });
+        } else if (cmd.includes('git diff')) {
+          expect(cmd).toBe('git diff --name-status main...HEAD');
+          cb(null, {
+            stdout:
+              'A\tfile1.txt\nM\tfile2.txt\nD\tfile3.txt\nR100\told.txt\tnew.txt\nT\ttypechange.txt\n',
+          });
+        }
       };
 
       const result = await gitService.getDiffFiles(repoPath, 'main');
@@ -167,13 +171,33 @@ describe('GitService', () => {
         { path: 'typechange.txt', status: 'type_changed' },
       ]);
     });
+
+    it('should use HEAD^1 for diffing if HEAD is a merge commit (multiple parents)', async () => {
+      mockExec = (cmd: string, options: any, cb: any) => {
+        if (cmd.includes('git log')) {
+          cb(null, { stdout: 'parent1 parent2\n' });
+        } else if (cmd.includes('git diff')) {
+          expect(cmd).toBe('git diff --name-status HEAD^1...HEAD');
+          cb(null, {
+            stdout: 'M\tfile1.txt\n',
+          });
+        }
+      };
+
+      const result = await gitService.getDiffFiles(repoPath, 'main');
+      expect(result).toEqual([{ path: 'file1.txt', status: 'modified' }]);
+    });
   });
 
   describe('getFileDiff', () => {
-    it('should return diff text', async () => {
+    it('should return diff text (single parent)', async () => {
       mockExec = (cmd: string, options: any, cb: any) => {
-        expect(cmd).toBe('git diff main...HEAD -- "file1.txt"');
-        cb(null, { stdout: 'some-diff-text\n' });
+        if (cmd.includes('git log')) {
+          cb(null, { stdout: 'parent1\n' });
+        } else if (cmd.includes('git diff')) {
+          expect(cmd).toBe('git diff main...HEAD -- "file1.txt"');
+          cb(null, { stdout: 'some-diff-text\n' });
+        }
       };
 
       const result = await gitService.getFileDiff(
@@ -182,6 +206,24 @@ describe('GitService', () => {
         'file1.txt',
       );
       expect(result).toBe('some-diff-text');
+    });
+
+    it('should return diff text against HEAD^1 (multiple parents)', async () => {
+      mockExec = (cmd: string, options: any, cb: any) => {
+        if (cmd.includes('git log')) {
+          cb(null, { stdout: 'parent1 parent2\n' });
+        } else if (cmd.includes('git diff')) {
+          expect(cmd).toBe('git diff HEAD^1...HEAD -- "file1.txt"');
+          cb(null, { stdout: 'merge-diff-text\n' });
+        }
+      };
+
+      const result = await gitService.getFileDiff(
+        repoPath,
+        'main',
+        'file1.txt',
+      );
+      expect(result).toBe('merge-diff-text');
     });
   });
 });
