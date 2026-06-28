@@ -347,6 +347,20 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle(
+  'pr-reviewer:post-comment',
+  async (event, repoPath, prUrlOrId, comment) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
+    return prReviewerService.postPRComment(
+      repoPath,
+      prUrlOrId,
+      comment,
+      settings,
+    );
+  },
+);
+
 ipcMain.handle('pr-reviewer:get-repo-path-history', async (event, repoName) => {
   const s = await initStore();
   return s.get(`repo-paths.${repoName}`) || null;

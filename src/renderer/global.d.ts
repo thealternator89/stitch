@@ -83,6 +83,16 @@ export interface IElectronAPI {
     modelOverride: string,
   ) => Promise<string>;
   onPRReviewLine: (callback: (line: string) => void) => () => void;
+  postPRComment: (
+    repoPath: string,
+    prUrlOrId: string,
+    comment: {
+      type: 'general' | 'line';
+      file?: string;
+      line?: number;
+      comment: string;
+    },
+  ) => Promise<void>;
   isWindows: boolean;
 }
 

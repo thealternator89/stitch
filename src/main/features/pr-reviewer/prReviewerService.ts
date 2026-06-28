@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import * as azdev from 'azure-devops-node-api';
 import { IGitApi } from 'azure-devops-node-api/GitApi';
-import { GitPullRequestSearchCriteria } from 'azure-devops-node-api/interfaces/GitInterfaces';
+import {
+  GitPullRequestSearchCriteria,
+  GitPullRequestCommentThread,
+} from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { GitService } from '../../infrastructure/git/gitService';
 import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { PRMetadata, AppSettings } from '../../../types';
@@ -454,6 +457,113 @@ export class PRReviewerService {
       } catch (e) {
         console.error('Error stopping client in reviewPR:', e);
       }
+    }
+  }
+
+  async postPRComment(
+    repoPath: string,
+    prUrlOrId: string,
+    comment: {
+      type: 'general' | 'line';
+      file?: string;
+      line?: number;
+      comment: string;
+    },
+    settings: AppSettings,
+  ): Promise<void> {
+    let prNumber = parseInt(prUrlOrId);
+    let org = settings.azureOrg || '';
+    let project = settings.azureProject || '';
+
+    const parsedUrl = this.parsePRUrl(prUrlOrId);
+    if (parsedUrl) {
+      prNumber = parsedUrl.prNumber;
+      org = parsedUrl.org;
+      project = parsedUrl.project;
+    } else if (isNaN(prNumber)) {
+      throw new Error(`Invalid Pull Request URL or ID format: "${prUrlOrId}"`);
+    } else {
+      // Try to detect org and project from remote URL
+      const remoteUrl = await this.gitService.getRemoteUrl(repoPath);
+      if (remoteUrl) {
+        const parsedRemote = this.parseRemoteUrl(remoteUrl);
+        if (parsedRemote) {
+          org = org || parsedRemote.org;
+          project = project || parsedRemote.project;
+        }
+      }
+    }
+
+    if (!org) {
+      throw new Error(
+        'Azure DevOps Organization is not configured in settings and could not be detected from git remote.',
+      );
+    }
+    if (!project) {
+      throw new Error(
+        'Azure DevOps Project is not configured in settings and could not be detected from git remote.',
+      );
+    }
+
+    const pat = settings.azurePat;
+    if (!pat) {
+      throw new Error(
+        'Azure DevOps PAT token is missing. Please configure it in Settings.',
+      );
+    }
+
+    const orgUrl = this.getOrgUrl(org);
+    const authHandler = azdev.getPersonalAccessTokenHandler(pat);
+    const connection = new azdev.WebApi(orgUrl, authHandler);
+    const gitApi: IGitApi = await connection.getGitApi();
+
+    // Fetch the pull request to get the repository ID
+    const prDetails = await gitApi.getPullRequestById(prNumber);
+    if (!prDetails || !prDetails.repository || !prDetails.repository.id) {
+      throw new Error(`Pull Request #${prNumber} not found.`);
+    }
+
+    const repositoryId = prDetails.repository.id;
+
+    const disclaimer = [
+      '',
+      '> Generated with Stitch and GitHub Copilot.',
+      '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
+    ].join('\n');
+
+    const contentWithDisclaimer = comment.comment + disclaimer;
+
+    // Define the thread
+    const thread: GitPullRequestCommentThread = {
+      comments: [
+        {
+          parentCommentId: 0,
+          content: contentWithDisclaimer,
+          commentType: 1, // Text comment
+        },
+      ],
+      status: 1, // Active
+    };
+
+    if (comment.type === 'line' && comment.file && comment.line) {
+      thread.threadContext = {
+        filePath: comment.file,
+        rightFileStart: {
+          line: comment.line,
+          offset: 1,
+        },
+        rightFileEnd: {
+          line: comment.line,
+          offset: 1,
+        },
+      };
+    }
+
+    try {
+      await gitApi.createThread(thread, repositoryId, prNumber, project);
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create comment thread: ${errMsg}`);
     }
   }
 }

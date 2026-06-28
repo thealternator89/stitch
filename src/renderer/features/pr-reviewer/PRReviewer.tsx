@@ -13,6 +13,7 @@ interface ReviewComment {
   context?: number;
   comment: string;
   codeLines?: { line: number; text: string; isTarget: boolean }[];
+  posted?: boolean;
 }
 
 const PRReviewer: React.FC = () => {
@@ -42,6 +43,12 @@ const PRReviewer: React.FC = () => {
   const [customInstructions, setCustomInstructions] = useState('');
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
+  const [collapsedComments, setCollapsedComments] = useState<
+    Record<number, boolean>
+  >({});
+  const [isPostingComment, setIsPostingComment] = useState<
+    Record<number, boolean>
+  >({});
 
   // Modals
   const [showDirtyModal, setShowDirtyModal] = useState(false);
@@ -201,6 +208,45 @@ const PRReviewer: React.FC = () => {
   const showError = (msg: string) => {
     setErrorMessage(msg);
     setShowErrorModal(true);
+  };
+
+  const handleDismissComment = (index: number) => {
+    setCollapsedComments((prev) => ({ ...prev, [index]: true }));
+  };
+
+  const handlePostComment = async (comment: ReviewComment, index: number) => {
+    if (!selectedPR) return;
+
+    setIsPostingComment((prev) => ({ ...prev, [index]: true }));
+    try {
+      const prIdentifier =
+        activeTab === 'manual' ? manualPrUrlOrId : selectedPR.id;
+
+      await window.electronAPI.postPRComment(repoPath, prIdentifier, {
+        type: comment.type,
+        file: comment.file,
+        line: comment.line,
+        comment: comment.comment,
+      });
+
+      // Mark as posted
+      setComments((prev) => {
+        const copy = [...prev];
+        copy[index] = { ...copy[index], posted: true };
+        return copy;
+      });
+      setCollapsedComments((prev) => ({ ...prev, [index]: true }));
+    } catch (err: unknown) {
+      console.error('Failed to post comment:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showError(msg);
+    } finally {
+      setIsPostingComment((prev) => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const handleToggleCollapse = (index: number) => {
+    setCollapsedComments((prev) => ({ ...prev, [index]: !prev[index] }));
   };
 
   const filteredPRs = prList.filter(
@@ -647,6 +693,54 @@ const PRReviewer: React.FC = () => {
                         <div className="comments-list">
                           {comments.map((comment, index) => {
                             const isLine = comment.type === 'line';
+                            if (collapsedComments[index]) {
+                              return (
+                                <div
+                                  key={index}
+                                  className="card shadow-sm border-0 mb-2 bg-body-secondary opacity-75"
+                                >
+                                  <div className="card-body p-2 d-flex align-items-center justify-content-between">
+                                    <div className="d-flex align-items-center gap-2">
+                                      <span
+                                        className={`badge ${isLine ? 'bg-primary' : 'bg-secondary'}`}
+                                      >
+                                        {isLine ? 'Line' : 'General'}
+                                      </span>
+                                      {comment.posted ? (
+                                        <span className="text-success small fw-semibold">
+                                          <i className="fas fa-check-circle me-1"></i>
+                                          Posted to PR
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted small fw-semibold">
+                                          <i className="fas fa-times-circle me-1"></i>
+                                          Dismissed
+                                        </span>
+                                      )}
+                                      {isLine && comment.file && (
+                                        <span
+                                          className="font-monospace text-muted small text-truncate"
+                                          style={{ maxWidth: '300px' }}
+                                          title={`${comment.file}:${comment.line}`}
+                                        >
+                                          {comment.file}:{comment.line}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button
+                                      className="btn btn-sm btn-link text-decoration-none p-0 px-2"
+                                      onClick={() =>
+                                        handleToggleCollapse(index)
+                                      }
+                                    >
+                                      <i className="fas fa-chevron-down me-1"></i>{' '}
+                                      Expand
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
                             return (
                               <div
                                 key={index}
@@ -741,6 +835,38 @@ const PRReviewer: React.FC = () => {
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                       {comment.comment}
                                     </ReactMarkdown>
+                                  </div>
+
+                                  {/* Card Actions */}
+                                  <div className="d-flex justify-content-end gap-2 mt-3 pt-2 border-top border-secondary-subtle">
+                                    <button
+                                      className="btn btn-sm btn-outline-secondary"
+                                      onClick={() =>
+                                        handleDismissComment(index)
+                                      }
+                                    >
+                                      <i className="fas fa-eye-slash me-1"></i>
+                                      Dismiss
+                                    </button>
+                                    <button
+                                      className="btn btn-sm btn-primary"
+                                      onClick={() =>
+                                        handlePostComment(comment, index)
+                                      }
+                                      disabled={isPostingComment[index]}
+                                    >
+                                      {isPostingComment[index] ? (
+                                        <>
+                                          <span className="spinner-border spinner-border-sm me-1"></span>
+                                          Posting...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <i className="fas fa-paper-plane me-1"></i>
+                                          Post
+                                        </>
+                                      )}
+                                    </button>
                                   </div>
                                 </div>
                               </div>

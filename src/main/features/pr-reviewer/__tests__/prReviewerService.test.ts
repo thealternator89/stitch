@@ -9,6 +9,7 @@ import {
 
 const mockGetPullRequestById = vi.fn();
 const mockGetPullRequestsByProject = vi.fn();
+const mockCreateThread = vi.fn();
 const mockConnect = vi.fn().mockResolvedValue({
   authorizedUser: { id: 'mock-user-id' },
 });
@@ -16,6 +17,7 @@ const mockConnect = vi.fn().mockResolvedValue({
 const mockGetGitApi = vi.fn().mockResolvedValue({
   getPullRequestById: mockGetPullRequestById,
   getPullRequestsByProject: mockGetPullRequestsByProject,
+  createThread: mockCreateThread,
 });
 const mockWebApi = {
   getGitApi: mockGetGitApi,
@@ -497,6 +499,100 @@ describe('PRReviewerService', () => {
 
       mockExistsSync.mockRestore();
       mockReadFileSync.mockRestore();
+    });
+  });
+
+  describe('postPRComment', () => {
+    const settings = {
+      azurePat: 'mock-token',
+      azureOrg: 'mock-org',
+      azureProject: 'mock-project',
+      promptComplexity: 'normal',
+    };
+
+    it('should successfully post a general comment', async () => {
+      mockGetPullRequestById.mockResolvedValue({
+        repository: { id: 'mock-repo-id' },
+      });
+      mockCreateThread.mockResolvedValue({});
+
+      await prReviewerService.postPRComment(
+        '/mock/repo',
+        '123',
+        {
+          type: 'general',
+          comment: 'This is a general comment',
+        },
+        settings,
+      );
+
+      expect(mockGetPullRequestById).toHaveBeenCalledWith(123);
+      expect(mockCreateThread).toHaveBeenCalledWith(
+        {
+          comments: [
+            {
+              parentCommentId: 0,
+              content:
+                'This is a general comment\n' +
+                [
+                  '> Generated with Stitch and GitHub Copilot.',
+                  '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
+                ].join('\n'),
+              commentType: 1,
+            },
+          ],
+          status: 1,
+        },
+        'mock-repo-id',
+        123,
+        'mock-project',
+      );
+    });
+
+    it('should successfully post a line comment with threadContext', async () => {
+      mockGetPullRequestById.mockResolvedValue({
+        repository: { id: 'mock-repo-id' },
+      });
+      mockCreateThread.mockResolvedValue({});
+
+      await prReviewerService.postPRComment(
+        '/mock/repo',
+        '123',
+        {
+          type: 'line',
+          file: 'src/index.ts',
+          line: 42,
+          comment: 'Fix this line',
+        },
+        settings,
+      );
+
+      expect(mockGetPullRequestById).toHaveBeenCalledWith(123);
+      expect(mockCreateThread).toHaveBeenCalledWith(
+        {
+          comments: [
+            {
+              parentCommentId: 0,
+              content:
+                'Fix this line\n' +
+                [
+                  '> Generated with Stitch and GitHub Copilot.',
+                  '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
+                ].join('\n'),
+              commentType: 1,
+            },
+          ],
+          status: 1,
+          threadContext: {
+            filePath: 'src/index.ts',
+            rightFileStart: { line: 42, offset: 1 },
+            rightFileEnd: { line: 42, offset: 1 },
+          },
+        },
+        'mock-repo-id',
+        123,
+        'mock-project',
+      );
     });
   });
 });

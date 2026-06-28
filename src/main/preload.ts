@@ -147,5 +147,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('pr-reviewer:review-line', listener);
     };
   },
+  postPRComment: (
+    repoPath: string,
+    prUrlOrId: string,
+    comment: {
+      type: 'general' | 'line';
+      file?: string;
+      line?: number;
+      comment: string;
+    },
+  ): Promise<void> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:post-comment',
+      repoPath,
+      prUrlOrId,
+      comment,
+    ),
   isWindows: process.platform === 'win32',
 });
