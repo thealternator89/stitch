@@ -279,7 +279,7 @@ const PRReviewer: React.FC = () => {
               <div className="card shadow-sm border-0 bg-body-tertiary h-100">
                 <div
                   className="card-body p-4 d-flex flex-column"
-                  style={{ minHeight: '400px' }}
+                  style={{ minHeight: '300px' }}
                 >
                   <h5 className="card-title fw-bold mb-3">
                     <i className="fas fa-code-pull-request me-2 text-primary"></i>
@@ -363,7 +363,7 @@ const PRReviewer: React.FC = () => {
 
                       <div
                         className="overflow-y-auto flex-grow-1"
-                        style={{ maxHeight: '450px' }}
+                        style={{ maxHeight: '250px' }}
                       >
                         {isLoadingPRs ? (
                           <div className="text-center py-5 text-muted">
@@ -535,7 +535,7 @@ const PRReviewer: React.FC = () => {
                 <div className="card shadow-sm border-0 h-100">
                   <div
                     className="card-body p-4 d-flex flex-column"
-                    style={{ minHeight: '400px' }}
+                    style={{ minHeight: '300px' }}
                   >
                     <h5 className="card-title fw-bold mb-3">
                       <i className="fas fa-robot me-2 text-primary"></i>
@@ -601,8 +601,8 @@ const PRReviewer: React.FC = () => {
                     style={{
                       height: isHeaderCollapsed
                         ? 'calc(100vh - 275px)'
-                        : '600px',
-                      minHeight: '400px',
+                        : '450px',
+                      minHeight: '300px',
                     }}
                   >
                     <h5 className="card-title fw-bold mb-3">
