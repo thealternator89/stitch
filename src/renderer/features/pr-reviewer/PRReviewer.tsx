@@ -550,7 +550,7 @@ const PRReviewer: React.FC = () => {
                       <ModelDropdown
                         models={models}
                         selectedModel={selectedModel}
-                        setSelectedModel={setSelectedModel}
+                        onSelect={setSelectedModel}
                         loading={loadingModels}
                       />
                     </div>
