@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PRReviewerService } from '../prReviewerService';
+import fs from 'fs';
+import {
+  PRReviewerService,
+  buildPRReviewPrompt,
+  extractFileContextSync,
+} from '../prReviewerService';
 
 const mockGetPullRequestById = vi.fn();
 const mockGetPullRequestsByProject = vi.fn();
@@ -29,6 +34,7 @@ vi.mock('azure-devops-node-api', () => {
 describe('PRReviewerService', () => {
   let prReviewerService: PRReviewerService;
   let mockGitService: any;
+  let mockCopilotService: any;
 
   beforeEach(() => {
     mockGitService = {
@@ -39,7 +45,14 @@ describe('PRReviewerService', () => {
       getDiffFiles: vi.fn(),
       getFileDiff: vi.fn(),
     };
-    prReviewerService = new PRReviewerService(mockGitService);
+    mockCopilotService = {
+      createClientAndSession: vi.fn(),
+      sendAndCollectStream: vi.fn(),
+    };
+    prReviewerService = new PRReviewerService(
+      mockGitService,
+      mockCopilotService,
+    );
     mockGetPullRequestById.mockReset();
     mockGetPullRequestsByProject.mockReset();
     mockConnect.mockClear();
@@ -286,6 +299,204 @@ describe('PRReviewerService', () => {
         status: 1,
         creatorId: 'user-guid-123',
       });
+    });
+  });
+
+  describe('reviewPR', () => {
+    const settings = {
+      copilotToken: 'mock-token',
+      copilotModel: 'mock-model',
+    };
+
+    it('should launch copilot with repo path and stream review results', async () => {
+      const mockFiles = [
+        { path: 'src/index.ts', status: 'modified' },
+        { path: 'src/utils.ts', status: 'added' },
+      ];
+      mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue(
+        '{"type":"general","comment":"LGTM"}',
+      );
+
+      const onLineCallback = vi.fn();
+      const result = await prReviewerService.reviewPR(
+        '/mock/repo',
+        'main',
+        settings,
+        {
+          modelOverride: 'gpt-4',
+          customInstructions: 'Please focus on security.',
+          onLine: onLineCallback,
+        },
+      );
+
+      expect(mockGitService.getDiffFiles).toHaveBeenCalledWith(
+        '/mock/repo',
+        'main',
+      );
+      expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
+        'mock-token',
+        'gpt-4',
+        { workingDirectory: '/mock/repo' },
+      );
+
+      const expectedPrompt = buildPRReviewPrompt(
+        mockFiles,
+        'Please focus on security.',
+      );
+      expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
+        mockSession,
+        expectedPrompt,
+        expect.any(Function),
+      );
+
+      expect(mockSession.disconnect).toHaveBeenCalled();
+      expect(mockClient.stop).toHaveBeenCalled();
+      expect(result).toBe('{"type":"general","comment":"LGTM"}');
+    });
+
+    it('should cleanly stop client and session even when review throws an error', async () => {
+      mockGitService.getDiffFiles.mockResolvedValue([]);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockRejectedValue(
+        new Error('Copilot Error'),
+      );
+
+      await expect(
+        prReviewerService.reviewPR('/mock/repo', 'main', settings),
+      ).rejects.toThrow('Copilot Error');
+
+      expect(mockSession.disconnect).toHaveBeenCalled();
+      expect(mockClient.stop).toHaveBeenCalled();
+    });
+
+    it('should wrap onLine callback and inject codeLines when type is line', async () => {
+      mockGitService.getDiffFiles.mockResolvedValue([]);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+
+      const mockExistsSync = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      const mockReadFileSync = vi
+        .spyOn(fs, 'readFileSync')
+        .mockReturnValue('const a = 1;\nconst b = 2;\nconst c = 3;');
+
+      let capturedCallback: any;
+      mockCopilotService.sendAndCollectStream.mockImplementation(
+        async (
+          _session: any,
+          _prompt: string,
+          onLine?: (line: string) => void,
+        ) => {
+          capturedCallback = onLine;
+          return 'done';
+        },
+      );
+
+      const onLineCallback = vi.fn();
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        onLine: onLineCallback,
+      });
+
+      expect(capturedCallback).toBeDefined();
+
+      // Trigger line comment
+      capturedCallback(
+        '{"type":"line","file":"src/index.ts","line":2,"context":1,"comment":"Review"}',
+      );
+
+      // The wrapped callback should parse, inject codeLines, and serialize it back
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'line',
+          file: 'src/index.ts',
+          line: 2,
+          context: 1,
+          comment: 'Review',
+          codeLines: [
+            { line: 1, text: 'const a = 1;', isTarget: false },
+            { line: 2, text: 'const b = 2;', isTarget: true },
+            { line: 3, text: 'const c = 3;', isTarget: false },
+          ],
+        }),
+      );
+
+      mockExistsSync.mockRestore();
+      mockReadFileSync.mockRestore();
+    });
+  });
+
+  describe('extractFileContextSync', () => {
+    it('should return null for directory traversal attempts', () => {
+      const result = extractFileContextSync(
+        '/mock/repo',
+        '../outside.ts',
+        10,
+        2,
+      );
+      expect(result).toBeNull();
+    });
+
+    it('should return slice of file contents', () => {
+      const mockExistsSync = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      const mockReadFileSync = vi
+        .spyOn(fs, 'readFileSync')
+        .mockReturnValue('line1\nline2\nline3\nline4\nline5');
+
+      const result = extractFileContextSync('/mock/repo', 'src/index.ts', 3, 1);
+      expect(result).toEqual([
+        { line: 2, text: 'line2', isTarget: false },
+        { line: 3, text: 'line3', isTarget: true },
+        { line: 4, text: 'line4', isTarget: false },
+      ]);
+
+      mockExistsSync.mockRestore();
+      mockReadFileSync.mockRestore();
+    });
+
+    it('should handle boundaries gracefully', () => {
+      const mockExistsSync = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      const mockReadFileSync = vi
+        .spyOn(fs, 'readFileSync')
+        .mockReturnValue('line1\nline2');
+
+      const result = extractFileContextSync('/mock/repo', 'src/index.ts', 1, 5);
+      expect(result).toEqual([
+        { line: 1, text: 'line1', isTarget: true },
+        { line: 2, text: 'line2', isTarget: false },
+      ]);
+
+      mockExistsSync.mockRestore();
+      mockReadFileSync.mockRestore();
     });
   });
 });

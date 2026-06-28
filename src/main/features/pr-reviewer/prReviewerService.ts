@@ -1,11 +1,105 @@
+import fs from 'fs';
+import path from 'path';
 import * as azdev from 'azure-devops-node-api';
 import { IGitApi } from 'azure-devops-node-api/GitApi';
 import { GitPullRequestSearchCriteria } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { GitService } from '../../infrastructure/git/gitService';
+import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { PRMetadata, AppSettings } from '../../../types';
 
+export function buildPRReviewPrompt(
+  files: { path: string; status: string }[],
+  customInstructions = '',
+): string {
+  const filesListStr = files
+    .map((file) => `- ${file.path} (${file.status})`)
+    .join('\n');
+
+  return `You are an expert software engineer and code reviewer.
+Your task is to review the changes in the repository. The following files have been modified/added/deleted in this Pull Request:
+${filesListStr}
+
+Please inspect these files using your codebase tools (such as reading file contents or looking at specific ranges of files) to understand the changes made.
+Then, perform a thorough review, checking for:
+- Logic errors, bugs, or edge cases
+- Code quality, readability, and adherence to best practices
+- Security vulnerabilities or performance issues
+- Proper error handling and logging
+
+${customInstructions ? `Additional specific instructions for this review:\n${customInstructions}\n` : ''}
+
+Your response must strictly consist of JSON Lines (JSONL).
+Every line of your response MUST be a single, standalone, valid JSON object.
+Do NOT wrap the JSON objects in an array.
+Do NOT output markdown code blocks (such as \`\`\`json) wrapping your JSONL output.
+All double quotes and newlines inside the JSON strings must be properly escaped (e.g. \\" for quotes, \\n for newlines).
+
+Each JSON object on each line must conform to one of the following formats:
+
+1. For a general comment about the entire PR or a file as a whole:
+{
+  "type": "general",
+  "comment": "Your review comment in Markdown format"
+}
+
+2. For a line-specific comment anchored to a particular line:
+{
+  "type": "line",
+  "file": "path/to/file",
+  "line": 42,
+  "context": 5,
+  "comment": "Your line-specific review comment in Markdown format"
+}
+
+Ensure the "line" number corresponds to the line in the modified version of the file (after applying the diff). The "context" field must be an integer indicating how many surrounding lines of code to display before and after this line (e.g. 0 to display only line 42, or 5 to display 5 lines before, line 42, and 5 lines after).
+
+Begin your review now.`;
+}
+
+export function extractFileContextSync(
+  repoPath: string,
+  filePath: string,
+  targetLine: number,
+  contextSize: number,
+): { line: number; text: string; isTarget: boolean }[] | null {
+  try {
+    const fullPath = path.join(repoPath, filePath);
+    // Security check: ensure path is within repoPath
+    const relative = path.relative(repoPath, fullPath);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      return null;
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      return null;
+    }
+
+    const content = fs.readFileSync(fullPath, 'utf8');
+    const allLines = content.split(/\r?\n/);
+
+    const startLine = Math.max(1, targetLine - contextSize);
+    const endLine = Math.min(allLines.length, targetLine + contextSize);
+
+    const lines: { line: number; text: string; isTarget: boolean }[] = [];
+    for (let i = startLine; i <= endLine; i++) {
+      lines.push({
+        line: i,
+        text: allLines[i - 1] ?? '',
+        isTarget: i === targetLine,
+      });
+    }
+    return lines;
+  } catch (error) {
+    console.error(`Failed to extract context for ${filePath}:`, error);
+    return null;
+  }
+}
+
 export class PRReviewerService {
-  constructor(private gitService: GitService) {}
+  constructor(
+    private gitService: GitService,
+    private copilotService: CopilotService,
+  ) {}
 
   parsePRUrl(url: string): {
     org: string;
@@ -294,5 +388,72 @@ export class PRReviewerService {
       prNumber,
     );
     return { commitSha };
+  }
+
+  async reviewPR(
+    repoPath: string,
+    targetBranch: string,
+    settings: AppSettings,
+    options: {
+      modelOverride?: string;
+      customInstructions?: string;
+      onLine?: (line: string) => void;
+    } = {},
+  ): Promise<string> {
+    const files = await this.gitService.getDiffFiles(repoPath, targetBranch);
+    const prompt = buildPRReviewPrompt(files, options.customInstructions);
+
+    const { client, session } =
+      await this.copilotService.createClientAndSession(
+        settings.copilotToken,
+        options.modelOverride,
+        { workingDirectory: repoPath },
+      );
+
+    const wrappedOnLine = (line: string) => {
+      if (!options.onLine) return;
+      try {
+        const obj = JSON.parse(line);
+        if (
+          obj &&
+          obj.type === 'line' &&
+          typeof obj.file === 'string' &&
+          typeof obj.line === 'number'
+        ) {
+          const contextSize = typeof obj.context === 'number' ? obj.context : 0;
+          const codeLines = extractFileContextSync(
+            repoPath,
+            obj.file,
+            obj.line,
+            contextSize,
+          );
+          if (codeLines) {
+            obj.codeLines = codeLines;
+          }
+        }
+        options.onLine(JSON.stringify(obj));
+      } catch {
+        options.onLine(line);
+      }
+    };
+
+    try {
+      return await this.copilotService.sendAndCollectStream(
+        session,
+        prompt,
+        options.onLine ? wrappedOnLine : undefined,
+      );
+    } finally {
+      try {
+        await session.disconnect();
+      } catch (e) {
+        console.error('Error destroying session in reviewPR:', e);
+      }
+      try {
+        await client.stop();
+      } catch (e) {
+        console.error('Error stopping client in reviewPR:', e);
+      }
+    }
   }
 }

@@ -61,7 +61,7 @@ const storyElaboratorService = new StoryElaboratorService(
 );
 const promptComplexityService = new PromptComplexityService(copilotService);
 const gitService = new GitService();
-const prReviewerService = new PRReviewerService(gitService);
+const prReviewerService = new PRReviewerService(gitService, copilotService);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -331,6 +331,21 @@ ipcMain.handle('pr-reviewer:search-prs', async (event, searchType) => {
   const settings = (s.get('settings') ?? {}) as AppSettings;
   return prReviewerService.getProjectPRs(searchType, settings);
 });
+
+ipcMain.handle(
+  'pr-reviewer:review',
+  async (event, repoPath, targetBranch, customInstructions, modelOverride) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
+    return prReviewerService.reviewPR(repoPath, targetBranch, settings, {
+      modelOverride,
+      customInstructions,
+      onLine: (line: string) => {
+        event.sender.send('pr-reviewer:review-line', line);
+      },
+    });
+  },
+);
 
 ipcMain.handle('pr-reviewer:get-repo-path-history', async (event, repoName) => {
   const s = await initStore();

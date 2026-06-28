@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import PageLayout from '../../components/PageLayout';
-import { PRMetadata, PRDiffFile } from '../../../types';
+import ModelDropdown from '../../components/ModelDropdown';
+import { useCopilotModels } from '../../hooks/useCopilotModels';
+import { PRMetadata } from '../../../types';
+
+interface ReviewComment {
+  type: 'general' | 'line';
+  file?: string;
+  line?: number;
+  context?: number;
+  comment: string;
+  codeLines?: { line: number; text: string; isTarget: boolean }[];
+}
 
 const PRReviewer: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
@@ -19,14 +32,16 @@ const PRReviewer: React.FC = () => {
   // Manual PR URL / ID input
   const [manualPrUrlOrId, setManualPrUrlOrId] = useState('');
 
-  // Diff results
+  // Checkout result
   const [commitSha, setCommitSha] = useState('');
-  const [changedFiles, setChangedFiles] = useState<PRDiffFile[]>([]);
-  const [fileFilter, setFileFilter] = useState('');
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const [selectedFileDiff, setSelectedFileDiff] = useState<string>('');
-  const [isLoadingDiff, setIsLoadingDiff] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+
+  // Review states
+  const [comments, setComments] = useState<ReviewComment[]>([]);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [customInstructions, setCustomInstructions] = useState('');
+  const { models, selectedModel, setSelectedModel, loadingModels } =
+    useCopilotModels();
 
   // Modals
   const [showDirtyModal, setShowDirtyModal] = useState(false);
@@ -58,9 +73,7 @@ const PRReviewer: React.FC = () => {
     setSelectedPR(pr);
     setRepoPath('');
     setCommitSha('');
-    setChangedFiles([]);
-    setSelectedFilePath(null);
-    setSelectedFileDiff('');
+    setComments([]);
     setIsHeaderCollapsed(false);
 
     // Fetch local path history for this repository name
@@ -117,9 +130,7 @@ const PRReviewer: React.FC = () => {
     setIsLoadingCheckout(true);
     setLoadingStatus('Running repository checks and checking out branch...');
     setCommitSha('');
-    setChangedFiles([]);
-    setSelectedFilePath(null);
-    setSelectedFileDiff('');
+    setComments([]);
 
     try {
       // 1. Checkout (runs dirty checking and remote URL matching internally on backend)
@@ -135,14 +146,6 @@ const PRReviewer: React.FC = () => {
         selectedPR.repositoryName,
         repoPath,
       );
-
-      // 2. Load Diff Files
-      setLoadingStatus('Retrieving changed files list...');
-      const files = await window.electronAPI.getPRDiffFiles(
-        repoPath,
-        selectedPR.targetBranch,
-      );
-      setChangedFiles(files);
       setIsHeaderCollapsed(true);
     } catch (err: unknown) {
       console.error('Checkout failed:', err);
@@ -158,25 +161,40 @@ const PRReviewer: React.FC = () => {
     }
   };
 
-  const handleSelectFile = async (filePath: string) => {
-    if (!selectedPR) return;
-    setSelectedFilePath(filePath);
-    setIsLoadingDiff(true);
-    setSelectedFileDiff('');
+  const handleStartReview = async () => {
+    if (!selectedPR || !commitSha) return;
+
+    setIsReviewing(true);
+    setComments([]);
+
+    const unsubscribe = window.electronAPI.onPRReviewLine((line: string) => {
+      try {
+        const commentObj = JSON.parse(line);
+        if (
+          commentObj &&
+          (commentObj.type === 'general' || commentObj.type === 'line')
+        ) {
+          setComments((prev) => [...prev, commentObj]);
+        }
+      } catch (err) {
+        console.error('Failed to parse streaming review line:', err);
+      }
+    });
 
     try {
-      const diff = await window.electronAPI.getPRFileDiff(
+      await window.electronAPI.reviewPR(
         repoPath,
         selectedPR.targetBranch,
-        filePath,
+        customInstructions,
+        selectedModel,
       );
-      setSelectedFileDiff(diff);
     } catch (err: unknown) {
-      console.error('Failed to load file diff:', err);
+      console.error('Review execution failed:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      setSelectedFileDiff(`Error loading diff for ${filePath}: ${msg}`);
+      showError(msg);
     } finally {
-      setIsLoadingDiff(false);
+      setIsReviewing(false);
+      unsubscribe();
     }
   };
 
@@ -185,62 +203,11 @@ const PRReviewer: React.FC = () => {
     setShowErrorModal(true);
   };
 
-  const getStatusBadge = (status: PRDiffFile['status']) => {
-    switch (status) {
-      case 'added':
-        return <span className="badge bg-success-subtle text-success">A</span>;
-      case 'modified':
-        return <span className="badge bg-primary-subtle text-primary">M</span>;
-      case 'deleted':
-        return <span className="badge bg-danger-subtle text-danger">D</span>;
-      case 'renamed':
-        return <span className="badge bg-info-subtle text-info">R</span>;
-      case 'type_changed':
-        return <span className="badge bg-warning-subtle text-warning">T</span>;
-      default:
-        return (
-          <span className="badge bg-secondary-subtle text-secondary">?</span>
-        );
-    }
-  };
-
-  const renderDiffLine = (line: string, index: number) => {
-    if (line.startsWith('+')) {
-      return (
-        <span key={index} className="diff-line-added">
-          {line}
-        </span>
-      );
-    } else if (line.startsWith('-')) {
-      return (
-        <span key={index} className="diff-line-removed">
-          {line}
-        </span>
-      );
-    } else if (line.startsWith('@@')) {
-      return (
-        <span key={index} className="diff-line-info text-info fw-bold">
-          {line}
-        </span>
-      );
-    } else {
-      return (
-        <span key={index} className="diff-line-normal">
-          {line}
-        </span>
-      );
-    }
-  };
-
   const filteredPRs = prList.filter(
     (pr) =>
       pr.title.toLowerCase().includes(prSearchQuery.toLowerCase()) ||
       pr.id.toString().includes(prSearchQuery) ||
       pr.repositoryName.toLowerCase().includes(prSearchQuery.toLowerCase()),
-  );
-
-  const filteredFiles = changedFiles.filter((f) =>
-    f.path.toLowerCase().includes(fileFilter.toLowerCase()),
   );
 
   return (
@@ -559,79 +526,78 @@ const PRReviewer: React.FC = () => {
           </>
         )}
 
-        {/* Git Diffs Segment (Displays once checked out and commitSha is generated) */}
+        {/* Review Comments Segment (Displays once checked out and commitSha is generated) */}
         {selectedPR && commitSha && (
           <div className="col-12 mt-4">
             <div className="row g-4">
-              {/* Changed Files Side Column */}
+              {/* Review Settings Side Column */}
               <div className="col-md-4">
                 <div className="card shadow-sm border-0 h-100">
                   <div
-                    className="card-body p-3 d-flex flex-column"
-                    style={{
-                      height: isHeaderCollapsed
-                        ? 'calc(100vh - 275px)'
-                        : '600px',
-                      minHeight: '400px',
-                    }}
+                    className="card-body p-4 d-flex flex-column"
+                    style={{ minHeight: '400px' }}
                   >
-                    <h6 className="fw-bold mb-3">
-                      Changed Files ({filteredFiles.length} of{' '}
-                      {changedFiles.length})
-                    </h6>
+                    <h5 className="card-title fw-bold mb-3">
+                      <i className="fas fa-robot me-2 text-primary"></i>
+                      Review Settings
+                    </h5>
 
-                    {/* Filter File List */}
-                    <div className="input-group input-group-sm mb-3">
-                      <span className="input-group-text bg-body-secondary border-end-0">
-                        <i className="fas fa-filter text-muted"></i>
-                      </span>
-                      <input
-                        type="text"
-                        className="form-control border-start-0"
-                        placeholder="Filter files..."
-                        value={fileFilter}
-                        onChange={(e) => setFileFilter(e.target.value)}
+                    {/* Model Selection */}
+                    <div className="mb-3">
+                      <label className="form-label text-muted small fw-semibold">
+                        Copilot Model
+                      </label>
+                      <ModelDropdown
+                        models={models}
+                        selectedModel={selectedModel}
+                        setSelectedModel={setSelectedModel}
+                        loading={loadingModels}
                       />
                     </div>
 
-                    <div className="flex-grow-1 overflow-y-auto">
-                      {filteredFiles.length === 0 ? (
-                        <div className="text-center py-4 text-muted small">
-                          No files match the filter.
-                        </div>
-                      ) : (
-                        <div className="list-group list-group-flush border-top border-bottom">
-                          {filteredFiles.map((file) => (
-                            <div
-                              key={file.path}
-                              onClick={() => handleSelectFile(file.path)}
-                              className={`list-group-item list-group-item-action d-flex align-items-center justify-content-between p-2 pr-file-item ${
-                                selectedFilePath === file.path ? 'active' : ''
-                              }`}
-                            >
-                              <span
-                                className="text-truncate small selectable-text"
-                                title={file.path}
-                              >
-                                {file.path}
-                              </span>
-                              <span className="ms-2">
-                                {getStatusBadge(file.status)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                    {/* Custom Review Instructions */}
+                    <div className="mb-4 flex-grow-1 d-flex flex-column">
+                      <label className="form-label text-muted small fw-semibold">
+                        Specific Instructions (Optional)
+                      </label>
+                      <textarea
+                        className="form-control flex-grow-1"
+                        rows={6}
+                        style={{ minHeight: '120px', resize: 'none' }}
+                        placeholder="E.g., Focus on security, look out for proper error handling, verify database queries, etc."
+                        value={customInstructions}
+                        onChange={(e) => setCustomInstructions(e.target.value)}
+                        disabled={isReviewing}
+                      />
                     </div>
+
+                    {/* Action Button */}
+                    <button
+                      className="btn btn-primary w-100 py-2 fw-semibold shadow-sm"
+                      onClick={handleStartReview}
+                      disabled={isReviewing || !commitSha}
+                    >
+                      {isReviewing ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2"></span>
+                          Reviewing...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-play me-2"></i>
+                          Start Code Review
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Diffs Screen */}
+              {/* Review Comments Screen */}
               <div className="col-md-8">
                 <div className="card shadow-sm border-0 h-100">
                   <div
-                    className="card-body p-3 d-flex flex-column"
+                    className="card-body p-4 d-flex flex-column"
                     style={{
                       height: isHeaderCollapsed
                         ? 'calc(100vh - 275px)'
@@ -639,57 +605,149 @@ const PRReviewer: React.FC = () => {
                       minHeight: '400px',
                     }}
                   >
-                    {selectedFilePath ? (
-                      <>
-                        <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
-                          <h6 className="fw-bold mb-0 text-truncate font-monospace small">
-                            {selectedFilePath}
-                          </h6>
-                          <button
-                            className="btn btn-sm btn-outline-secondary"
-                            onClick={() => {
-                              navigator.clipboard.writeText(selectedFileDiff);
-                            }}
-                            title="Copy Diff to Clipboard"
-                            disabled={isLoadingDiff || !selectedFileDiff}
-                          >
-                            <i className="fas fa-copy me-1"></i>
-                            Copy Diff
-                          </button>
-                        </div>
+                    <h5 className="card-title fw-bold mb-3">
+                      <i className="fas fa-comments me-2 text-primary"></i>
+                      Review Comments ({comments.length})
+                    </h5>
 
-                        {isLoadingDiff ? (
-                          <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center py-5 text-muted">
-                            <span className="spinner-border spinner-border-sm mb-3"></span>
-                            Loading file differences...
-                          </div>
-                        ) : selectedFileDiff ? (
-                          <div className="flex-grow-1 overflow-y-auto">
-                            <pre
-                              className="git-diff-viewer m-0"
-                              style={{ maxHeight: 'none' }}
-                            >
-                              {selectedFileDiff
-                                .split('\n')
-                                .map((line, index) =>
-                                  renderDiffLine(line, index),
-                                )}
-                            </pre>
-                          </div>
-                        ) : (
-                          <div className="flex-grow-1 d-flex align-items-center justify-content-center text-muted small">
-                            No differences found for this file.
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center py-5 text-muted">
-                        <i className="fas fa-code-compare fa-3x mb-3 text-secondary opacity-50"></i>
-                        <p className="mb-0 small">
-                          Select a file from the list to view its diff.
-                        </p>
-                      </div>
-                    )}
+                    <div
+                      className="flex-grow-1 overflow-y-auto pe-1"
+                      style={{ maxHeight: 'none' }}
+                    >
+                      {comments.length === 0 ? (
+                        <div className="h-100 d-flex flex-column align-items-center justify-content-center py-5 text-muted">
+                          {isReviewing ? (
+                            <>
+                              <span
+                                className="spinner-border text-primary mb-3"
+                                style={{ width: '3rem', height: '3rem' }}
+                              ></span>
+                              <p className="fw-semibold text-body mb-1">
+                                Running Code Review...
+                              </p>
+                              <p className="small mb-0 text-center px-4">
+                                Copilot is analyzing the repository. Comments
+                                will appear here as they are generated.
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-clipboard-list fa-3x mb-3 text-secondary opacity-50"></i>
+                              <p className="fw-semibold text-body mb-1">
+                                No comments generated yet
+                              </p>
+                              <p className="small mb-0 text-center px-4">
+                                Configure instructions on the left and click
+                                "Start Code Review" to begin.
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="comments-list">
+                          {comments.map((comment, index) => {
+                            const isLine = comment.type === 'line';
+                            return (
+                              <div
+                                key={index}
+                                className={`card shadow-sm border-0 mb-3 ${
+                                  isLine
+                                    ? 'border-start border-4 border-primary'
+                                    : 'bg-body-tertiary'
+                                }`}
+                              >
+                                <div className="card-body p-3">
+                                  <div className="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary-subtle">
+                                    <span
+                                      className={`badge ${isLine ? 'bg-primary' : 'bg-secondary'}`}
+                                    >
+                                      {isLine
+                                        ? 'Line Comment'
+                                        : 'General Comment'}
+                                    </span>
+                                    {isLine && comment.file && (
+                                      <span
+                                        className="font-monospace text-muted small text-truncate ms-2"
+                                        style={{ maxWidth: '70%' }}
+                                        title={`${comment.file}:${comment.line}`}
+                                      >
+                                        {comment.file}:{comment.line}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {isLine &&
+                                    comment.codeLines &&
+                                    comment.codeLines.length > 0 && (
+                                      <div
+                                        className="mb-3 rounded overflow-hidden border border-secondary-subtle"
+                                        style={{ backgroundColor: '#1e1e1e' }}
+                                      >
+                                        <pre
+                                          className="m-0 p-2 text-white font-monospace small"
+                                          style={{
+                                            overflowX: 'auto',
+                                            whiteSpace: 'pre',
+                                          }}
+                                        >
+                                          {comment.codeLines.map(
+                                            (
+                                              lineObj: {
+                                                line: number;
+                                                text: string;
+                                                isTarget: boolean;
+                                              },
+                                              idx: number,
+                                            ) => (
+                                              <div
+                                                key={idx}
+                                                style={{
+                                                  backgroundColor:
+                                                    lineObj.isTarget
+                                                      ? 'rgba(255, 235, 59, 0.15)'
+                                                      : 'transparent',
+                                                  borderLeft: lineObj.isTarget
+                                                    ? '3px solid #ffeb3b'
+                                                    : '3px solid transparent',
+                                                  paddingLeft: lineObj.isTarget
+                                                    ? '5px'
+                                                    : '8px',
+                                                  display: 'flex',
+                                                }}
+                                              >
+                                                <span
+                                                  className="text-muted me-3 select-none"
+                                                  style={{
+                                                    width: '35px',
+                                                    display: 'inline-block',
+                                                    textAlign: 'right',
+                                                    flexShrink: 0,
+                                                  }}
+                                                >
+                                                  {lineObj.line}
+                                                </span>
+                                                <span className="text-break-none">
+                                                  {lineObj.text}
+                                                </span>
+                                              </div>
+                                            ),
+                                          )}
+                                        </pre>
+                                      </div>
+                                    )}
+
+                                  <div className="markdown-content text-body small">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {comment.comment}
+                                    </ReactMarkdown>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

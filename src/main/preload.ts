@@ -127,5 +127,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
       repoName,
       repoPath,
     ),
+  reviewPR: (
+    repoPath: string,
+    targetBranch: string,
+    customInstructions: string,
+    modelOverride: string,
+  ): Promise<string> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:review',
+      repoPath,
+      targetBranch,
+      customInstructions,
+      modelOverride,
+    ),
+  onPRReviewLine: (callback: (line: string) => void) => {
+    const listener = (_event: unknown, line: string) => callback(line);
+    ipcRenderer.on('pr-reviewer:review-line', listener);
+    return () => {
+      ipcRenderer.removeListener('pr-reviewer:review-line', listener);
+    };
+  },
   isWindows: process.platform === 'win32',
 });

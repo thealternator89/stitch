@@ -76,6 +76,13 @@ export interface IElectronAPI {
   ) => Promise<PRMetadata[]>;
   getRepoPathHistory: (repoName: string) => Promise<string | null>;
   saveRepoPathHistory: (repoName: string, repoPath: string) => Promise<boolean>;
+  reviewPR: (
+    repoPath: string,
+    targetBranch: string,
+    customInstructions: string,
+    modelOverride: string,
+  ) => Promise<string>;
+  onPRReviewLine: (callback: (line: string) => void) => () => void;
   isWindows: boolean;
 }
 
