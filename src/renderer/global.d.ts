@@ -84,6 +84,7 @@ export interface IElectronAPI {
     customInstructions: string,
     modelOverride: string,
     enabledPhaseIds?: string[],
+    prDescription?: string,
   ) => Promise<string>;
   onPRReviewLine: (callback: (line: string) => void) => () => void;
   postPRComment: (

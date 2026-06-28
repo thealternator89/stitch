@@ -758,5 +758,56 @@ describe('PRReviewerService', () => {
       expect(mockSession.disconnect).toHaveBeenCalledTimes(2);
       expect(mockClient.stop).toHaveBeenCalledTimes(2);
     });
+
+    it('should attach PR description when phase configuration requires it', async () => {
+      const mockFiles = [{ path: 'src/Program.cs', status: 'modified' }];
+      mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
+
+      const mockPhases = [
+        {
+          id: '010-dod.md',
+          title: 'DoD Review',
+          attach: "['description']",
+          body: 'Check requirements',
+        },
+      ];
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue(
+        mockPhases,
+      );
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue(
+        '{"type":"general","comment":"Comment"}',
+      );
+
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        enabledPhaseIds: ['010-dod.md'],
+        prDescription: 'This is the description of the PR.',
+        onLine: vi.fn(),
+      });
+
+      const expectedPrompt = buildPhaseReviewPrompt(
+        mockFiles,
+        'DoD Review',
+        'Check requirements',
+        '',
+        'This is the description of the PR.',
+      );
+
+      expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
+        mockSession,
+        expectedPrompt,
+        expect.any(Function),
+      );
+    });
   });
 });

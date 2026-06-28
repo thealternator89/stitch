@@ -17,6 +17,7 @@ export function buildPhaseReviewPrompt(
   phaseTitle: string,
   phaseContent: string,
   customInstructions = '',
+  prDescription = '',
 ): string {
   const filesListStr = files
     .map((file) => `- ${file.path} (${file.status})`)
@@ -27,7 +28,7 @@ Your task is to review the changes in the repository for the phase: "${phaseTitl
 
 The following files have been modified/added/deleted in this Pull Request and are relevant to this phase:
 ${filesListStr}
-
+${prDescription ? `\nHere is the Pull Request Description for additional context:\n--- PR DESCRIPTION ---\n${prDescription}\n----------------------\n` : ''}
 Please inspect these files using your codebase tools (such as reading file contents or looking at specific ranges of files) to understand the changes made.
 Then, perform a thorough review, checking for adherence to the following phase guidelines:
 
@@ -168,6 +169,7 @@ export class PRReviewerService {
             group: parsed.frontmatter.group,
             include: parsed.frontmatter.include,
             exclude: parsed.frontmatter.exclude,
+            attach: parsed.frontmatter.attach,
             body: parsed.body,
           });
         } catch (err) {
@@ -478,6 +480,7 @@ export class PRReviewerService {
       modelOverride?: string;
       customInstructions?: string;
       enabledPhaseIds?: string[];
+      prDescription?: string;
       onLine?: (line: string) => void;
     } = {},
   ): Promise<string> {
@@ -558,11 +561,15 @@ export class PRReviewerService {
           { workingDirectory: repoPath },
         );
 
+      const attachDescription =
+        phase.attach && phase.attach.toLowerCase().includes('description');
+
       const prompt = buildPhaseReviewPrompt(
         eligibleFiles,
         phase.title,
         phase.body,
         options.customInstructions,
+        attachDescription ? options.prDescription : undefined,
       );
 
       const wrappedOnLine = (line: string) => {

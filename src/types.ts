@@ -128,5 +128,6 @@ export interface ReviewPhase {
   group?: string;
   include?: string;
   exclude?: string;
+  attach?: string;
   body: string;
 }
