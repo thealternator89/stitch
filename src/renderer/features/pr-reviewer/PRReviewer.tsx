@@ -716,12 +716,13 @@ const PRReviewer: React.FC = () => {
                                                 }}
                                               >
                                                 <span
-                                                  className="text-muted me-3 select-none"
+                                                  className="me-3 select-none"
                                                   style={{
                                                     width: '35px',
                                                     display: 'inline-block',
                                                     textAlign: 'right',
                                                     flexShrink: 0,
+                                                    color: '#858585',
                                                   }}
                                                 >
                                                   {lineObj.line}
