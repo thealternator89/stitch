@@ -5,6 +5,7 @@ import {
   DocPageData,
   PRMetadata,
   PRDiffFile,
+  ReviewPhase,
 } from '../types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -127,11 +128,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       repoName,
       repoPath,
     ),
+  getPhases: (): Promise<ReviewPhase[]> =>
+    ipcRenderer.invoke('pr-reviewer:get-phases'),
   reviewPR: (
     repoPath: string,
     targetBranch: string,
     customInstructions: string,
     modelOverride: string,
+    enabledPhaseIds?: string[],
   ): Promise<string> =>
     ipcRenderer.invoke(
       'pr-reviewer:review',
@@ -139,6 +143,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       targetBranch,
       customInstructions,
       modelOverride,
+      enabledPhaseIds,
     ),
   onPRReviewLine: (callback: (line: string) => void) => {
     const listener = (_event: unknown, line: string) => callback(line);

@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import PageLayout from '../../components/PageLayout';
 import ModelDropdown from '../../components/ModelDropdown';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
-import { PRMetadata } from '../../../types';
+import { PRMetadata, ReviewPhase } from '../../../types';
 
 interface ReviewComment {
   type: 'general' | 'line';
@@ -14,6 +14,7 @@ interface ReviewComment {
   comment: string;
   codeLines?: { line: number; text: string; isTarget: boolean }[];
   posted?: boolean;
+  phase?: string;
 }
 
 const PRReviewer: React.FC = () => {
@@ -54,6 +55,37 @@ const PRReviewer: React.FC = () => {
   const [showDirtyModal, setShowDirtyModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  interface LocalReviewPhase extends ReviewPhase {
+    enabled: boolean;
+  }
+  const [phases, setPhases] = useState<LocalReviewPhase[]>([]);
+  const [isLoadingPhases, setIsLoadingPhases] = useState(false);
+
+  interface PhaseProgress {
+    id: string;
+    title: string;
+    status: 'pending' | 'in-progress' | 'completed' | 'skipped';
+    reason?: string;
+  }
+  const [phaseProgress, setPhaseProgress] = useState<PhaseProgress[]>([]);
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadPhases();
+  }, []);
+
+  const loadPhases = async () => {
+    setIsLoadingPhases(true);
+    try {
+      const results = await window.electronAPI.getPhases();
+      setPhases(results.map((p) => ({ ...p, enabled: true })));
+    } catch (err) {
+      console.error('Failed to load review phases:', err);
+    } finally {
+      setIsLoadingPhases(false);
+    }
+  };
 
   // Fetch PRs when activeTab changes (unless tab is manual)
   useEffect(() => {
@@ -173,11 +205,46 @@ const PRReviewer: React.FC = () => {
 
     setIsReviewing(true);
     setComments([]);
+    setCurrentPhase(null);
+
+    const activePhases = phases.filter((p) => p.enabled);
+    setPhaseProgress(
+      activePhases.map((p) => ({
+        id: p.id,
+        title: p.title,
+        status: 'pending',
+      })),
+    );
 
     const unsubscribe = window.electronAPI.onPRReviewLine((line: string) => {
       try {
         const commentObj = JSON.parse(line);
-        if (
+        if (commentObj && commentObj.type === 'phase-start') {
+          setPhaseProgress((prev) =>
+            prev.map((p) =>
+              p.id === commentObj.phaseId
+                ? { ...p, status: 'in-progress' }
+                : p.status === 'in-progress'
+                  ? { ...p, status: 'completed' }
+                  : p,
+            ),
+          );
+          setCurrentPhase(commentObj.phaseTitle);
+        } else if (commentObj && commentObj.type === 'phase-skip') {
+          setPhaseProgress((prev) =>
+            prev.map((p) =>
+              p.id === commentObj.phaseId
+                ? { ...p, status: 'skipped', reason: commentObj.reason }
+                : p,
+            ),
+          );
+        } else if (commentObj && commentObj.type === 'phase-end') {
+          setPhaseProgress((prev) =>
+            prev.map((p) =>
+              p.id === commentObj.phaseId ? { ...p, status: 'completed' } : p,
+            ),
+          );
+        } else if (
           commentObj &&
           (commentObj.type === 'general' || commentObj.type === 'line')
         ) {
@@ -189,11 +256,13 @@ const PRReviewer: React.FC = () => {
     });
 
     try {
+      const enabledPhaseIds = activePhases.map((p) => p.id);
       await window.electronAPI.reviewPR(
         repoPath,
         selectedPR.targetBranch,
         customInstructions,
         selectedModel,
+        enabledPhaseIds,
       );
     } catch (err: unknown) {
       console.error('Review execution failed:', err);
@@ -255,6 +324,8 @@ const PRReviewer: React.FC = () => {
       pr.id.toString().includes(prSearchQuery) ||
       pr.repositoryName.toLowerCase().includes(prSearchQuery.toLowerCase()),
   );
+
+  const hasSelectedPhases = phases.some((p) => p.enabled);
 
   return (
     <PageLayout title="PR Reviewer">
@@ -529,6 +600,60 @@ const PRReviewer: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Review Phases Checklist */}
+                    <div className="mb-4">
+                      <label className="form-label fw-semibold text-muted d-block">
+                        Active Review Phases
+                      </label>
+                      {isLoadingPhases ? (
+                        <div className="text-muted small">
+                          <span className="spinner-border spinner-border-sm me-2"></span>
+                          Loading phases...
+                        </div>
+                      ) : phases.length === 0 ? (
+                        <div className="text-muted small border rounded p-3 bg-body-tertiary">
+                          No custom review phases found in{' '}
+                          <code>~/.stitch/pr-reviewer/phases</code>. Standard
+                          single-phase review will be used.
+                        </div>
+                      ) : (
+                        <div
+                          className="border rounded p-3 bg-body-tertiary"
+                          style={{ maxHeight: '200px', overflowY: 'auto' }}
+                        >
+                          {phases.map((phase, idx) => (
+                            <div key={phase.id} className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id={`phase-check-${phase.id}`}
+                                checked={phase.enabled}
+                                onChange={(e) => {
+                                  setPhases((prev) => {
+                                    const copy = [...prev];
+                                    copy[idx] = {
+                                      ...copy[idx],
+                                      enabled: e.target.checked,
+                                    };
+                                    return copy;
+                                  });
+                                }}
+                              />
+                              <label
+                                className="form-check-label small fw-medium text-body"
+                                htmlFor={`phase-check-${phase.id}`}
+                              >
+                                {phase.title}{' '}
+                                <span className="text-muted font-monospace tiny-text ms-1">
+                                  ({phase.id})
+                                </span>
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="text-end">
                       {commitSha && (
                         <button
@@ -588,53 +713,154 @@ const PRReviewer: React.FC = () => {
                       Review Settings
                     </h5>
 
-                    {/* Model Selection */}
-                    <div className="mb-3">
-                      <label className="form-label text-muted small fw-semibold">
-                        Copilot Model
-                      </label>
-                      <ModelDropdown
-                        models={models}
-                        selectedModel={selectedModel}
-                        onSelect={setSelectedModel}
-                        loading={loadingModels}
-                      />
-                    </div>
+                    {isReviewing || phaseProgress.length > 0 ? (
+                      /* Phase Progress Checklist */
+                      <div className="flex-grow-1 d-flex flex-column">
+                        <h6 className="fw-bold mb-3 text-muted small text-uppercase">
+                          Review Progress
+                        </h6>
+                        <div
+                          className="list-group list-group-flush border rounded overflow-hidden flex-grow-1 overflow-y-auto mb-3"
+                          style={{ maxHeight: '300px' }}
+                        >
+                          {phaseProgress.map((p) => (
+                            <div
+                              key={p.id}
+                              className="list-group-item d-flex align-items-center justify-content-between p-3"
+                              style={{
+                                backgroundColor:
+                                  p.status === 'in-progress'
+                                    ? 'rgba(13, 110, 253, 0.1)'
+                                    : 'transparent',
+                              }}
+                            >
+                              <div
+                                className="d-flex align-items-center gap-2 text-truncate"
+                                style={{ maxWidth: '75%' }}
+                              >
+                                {p.status === 'pending' && (
+                                  <i className="far fa-circle text-muted"></i>
+                                )}
+                                {p.status === 'in-progress' && (
+                                  <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                )}
+                                {p.status === 'completed' && (
+                                  <i className="fas fa-check-circle text-success"></i>
+                                )}
+                                {p.status === 'skipped' && (
+                                  <i
+                                    className="fas fa-forward text-warning"
+                                    title={p.reason || 'Skipped'}
+                                  ></i>
+                                )}
+                                <span
+                                  className={`small text-truncate ${
+                                    p.status === 'completed'
+                                      ? 'text-decoration-line-through text-muted'
+                                      : p.status === 'skipped'
+                                        ? 'text-muted'
+                                        : 'fw-semibold text-body'
+                                  }`}
+                                  title={p.title}
+                                >
+                                  {p.title}
+                                </span>
+                              </div>
+                              {p.status === 'skipped' && (
+                                <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
+                                  Skipped
+                                </span>
+                              )}
+                              {p.status === 'in-progress' && (
+                                <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
+                                  Running
+                                </span>
+                              )}
+                              {p.status === 'completed' && (
+                                <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
+                                  Done
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
 
-                    {/* Custom Review Instructions */}
-                    <div className="mb-4 flex-grow-1 d-flex flex-column">
-                      <label className="form-label text-muted small fw-semibold">
-                        Specific Instructions (Optional)
-                      </label>
-                      <textarea
-                        className="form-control flex-grow-1"
-                        rows={6}
-                        style={{ minHeight: '120px', resize: 'none' }}
-                        placeholder="E.g., Focus on security, look out for proper error handling, verify database queries, etc."
-                        value={customInstructions}
-                        onChange={(e) => setCustomInstructions(e.target.value)}
-                        disabled={isReviewing}
-                      />
-                    </div>
+                        {isReviewing && (
+                          <div className="mt-auto text-center text-muted small py-2 bg-body-secondary rounded">
+                            <span className="spinner-border spinner-border-sm me-2 text-primary"></span>
+                            {currentPhase
+                              ? `Reviewing: ${currentPhase}`
+                              : 'Analyzing PR changes...'}
+                          </div>
+                        )}
 
-                    {/* Action Button */}
-                    <button
-                      className="btn btn-primary w-100 py-2 fw-semibold shadow-sm"
-                      onClick={handleStartReview}
-                      disabled={isReviewing || !commitSha}
-                    >
-                      {isReviewing ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-2"></span>
-                          Reviewing...
-                        </>
-                      ) : (
-                        <>
+                        {!isReviewing && (
+                          <button
+                            className="btn btn-outline-primary btn-sm w-100 mt-auto fw-semibold"
+                            onClick={() => {
+                              setPhaseProgress([]);
+                              setCurrentPhase(null);
+                            }}
+                          >
+                            <i className="fas fa-arrow-left me-2"></i>
+                            Back to Settings
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      /* Original Review Settings Inputs */
+                      <>
+                        {/* Model Selection */}
+                        <div className="mb-3">
+                          <label className="form-label text-muted small fw-semibold">
+                            Copilot Model
+                          </label>
+                          <ModelDropdown
+                            models={models}
+                            selectedModel={selectedModel}
+                            onSelect={setSelectedModel}
+                            loading={loadingModels}
+                          />
+                        </div>
+
+                        {/* Custom Review Instructions */}
+                        <div className="mb-4 flex-grow-1 d-flex flex-column">
+                          <label className="form-label text-muted small fw-semibold">
+                            Specific Instructions (Optional)
+                          </label>
+                          <textarea
+                            className="form-control flex-grow-1"
+                            rows={6}
+                            style={{ minHeight: '120px', resize: 'none' }}
+                            placeholder="E.g., Focus on security, look out for proper error handling, verify database queries, etc."
+                            value={customInstructions}
+                            onChange={(e) =>
+                              setCustomInstructions(e.target.value)
+                            }
+                            disabled={isReviewing}
+                          />
+                        </div>
+
+                        {/* Action Button */}
+                        <button
+                          className="btn btn-primary w-100 py-2 fw-semibold shadow-sm mb-2"
+                          onClick={handleStartReview}
+                          disabled={
+                            isReviewing || !commitSha || !hasSelectedPhases
+                          }
+                        >
                           <i className="fas fa-play me-2"></i>
                           Start Code Review
-                        </>
-                      )}
-                    </button>
+                        </button>
+                        {!hasSelectedPhases && (
+                          <div className="text-warning small text-center mt-1">
+                            <i className="fas fa-exclamation-triangle me-1"></i>
+                            Select at least one phase in PR settings to start
+                            review.
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -706,6 +932,11 @@ const PRReviewer: React.FC = () => {
                                       >
                                         {isLine ? 'Line' : 'General'}
                                       </span>
+                                      {comment.phase && (
+                                        <span className="badge bg-info-subtle text-info-emphasis">
+                                          {comment.phase}
+                                        </span>
+                                      )}
                                       {comment.posted ? (
                                         <span className="text-success small fw-semibold">
                                           <i className="fas fa-check-circle me-1"></i>
@@ -752,13 +983,20 @@ const PRReviewer: React.FC = () => {
                               >
                                 <div className="card-body p-3">
                                   <div className="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary-subtle">
-                                    <span
-                                      className={`badge ${isLine ? 'bg-primary' : 'bg-secondary'}`}
-                                    >
-                                      {isLine
-                                        ? 'Line Comment'
-                                        : 'General Comment'}
-                                    </span>
+                                    <div className="d-flex align-items-center gap-2">
+                                      <span
+                                        className={`badge ${isLine ? 'bg-primary' : 'bg-secondary'}`}
+                                      >
+                                        {isLine
+                                          ? 'Line Comment'
+                                          : 'General Comment'}
+                                      </span>
+                                      {comment.phase && (
+                                        <span className="badge bg-info-subtle text-info-emphasis">
+                                          {comment.phase}
+                                        </span>
+                                      )}
+                                    </div>
                                     {isLine && comment.file && (
                                       <span
                                         className="font-monospace text-muted small text-truncate ms-2"

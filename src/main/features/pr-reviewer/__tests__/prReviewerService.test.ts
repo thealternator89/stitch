@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'fs';
 import {
   PRReviewerService,
-  buildPRReviewPrompt,
   extractFileContextSync,
+  parseFrontmatter,
+  buildPhaseReviewPrompt,
 } from '../prReviewerService';
 
 const mockGetPullRequestById = vi.fn();
@@ -310,6 +311,16 @@ describe('PRReviewerService', () => {
       copilotModel: 'mock-model',
     };
 
+    beforeEach(() => {
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue([
+        {
+          id: '010-definition-of-done.md',
+          title: 'Definition of Done',
+          body: 'Review guidelines',
+        },
+      ]);
+    });
+
     it('should launch copilot with repo path and stream review results', async () => {
       const mockFiles = [
         { path: 'src/index.ts', status: 'modified' },
@@ -339,6 +350,7 @@ describe('PRReviewerService', () => {
         {
           modelOverride: 'gpt-4',
           customInstructions: 'Please focus on security.',
+          enabledPhaseIds: ['010-definition-of-done.md'],
           onLine: onLineCallback,
         },
       );
@@ -353,8 +365,10 @@ describe('PRReviewerService', () => {
         { workingDirectory: '/mock/repo' },
       );
 
-      const expectedPrompt = buildPRReviewPrompt(
+      const expectedPrompt = buildPhaseReviewPrompt(
         mockFiles,
+        'Definition of Done',
+        'Review guidelines',
         'Please focus on security.',
       );
       expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
@@ -365,11 +379,15 @@ describe('PRReviewerService', () => {
 
       expect(mockSession.disconnect).toHaveBeenCalled();
       expect(mockClient.stop).toHaveBeenCalled();
-      expect(result).toBe('{"type":"general","comment":"LGTM"}');
+      expect(result).toBe(
+        '\n--- Phase Definition of Done Result ---\n{"type":"general","comment":"LGTM"}',
+      );
     });
 
     it('should cleanly stop client and session even when review throws an error', async () => {
-      mockGitService.getDiffFiles.mockResolvedValue([]);
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'src/index.ts', status: 'modified' },
+      ]);
 
       const mockSession = {
         disconnect: vi.fn().mockResolvedValue(undefined),
@@ -386,7 +404,9 @@ describe('PRReviewerService', () => {
       );
 
       await expect(
-        prReviewerService.reviewPR('/mock/repo', 'main', settings),
+        prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+          enabledPhaseIds: ['010-definition-of-done.md'],
+        }),
       ).rejects.toThrow('Copilot Error');
 
       expect(mockSession.disconnect).toHaveBeenCalled();
@@ -394,7 +414,9 @@ describe('PRReviewerService', () => {
     });
 
     it('should wrap onLine callback and inject codeLines when type is line', async () => {
-      mockGitService.getDiffFiles.mockResolvedValue([]);
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'src/index.ts', status: 'modified' },
+      ]);
 
       const mockSession = {
         disconnect: vi.fn().mockResolvedValue(undefined),
@@ -427,6 +449,7 @@ describe('PRReviewerService', () => {
       const onLineCallback = vi.fn();
       await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
         onLine: onLineCallback,
+        enabledPhaseIds: ['010-definition-of-done.md'],
       });
 
       expect(capturedCallback).toBeDefined();
@@ -444,6 +467,7 @@ describe('PRReviewerService', () => {
           line: 2,
           context: 1,
           comment: 'Review',
+          phase: 'Definition of Done',
           codeLines: [
             { line: 1, text: 'const a = 1;', isTarget: false },
             { line: 2, text: 'const b = 2;', isTarget: true },
@@ -454,6 +478,27 @@ describe('PRReviewerService', () => {
 
       mockExistsSync.mockRestore();
       mockReadFileSync.mockRestore();
+    });
+
+    it('should throw an error if no review phases are selected', async () => {
+      await expect(
+        prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+          enabledPhaseIds: [],
+        }),
+      ).rejects.toThrow(
+        'No review phases selected. Please select at least one phase to start the review.',
+      );
+    });
+
+    it('should throw an error if no review phases are found on disk', async () => {
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue([]);
+      await expect(
+        prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+          enabledPhaseIds: ['some-phase.md'],
+        }),
+      ).rejects.toThrow(
+        'No custom review phases found on disk. Please configure them in ~/.stitch/pr-reviewer/phases',
+      );
     });
   });
 
@@ -593,6 +638,125 @@ describe('PRReviewerService', () => {
         123,
         'mock-project',
       );
+    });
+  });
+
+  describe('parseFrontmatter', () => {
+    it('should parse valid frontmatter and extract body', () => {
+      const content =
+        '---\ntitle: test-phase\ngroup: dotnet\ninclude: "**/*.cs"\n---\nbody-content';
+      const result = parseFrontmatter(content);
+      expect(result).toEqual({
+        frontmatter: {
+          title: 'test-phase',
+          group: 'dotnet',
+          include: '**/*.cs',
+        },
+        body: 'body-content',
+      });
+    });
+
+    it('should handle carriage returns and quotes in values', () => {
+      const content =
+        '---\r\ntitle: \'test-phase\'\r\ninclude: "**/abc/*"\r\n---\r\nbody-content-2';
+      const result = parseFrontmatter(content);
+      expect(result).toEqual({
+        frontmatter: {
+          title: 'test-phase',
+          include: '**/abc/*',
+        },
+        body: 'body-content-2',
+      });
+    });
+  });
+
+  describe('reviewPR multi-phase', () => {
+    const settings = {
+      copilotToken: 'mock-token',
+      copilotModel: 'mock-model',
+    };
+
+    it('should execute review phases sequentially and filter by globs', async () => {
+      const mockFiles = [
+        { path: 'src/Program.cs', status: 'modified' },
+        { path: 'src/index.js', status: 'added' },
+      ];
+      mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
+
+      const mockPhases = [
+        {
+          id: '010-dotnet.md',
+          title: '.NET Review',
+          include: '**/*.cs',
+          body: 'Check dotnet code style',
+        },
+        {
+          id: '020-js.md',
+          title: 'JS Review',
+          include: '**/*.js',
+          body: 'Check js code style',
+        },
+        {
+          id: '030-python.md',
+          title: 'Python Review',
+          include: '**/*.py',
+          body: 'Check python code style',
+        },
+      ];
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue(
+        mockPhases,
+      );
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue(
+        '{"type":"general","comment":"Comment"}',
+      );
+
+      const onLineCallback = vi.fn();
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        enabledPhaseIds: ['010-dotnet.md', '020-js.md', '030-python.md'],
+        onLine: onLineCallback,
+      });
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-start',
+          phaseId: '010-dotnet.md',
+          phaseTitle: '.NET Review',
+        }),
+      );
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-start',
+          phaseId: '020-js.md',
+          phaseTitle: 'JS Review',
+        }),
+      );
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-skip',
+          phaseId: '030-python.md',
+          phaseTitle: 'Python Review',
+          reason: 'No matching files found',
+        }),
+      );
+
+      expect(mockCopilotService.createClientAndSession).toHaveBeenCalledTimes(
+        2,
+      );
+      expect(mockSession.disconnect).toHaveBeenCalledTimes(2);
+      expect(mockClient.stop).toHaveBeenCalledTimes(2);
     });
   });
 });

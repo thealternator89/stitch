@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import picomatch from 'picomatch';
 import * as azdev from 'azure-devops-node-api';
 import { IGitApi } from 'azure-devops-node-api/GitApi';
 import {
@@ -8,10 +10,12 @@ import {
 } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { GitService } from '../../infrastructure/git/gitService';
 import { CopilotService } from '../../infrastructure/copilot/copilotService';
-import { PRMetadata, AppSettings } from '../../../types';
+import { PRMetadata, AppSettings, ReviewPhase } from '../../../types';
 
-export function buildPRReviewPrompt(
+export function buildPhaseReviewPrompt(
   files: { path: string; status: string }[],
+  phaseTitle: string,
+  phaseContent: string,
   customInstructions = '',
 ): string {
   const filesListStr = files
@@ -19,15 +23,17 @@ export function buildPRReviewPrompt(
     .join('\n');
 
   return `You are an expert software engineer and code reviewer.
-Your task is to review the changes in the repository. The following files have been modified/added/deleted in this Pull Request:
+Your task is to review the changes in the repository for the phase: "${phaseTitle}".
+
+The following files have been modified/added/deleted in this Pull Request and are relevant to this phase:
 ${filesListStr}
 
 Please inspect these files using your codebase tools (such as reading file contents or looking at specific ranges of files) to understand the changes made.
-Then, perform a thorough review, checking for:
-- Logic errors, bugs, or edge cases
-- Code quality, readability, and adherence to best practices
-- Security vulnerabilities or performance issues
-- Proper error handling and logging
+Then, perform a thorough review, checking for adherence to the following phase guidelines:
+
+--- PHASE GUIDELINES ---
+${phaseContent}
+------------------------
 
 ${customInstructions ? `Additional specific instructions for this review:\n${customInstructions}\n` : ''}
 
@@ -57,6 +63,39 @@ Each JSON object on each line must conform to one of the following formats:
 Ensure the "line" number corresponds to the line in the modified version of the file (after applying the diff). The "context" field must be an integer indicating how many surrounding lines of code to display before and after this line (e.g. 0 to display only line 42, or 5 to display 5 lines before, line 42, and 5 lines after).
 
 Begin your review now.`;
+}
+
+export function parseFrontmatter(content: string): {
+  frontmatter: Record<string, string>;
+  body: string;
+} {
+  const normalized = content.replace(/\r\n/g, '\n');
+  const parts = normalized.split('---\n');
+  if (parts.length >= 3) {
+    const yamlSection = parts[1];
+    const bodySection = parts.slice(2).join('---\n');
+    const frontmatter: Record<string, string> = {};
+
+    const lines = yamlSection.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const colonIdx = trimmed.indexOf(':');
+      if (colonIdx !== -1) {
+        const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
+        let value = trimmed.slice(colonIdx + 1).trim();
+        if (
+          (value.startsWith("'") && value.endsWith("'")) ||
+          (value.startsWith('"') && value.endsWith('"'))
+        ) {
+          value = value.slice(1, -1);
+        }
+        frontmatter[key] = value;
+      }
+    }
+    return { frontmatter, body: bodySection.trim() };
+  }
+  return { frontmatter: {}, body: content.trim() };
 }
 
 export function extractFileContextSync(
@@ -103,6 +142,44 @@ export class PRReviewerService {
     private gitService: GitService,
     private copilotService: CopilotService,
   ) {}
+
+  async loadPhasesFromDisk(): Promise<ReviewPhase[]> {
+    const homeDir = os.homedir();
+    const phasesDir = path.join(homeDir, '.stitch', 'pr-reviewer', 'phases');
+
+    if (!fs.existsSync(phasesDir)) {
+      return [];
+    }
+
+    try {
+      const files = fs.readdirSync(phasesDir);
+      const mdFiles = files.filter((f) => f.endsWith('.md')).sort();
+
+      const phases: ReviewPhase[] = [];
+      for (const file of mdFiles) {
+        const fullPath = path.join(phasesDir, file);
+        try {
+          const content = fs.readFileSync(fullPath, 'utf8');
+          const parsed = parseFrontmatter(content);
+
+          phases.push({
+            id: file,
+            title: parsed.frontmatter.title || file,
+            group: parsed.frontmatter.group,
+            include: parsed.frontmatter.include,
+            exclude: parsed.frontmatter.exclude,
+            body: parsed.body,
+          });
+        } catch (err) {
+          console.error(`Failed to read/parse phase file ${file}:`, err);
+        }
+      }
+      return phases;
+    } catch (err) {
+      console.error('Failed to read phases directory:', err);
+      return [];
+    }
+  }
 
   parsePRUrl(url: string): {
     org: string;
@@ -400,64 +477,160 @@ export class PRReviewerService {
     options: {
       modelOverride?: string;
       customInstructions?: string;
+      enabledPhaseIds?: string[];
       onLine?: (line: string) => void;
     } = {},
   ): Promise<string> {
+    if (!options.enabledPhaseIds || options.enabledPhaseIds.length === 0) {
+      throw new Error(
+        'No review phases selected. Please select at least one phase to start the review.',
+      );
+    }
+
     const files = await this.gitService.getDiffFiles(repoPath, targetBranch);
-    const prompt = buildPRReviewPrompt(files, options.customInstructions);
+    const phases = await this.loadPhasesFromDisk();
 
-    const { client, session } =
-      await this.copilotService.createClientAndSession(
-        settings.copilotToken,
-        options.modelOverride,
-        { workingDirectory: repoPath },
+    if (phases.length === 0) {
+      throw new Error(
+        'No custom review phases found on disk. Please configure them in ~/.stitch/pr-reviewer/phases',
       );
+    }
 
-    const wrappedOnLine = (line: string) => {
-      if (!options.onLine) return;
-      try {
-        const obj = JSON.parse(line);
-        if (
-          obj &&
-          obj.type === 'line' &&
-          typeof obj.file === 'string' &&
-          typeof obj.line === 'number'
-        ) {
-          const contextSize = typeof obj.context === 'number' ? obj.context : 0;
-          const codeLines = extractFileContextSync(
-            repoPath,
-            obj.file,
-            obj.line,
-            contextSize,
-          );
-          if (codeLines) {
-            obj.codeLines = codeLines;
-          }
+    const enabledPhases = phases.filter((phase) =>
+      options.enabledPhaseIds!.includes(phase.id),
+    );
+
+    if (enabledPhases.length === 0) {
+      throw new Error('None of the selected review phases were found on disk.');
+    }
+
+    let accumulatedResult = '';
+
+    for (const phase of enabledPhases) {
+      let eligibleFiles = [...files];
+
+      if (phase.include) {
+        try {
+          const isMatch = picomatch(phase.include, { dot: true });
+          eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
+        } catch (err) {
+          console.error(`Invalid include glob: ${phase.include}`, err);
         }
-        options.onLine(JSON.stringify(obj));
-      } catch {
-        options.onLine(line);
       }
-    };
 
-    try {
-      return await this.copilotService.sendAndCollectStream(
-        session,
-        prompt,
-        options.onLine ? wrappedOnLine : undefined,
-      );
-    } finally {
-      try {
-        await session.disconnect();
-      } catch (e) {
-        console.error('Error destroying session in reviewPR:', e);
+      if (phase.exclude) {
+        try {
+          const isMatch = picomatch(phase.exclude, { dot: true });
+          eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
+        } catch (err) {
+          console.error(`Invalid exclude glob: ${phase.exclude}`, err);
+        }
       }
+
+      if (eligibleFiles.length === 0) {
+        if (options.onLine) {
+          options.onLine(
+            JSON.stringify({
+              type: 'phase-skip',
+              phaseId: phase.id,
+              phaseTitle: phase.title,
+              reason: 'No matching files found',
+            }),
+          );
+        }
+        continue;
+      }
+
+      if (options.onLine) {
+        options.onLine(
+          JSON.stringify({
+            type: 'phase-start',
+            phaseId: phase.id,
+            phaseTitle: phase.title,
+          }),
+        );
+      }
+
+      const { client, session } =
+        await this.copilotService.createClientAndSession(
+          settings.copilotToken,
+          options.modelOverride,
+          { workingDirectory: repoPath },
+        );
+
+      const prompt = buildPhaseReviewPrompt(
+        eligibleFiles,
+        phase.title,
+        phase.body,
+        options.customInstructions,
+      );
+
+      const wrappedOnLine = (line: string) => {
+        if (!options.onLine) return;
+        try {
+          const obj = JSON.parse(line);
+          if (obj && (obj.type === 'general' || obj.type === 'line')) {
+            obj.phase = phase.title;
+
+            if (
+              obj.type === 'line' &&
+              typeof obj.file === 'string' &&
+              typeof obj.line === 'number'
+            ) {
+              const contextSize =
+                typeof obj.context === 'number' ? obj.context : 0;
+              const codeLines = extractFileContextSync(
+                repoPath,
+                obj.file,
+                obj.line,
+                contextSize,
+              );
+              if (codeLines) {
+                obj.codeLines = codeLines;
+              }
+            }
+          }
+          options.onLine(JSON.stringify(obj));
+        } catch {
+          options.onLine(line);
+        }
+      };
+
       try {
-        await client.stop();
-      } catch (e) {
-        console.error('Error stopping client in reviewPR:', e);
+        const res = await this.copilotService.sendAndCollectStream(
+          session,
+          prompt,
+          options.onLine ? wrappedOnLine : undefined,
+        );
+        accumulatedResult += `\n--- Phase ${phase.title} Result ---\n${res}`;
+      } catch (err) {
+        console.error(`Error executing phase ${phase.title}:`, err);
+        throw err;
+      } finally {
+        try {
+          await session.disconnect();
+        } catch (e) {
+          console.error('Error destroying session in reviewPR phase:', e);
+        }
+        try {
+          await client.stop();
+        } catch (e) {
+          console.error('Error stopping client in reviewPR phase:', e);
+        }
+
+        if (options.onLine) {
+          options.onLine(
+            JSON.stringify({
+              type: 'phase-end',
+              phaseId: phase.id,
+              phaseTitle: phase.title,
+            }),
+          );
+        }
       }
     }
+
+    return accumulatedResult;
   }
 
   async postPRComment(

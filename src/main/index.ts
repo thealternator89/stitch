@@ -332,14 +332,26 @@ ipcMain.handle('pr-reviewer:search-prs', async (event, searchType) => {
   return prReviewerService.getProjectPRs(searchType, settings);
 });
 
+ipcMain.handle('pr-reviewer:get-phases', async () => {
+  return prReviewerService.loadPhasesFromDisk();
+});
+
 ipcMain.handle(
   'pr-reviewer:review',
-  async (event, repoPath, targetBranch, customInstructions, modelOverride) => {
+  async (
+    event,
+    repoPath,
+    targetBranch,
+    customInstructions,
+    modelOverride,
+    enabledPhaseIds,
+  ) => {
     const s = await initStore();
     const settings = (s.get('settings') ?? {}) as AppSettings;
     return prReviewerService.reviewPR(repoPath, targetBranch, settings, {
       modelOverride,
       customInstructions,
+      enabledPhaseIds,
       onLine: (line: string) => {
         event.sender.send('pr-reviewer:review-line', line);
       },

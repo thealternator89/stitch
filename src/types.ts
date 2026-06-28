@@ -121,3 +121,12 @@ export interface PRCheckoutResult {
   sourceBranch: string;
   error?: string;
 }
+
+export interface ReviewPhase {
+  id: string;
+  title: string;
+  group?: string;
+  include?: string;
+  exclude?: string;
+  body: string;
+}

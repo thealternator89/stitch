@@ -8,6 +8,7 @@ import {
   EnvironmentCheckResult,
   PRMetadata,
   PRDiffFile,
+  ReviewPhase,
 } from '../types';
 
 export interface IElectronAPI {
@@ -76,11 +77,13 @@ export interface IElectronAPI {
   ) => Promise<PRMetadata[]>;
   getRepoPathHistory: (repoName: string) => Promise<string | null>;
   saveRepoPathHistory: (repoName: string, repoPath: string) => Promise<boolean>;
+  getPhases: () => Promise<ReviewPhase[]>;
   reviewPR: (
     repoPath: string,
     targetBranch: string,
     customInstructions: string,
     modelOverride: string,
+    enabledPhaseIds?: string[],
   ) => Promise<string>;
   onPRReviewLine: (callback: (line: string) => void) => () => void;
   postPRComment: (
