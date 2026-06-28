@@ -84,7 +84,7 @@ export class GitService {
       );
       const parentList = parents.trim().split(/\s+/).filter(Boolean);
       if (parentList.length > 1) {
-        return 'HEAD^1';
+        return 'HEAD~1';
       }
     } catch {
       // Fallback to targetBranch

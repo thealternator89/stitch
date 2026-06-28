@@ -172,12 +172,12 @@ describe('GitService', () => {
       ]);
     });
 
-    it('should use HEAD^1 for diffing if HEAD is a merge commit (multiple parents)', async () => {
+    it('should use HEAD~1 for diffing if HEAD is a merge commit (multiple parents)', async () => {
       mockExec = (cmd: string, options: any, cb: any) => {
         if (cmd.includes('git log')) {
           cb(null, { stdout: 'parent1 parent2\n' });
         } else if (cmd.includes('git diff')) {
-          expect(cmd).toBe('git diff --name-status HEAD^1...HEAD');
+          expect(cmd).toBe('git diff --name-status HEAD~1...HEAD');
           cb(null, {
             stdout: 'M\tfile1.txt\n',
           });
@@ -208,12 +208,12 @@ describe('GitService', () => {
       expect(result).toBe('some-diff-text');
     });
 
-    it('should return diff text against HEAD^1 (multiple parents)', async () => {
+    it('should return diff text against HEAD~1 (multiple parents)', async () => {
       mockExec = (cmd: string, options: any, cb: any) => {
         if (cmd.includes('git log')) {
           cb(null, { stdout: 'parent1 parent2\n' });
         } else if (cmd.includes('git diff')) {
-          expect(cmd).toBe('git diff HEAD^1...HEAD -- "file1.txt"');
+          expect(cmd).toBe('git diff HEAD~1...HEAD -- "file1.txt"');
           cb(null, { stdout: 'merge-diff-text\n' });
         }
       };
