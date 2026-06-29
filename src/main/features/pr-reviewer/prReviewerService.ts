@@ -176,6 +176,27 @@ export class PRReviewerService {
           const content = fs.readFileSync(fullPath, 'utf8');
           const parsed = parseFrontmatter(content);
 
+          let body = parsed.body;
+          const templateName = parsed.frontmatter.template;
+          if (templateName) {
+            const templatesDir = path.join(
+              path.dirname(phasesDir),
+              'templates',
+            );
+            const templatePath = path.resolve(templatesDir, templateName);
+            const relative = path.relative(templatesDir, templatePath);
+            if (relative.startsWith('..') || path.isAbsolute(relative)) {
+              throw new Error(
+                `Directory traversal detected in template path: ${templateName}`,
+              );
+            }
+            if (!fs.existsSync(templatePath)) {
+              throw new Error(`Template file not found: ${templatePath}`);
+            }
+            const templateContent = fs.readFileSync(templatePath, 'utf8');
+            body = templateContent.replace(/<%content%>/g, () => parsed.body);
+          }
+
           phases.push({
             id: file,
             title: parsed.frontmatter.title || file,
@@ -183,7 +204,8 @@ export class PRReviewerService {
             include: parsed.frontmatter.include,
             exclude: parsed.frontmatter.exclude,
             attach: parsed.frontmatter.attach,
-            body: parsed.body,
+            body,
+            template: templateName,
           });
         } catch (err) {
           console.error(`Failed to read/parse phase file ${file}:`, err);

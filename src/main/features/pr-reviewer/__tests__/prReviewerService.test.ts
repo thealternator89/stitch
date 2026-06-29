@@ -805,6 +805,91 @@ describe('PRReviewerService', () => {
       expect(result[3].id).toBe('030-python.md');
       expect(result[3].group).toBe('Security');
     });
+
+    it('should successfully load a template and interpolate body', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'readdirSync').mockReturnValue(['010-templated.md'] as any);
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/phases/010-templated.md')) {
+          return '---\ntitle: Templated Phase\ntemplate: my-template.md\n---\nMy phase content';
+        }
+        if (normalized.includes('pr-reviewer/templates/my-template.md')) {
+          return 'Template header\n<%content%>\nTemplate footer';
+        }
+        return '';
+      });
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('010-templated.md');
+      expect(result[0].title).toBe('Templated Phase');
+      expect(result[0].template).toBe('my-template.md');
+      expect(result[0].body).toBe(
+        'Template header\nMy phase content\nTemplate footer',
+      );
+    });
+
+    it('should handle missing template files by logging error and skipping the phase', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/templates/missing-template.md')) {
+          return false;
+        }
+        return true;
+      });
+      vi.spyOn(fs, 'readdirSync').mockReturnValue(['010-templated.md'] as any);
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/phases/010-templated.md')) {
+          return '---\ntitle: Templated Phase\ntemplate: missing-template.md\n---\nMy phase content';
+        }
+        return '';
+      });
+
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toHaveLength(0);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy.mock.calls[0][0]).toContain(
+        'Failed to read/parse phase file',
+      );
+    });
+
+    it('should block template directory traversal and skip the phase', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'readdirSync').mockReturnValue(['010-templated.md'] as any);
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/phases/010-templated.md')) {
+          return '---\ntitle: Traversal Phase\ntemplate: ../../passwd\n---\nMy phase content';
+        }
+        return '';
+      });
+
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toHaveLength(0);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy.mock.calls[0][0]).toContain(
+        'Failed to read/parse phase file',
+      );
+      expect(consoleErrorSpy.mock.calls[0][1].message).toContain(
+        'Directory traversal detected',
+      );
+    });
   });
 
   describe('reviewPR multi-phase', () => {

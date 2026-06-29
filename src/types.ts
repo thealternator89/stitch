@@ -130,4 +130,5 @@ export interface ReviewPhase {
   exclude?: string;
   attach?: string;
   body: string;
+  template?: string;
 }
