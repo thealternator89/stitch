@@ -169,7 +169,7 @@ export class PRReviewerService {
           phases.push({
             id: file,
             title: parsed.frontmatter.title || file,
-            group: parsed.frontmatter.group,
+            group: parsed.frontmatter.group || 'Ungrouped',
             include: parsed.frontmatter.include,
             exclude: parsed.frontmatter.exclude,
             attach: parsed.frontmatter.attach,
@@ -179,6 +179,23 @@ export class PRReviewerService {
           console.error(`Failed to read/parse phase file ${file}:`, err);
         }
       }
+
+      phases.sort((a, b) => {
+        const groupA = a.group || 'Ungrouped';
+        const groupB = b.group || 'Ungrouped';
+        if (groupA === 'Ungrouped' && groupB !== 'Ungrouped') {
+          return -1;
+        }
+        if (groupB === 'Ungrouped' && groupA !== 'Ungrouped') {
+          return 1;
+        }
+        const groupCompare = groupA.localeCompare(groupB);
+        if (groupCompare !== 0) {
+          return groupCompare;
+        }
+        return a.id.localeCompare(b.id);
+      });
+
       return phases;
     } catch (err) {
       console.error('Failed to read phases directory:', err);

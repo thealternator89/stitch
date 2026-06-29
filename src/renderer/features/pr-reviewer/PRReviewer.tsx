@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import PageLayout from '../../components/PageLayout';
@@ -61,6 +61,45 @@ const PRReviewer: React.FC = () => {
   }
   const [phases, setPhases] = useState<LocalReviewPhase[]>([]);
   const [isLoadingPhases, setIsLoadingPhases] = useState(false);
+
+  const groupedPhases = useMemo(() => {
+    const groups: {
+      name: string;
+      phases: { phase: LocalReviewPhase; originalIndex: number }[];
+    }[] = [];
+    phases.forEach((phase, index) => {
+      const groupName = phase.group || 'Ungrouped';
+      let g = groups.find((group) => group.name === groupName);
+      if (!g) {
+        g = { name: groupName, phases: [] };
+        groups.push(g);
+      }
+      g.phases.push({ phase, originalIndex: index });
+    });
+    return groups;
+  }, [phases]);
+
+  const toggleGroup = (groupName: string, checked: boolean) => {
+    setPhases((prev) =>
+      prev.map((p) => {
+        if ((p.group || 'Ungrouped') === groupName) {
+          return { ...p, enabled: checked };
+        }
+        return p;
+      }),
+    );
+  };
+
+  const togglePhase = (originalIndex: number, checked: boolean) => {
+    setPhases((prev) => {
+      const copy = [...prev];
+      copy[originalIndex] = {
+        ...copy[originalIndex],
+        enabled: checked,
+      };
+      return copy;
+    });
+  };
 
   interface PhaseProgress {
     id: string;
@@ -620,37 +659,75 @@ const PRReviewer: React.FC = () => {
                       ) : (
                         <div
                           className="border rounded p-3 bg-body-tertiary"
-                          style={{ maxHeight: '200px', overflowY: 'auto' }}
+                          style={{ maxHeight: '250px', overflowY: 'auto' }}
                         >
-                          {phases.map((phase, idx) => (
-                            <div key={phase.id} className="form-check mb-2">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id={`phase-check-${phase.id}`}
-                                checked={phase.enabled}
-                                onChange={(e) => {
-                                  setPhases((prev) => {
-                                    const copy = [...prev];
-                                    copy[idx] = {
-                                      ...copy[idx],
-                                      enabled: e.target.checked,
-                                    };
-                                    return copy;
-                                  });
-                                }}
-                              />
-                              <label
-                                className="form-check-label small fw-medium text-body"
-                                htmlFor={`phase-check-${phase.id}`}
-                              >
-                                {phase.title}{' '}
-                                <span className="text-muted font-monospace tiny-text ms-1">
-                                  ({phase.id})
-                                </span>
-                              </label>
-                            </div>
-                          ))}
+                          {groupedPhases.map((group) => {
+                            const allChecked = group.phases.every(
+                              (p) => p.phase.enabled,
+                            );
+                            const someChecked =
+                              group.phases.some((p) => p.phase.enabled) &&
+                              !allChecked;
+
+                            return (
+                              <div key={group.name} className="mb-3">
+                                <div className="form-check mb-1">
+                                  <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    id={`group-check-${group.name}`}
+                                    checked={allChecked}
+                                    ref={(el) => {
+                                      if (el) {
+                                        el.indeterminate = someChecked;
+                                      }
+                                    }}
+                                    onChange={(e) =>
+                                      toggleGroup(group.name, e.target.checked)
+                                    }
+                                  />
+                                  <label
+                                    className="form-check-label small fw-bold text-body"
+                                    htmlFor={`group-check-${group.name}`}
+                                  >
+                                    {group.name}
+                                  </label>
+                                </div>
+                                <div className="ms-4 border-start ps-3 py-1">
+                                  {group.phases.map(
+                                    ({ phase, originalIndex }) => (
+                                      <div
+                                        key={phase.id}
+                                        className="form-check mb-1"
+                                      >
+                                        <input
+                                          className="form-check-input"
+                                          type="checkbox"
+                                          id={`phase-check-${phase.id}`}
+                                          checked={phase.enabled}
+                                          onChange={(e) =>
+                                            togglePhase(
+                                              originalIndex,
+                                              e.target.checked,
+                                            )
+                                          }
+                                        />
+                                        <label
+                                          className="form-check-label small text-body-secondary"
+                                          htmlFor={`phase-check-${phase.id}`}
+                                        >
+                                          {phase.title}{' '}
+                                          <span className="text-muted font-monospace tiny-text ms-1">
+                                            ({phase.id})
+                                          </span>
+                                        </label>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

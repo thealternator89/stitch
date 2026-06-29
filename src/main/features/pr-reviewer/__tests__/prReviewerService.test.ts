@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
+import path from 'path';
 import {
   PRReviewerService,
   extractFileContextSync,
@@ -700,6 +701,62 @@ describe('PRReviewerService', () => {
         },
         body: 'body-content-2',
       });
+    });
+  });
+
+  describe('loadPhasesFromDisk', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should return empty array if phases directory does not exist', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+      const result = await prReviewerService.loadPhasesFromDisk();
+      expect(result).toEqual([]);
+    });
+
+    it('should load phases, assign default Ungrouped group, and sort correctly', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'readdirSync').mockReturnValue([
+        '030-python.md',
+        '010-definition-of-done.md',
+        '020-dotnet.md',
+        '040-js.md',
+      ] as any);
+
+      const filesContent: Record<string, string> = {
+        '010-definition-of-done.md':
+          '---\ntitle: DoD\ngroup: Security\n---\nDoD body',
+        '020-dotnet.md': '---\ntitle: .NET\n---\nDotnet body',
+        '030-python.md':
+          '---\ntitle: Python\ngroup: Security\n---\nPython body',
+        '040-js.md': '---\ntitle: JS\ngroup: Analytics\n---\nJS body',
+      };
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const basename = path.basename(filePath);
+        return filesContent[basename] || '';
+      });
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toHaveLength(4);
+
+      // Verify exact order:
+      // 1. Ungrouped first: '020-dotnet.md'
+      // 2. Alphabetically by group: 'Analytics' ('040-js.md') then 'Security'
+      // 3. Within 'Security', alphabetically by filename: '010-definition-of-done.md' then '030-python.md'
+      expect(result[0].id).toBe('020-dotnet.md');
+      expect(result[0].group).toBe('Ungrouped');
+
+      expect(result[1].id).toBe('040-js.md');
+      expect(result[1].group).toBe('Analytics');
+
+      expect(result[2].id).toBe('010-definition-of-done.md');
+      expect(result[2].group).toBe('Security');
+
+      expect(result[3].id).toBe('030-python.md');
+      expect(result[3].group).toBe('Security');
     });
   });
 
