@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import picomatch from 'picomatch';
+import { powerSaveBlocker } from 'electron';
 import * as azdev from 'azure-devops-node-api';
 import { IGitApi } from 'azure-devops-node-api/GitApi';
 import {
@@ -542,154 +543,165 @@ export class PRReviewerService {
       );
     }
 
-    const files = await this.gitService.getDiffFiles(repoPath, targetBranch);
-    const phases = await this.loadPhasesFromDisk();
+    let blockerId: number | null = null;
+    try {
+      blockerId = powerSaveBlocker.start('prevent-app-suspension');
 
-    if (phases.length === 0) {
-      throw new Error(
-        'No custom review phases found on disk. Please configure them in ~/.stitch/pr-reviewer/phases',
+      const files = await this.gitService.getDiffFiles(repoPath, targetBranch);
+      const phases = await this.loadPhasesFromDisk();
+
+      if (phases.length === 0) {
+        throw new Error(
+          'No custom review phases found on disk. Please configure them in ~/.stitch/pr-reviewer/phases',
+        );
+      }
+
+      const enabledPhases = phases.filter((phase) =>
+        options.enabledPhaseIds!.includes(phase.id),
       );
-    }
 
-    const enabledPhases = phases.filter((phase) =>
-      options.enabledPhaseIds!.includes(phase.id),
-    );
-
-    if (enabledPhases.length === 0) {
-      throw new Error('None of the selected review phases were found on disk.');
-    }
-
-    let accumulatedResult = '';
-
-    for (const phase of enabledPhases) {
-      let eligibleFiles = [...files];
-
-      if (phase.include) {
-        try {
-          const isMatch = picomatch(phase.include, { dot: true });
-          eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
-        } catch (err) {
-          console.error(`Invalid include glob: ${phase.include}`, err);
-        }
+      if (enabledPhases.length === 0) {
+        throw new Error(
+          'None of the selected review phases were found on disk.',
+        );
       }
 
-      if (phase.exclude) {
-        try {
-          const isMatch = picomatch(phase.exclude, { dot: true });
-          eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
-        } catch (err) {
-          console.error(`Invalid exclude glob: ${phase.exclude}`, err);
-        }
-      }
+      let accumulatedResult = '';
 
-      if (eligibleFiles.length === 0) {
+      for (const phase of enabledPhases) {
+        let eligibleFiles = [...files];
+
+        if (phase.include) {
+          try {
+            const isMatch = picomatch(phase.include, { dot: true });
+            eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
+          } catch (err) {
+            console.error(`Invalid include glob: ${phase.include}`, err);
+          }
+        }
+
+        if (phase.exclude) {
+          try {
+            const isMatch = picomatch(phase.exclude, { dot: true });
+            eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
+          } catch (err) {
+            console.error(`Invalid exclude glob: ${phase.exclude}`, err);
+          }
+        }
+
+        if (eligibleFiles.length === 0) {
+          if (options.onLine) {
+            options.onLine(
+              JSON.stringify({
+                type: 'phase-skip',
+                phaseId: phase.id,
+                phaseTitle: phase.title,
+                reason: 'No matching files found',
+              }),
+            );
+          }
+          continue;
+        }
+
         if (options.onLine) {
           options.onLine(
             JSON.stringify({
-              type: 'phase-skip',
+              type: 'phase-start',
               phaseId: phase.id,
               phaseTitle: phase.title,
-              reason: 'No matching files found',
             }),
           );
         }
-        continue;
-      }
 
-      if (options.onLine) {
-        options.onLine(
-          JSON.stringify({
-            type: 'phase-start',
-            phaseId: phase.id,
-            phaseTitle: phase.title,
-          }),
+        const { client, session } =
+          await this.copilotService.createClientAndSession(
+            settings.copilotToken,
+            options.modelOverride,
+            { workingDirectory: repoPath },
+          );
+
+        const attachDescription =
+          phase.attach && phase.attach.toLowerCase().includes('description');
+
+        const prompt = buildPhaseReviewPrompt(
+          eligibleFiles,
+          phase.title,
+          phase.body,
+          options.customInstructions,
+          attachDescription ? options.prDescription : undefined,
         );
-      }
 
-      const { client, session } =
-        await this.copilotService.createClientAndSession(
-          settings.copilotToken,
-          options.modelOverride,
-          { workingDirectory: repoPath },
-        );
+        const wrappedOnLine = (line: string) => {
+          if (!options.onLine) return;
+          try {
+            const obj = JSON.parse(line);
+            if (obj && (obj.type === 'general' || obj.type === 'line')) {
+              obj.phase = phase.title;
 
-      const attachDescription =
-        phase.attach && phase.attach.toLowerCase().includes('description');
-
-      const prompt = buildPhaseReviewPrompt(
-        eligibleFiles,
-        phase.title,
-        phase.body,
-        options.customInstructions,
-        attachDescription ? options.prDescription : undefined,
-      );
-
-      const wrappedOnLine = (line: string) => {
-        if (!options.onLine) return;
-        try {
-          const obj = JSON.parse(line);
-          if (obj && (obj.type === 'general' || obj.type === 'line')) {
-            obj.phase = phase.title;
-
-            if (
-              obj.type === 'line' &&
-              typeof obj.file === 'string' &&
-              typeof obj.line === 'number'
-            ) {
-              const contextSize =
-                typeof obj.context === 'number' ? obj.context : 0;
-              const codeLines = extractFileContextSync(
-                repoPath,
-                obj.file,
-                obj.line,
-                contextSize,
-              );
-              if (codeLines) {
-                obj.codeLines = codeLines;
+              if (
+                obj.type === 'line' &&
+                typeof obj.file === 'string' &&
+                typeof obj.line === 'number'
+              ) {
+                const contextSize =
+                  typeof obj.context === 'number' ? obj.context : 0;
+                const codeLines = extractFileContextSync(
+                  repoPath,
+                  obj.file,
+                  obj.line,
+                  contextSize,
+                );
+                if (codeLines) {
+                  obj.codeLines = codeLines;
+                }
               }
             }
+            options.onLine(JSON.stringify(obj));
+          } catch {
+            options.onLine(line);
           }
-          options.onLine(JSON.stringify(obj));
-        } catch {
-          options.onLine(line);
-        }
-      };
+        };
 
-      try {
-        const res = await this.copilotService.sendAndCollectStream(
-          session,
-          prompt,
-          options.onLine ? wrappedOnLine : undefined,
-        );
-        accumulatedResult += `\n--- Phase ${phase.title} Result ---\n${res}`;
-      } catch (err) {
-        console.error(`Error executing phase ${phase.title}:`, err);
-        throw err;
-      } finally {
         try {
-          await session.disconnect();
-        } catch (e) {
-          console.error('Error destroying session in reviewPR phase:', e);
-        }
-        try {
-          await client.stop();
-        } catch (e) {
-          console.error('Error stopping client in reviewPR phase:', e);
-        }
-
-        if (options.onLine) {
-          options.onLine(
-            JSON.stringify({
-              type: 'phase-end',
-              phaseId: phase.id,
-              phaseTitle: phase.title,
-            }),
+          const res = await this.copilotService.sendAndCollectStream(
+            session,
+            prompt,
+            options.onLine ? wrappedOnLine : undefined,
           );
+          accumulatedResult += `\n--- Phase ${phase.title} Result ---\n${res}`;
+        } catch (err) {
+          console.error(`Error executing phase ${phase.title}:`, err);
+          throw err;
+        } finally {
+          try {
+            await session.disconnect();
+          } catch (e) {
+            console.error('Error destroying session in reviewPR phase:', e);
+          }
+          try {
+            await client.stop();
+          } catch (e) {
+            console.error('Error stopping client in reviewPR phase:', e);
+          }
+
+          if (options.onLine) {
+            options.onLine(
+              JSON.stringify({
+                type: 'phase-end',
+                phaseId: phase.id,
+                phaseTitle: phase.title,
+              }),
+            );
+          }
         }
       }
-    }
 
-    return accumulatedResult;
+      return accumulatedResult;
+    } finally {
+      if (blockerId !== null && powerSaveBlocker.isStarted(blockerId)) {
+        powerSaveBlocker.stop(blockerId);
+      }
+    }
   }
 
   async postPRComment(

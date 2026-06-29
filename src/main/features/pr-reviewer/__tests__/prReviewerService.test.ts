@@ -35,6 +35,20 @@ vi.mock('azure-devops-node-api', () => {
   };
 });
 
+const mockPowerSaveBlockerStart = vi.fn().mockReturnValue(42);
+const mockPowerSaveBlockerStop = vi.fn();
+const mockPowerSaveBlockerIsStarted = vi.fn().mockReturnValue(true);
+
+vi.mock('electron', () => {
+  return {
+    powerSaveBlocker: {
+      start: (type: string) => mockPowerSaveBlockerStart(type),
+      stop: (id: number) => mockPowerSaveBlockerStop(id),
+      isStarted: (id: number) => mockPowerSaveBlockerIsStarted(id),
+    },
+  };
+});
+
 describe('PRReviewerService', () => {
   let prReviewerService: PRReviewerService;
   let mockGitService: any;
@@ -61,6 +75,9 @@ describe('PRReviewerService', () => {
     mockGetPullRequestsByProject.mockReset();
     mockConnect.mockClear();
     mockGetGitApi.mockClear();
+    mockPowerSaveBlockerStart.mockClear().mockReturnValue(42);
+    mockPowerSaveBlockerStop.mockClear();
+    mockPowerSaveBlockerIsStarted.mockClear().mockReturnValue(true);
   });
 
   describe('parsePRUrl', () => {
@@ -412,6 +429,66 @@ describe('PRReviewerService', () => {
 
       expect(mockSession.disconnect).toHaveBeenCalled();
       expect(mockClient.stop).toHaveBeenCalled();
+    });
+
+    it('should start powerSaveBlocker at the beginning and stop it at the end of review', async () => {
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'src/index.ts', status: 'modified' },
+      ]);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue(
+        '{"type":"general","comment":"LGTM"}',
+      );
+
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        enabledPhaseIds: ['010-definition-of-done.md'],
+      });
+
+      expect(mockPowerSaveBlockerStart).toHaveBeenCalledWith(
+        'prevent-app-suspension',
+      );
+      expect(mockPowerSaveBlockerStop).toHaveBeenCalledWith(42);
+    });
+
+    it('should stop powerSaveBlocker even when review throws an error', async () => {
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'src/index.ts', status: 'modified' },
+      ]);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockRejectedValue(
+        new Error('Copilot Error'),
+      );
+
+      await expect(
+        prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+          enabledPhaseIds: ['010-definition-of-done.md'],
+        }),
+      ).rejects.toThrow('Copilot Error');
+
+      expect(mockPowerSaveBlockerStart).toHaveBeenCalledWith(
+        'prevent-app-suspension',
+      );
+      expect(mockPowerSaveBlockerStop).toHaveBeenCalledWith(42);
     });
 
     it('should wrap onLine callback and inject codeLines when type is line', async () => {
