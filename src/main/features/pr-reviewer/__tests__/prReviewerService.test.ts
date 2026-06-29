@@ -629,11 +629,44 @@ describe('PRReviewerService', () => {
           ],
           status: 1,
           threadContext: {
-            filePath: 'src/index.ts',
+            filePath: '/src/index.ts',
             rightFileStart: { line: 42, offset: 1 },
             rightFileEnd: { line: 42, offset: 1 },
           },
         },
+        'mock-repo-id',
+        123,
+        'mock-project',
+      );
+    });
+
+    it('should format Windows file paths with backslashes and ensure starting forward slash when posting a line comment', async () => {
+      mockGetPullRequestById.mockResolvedValue({
+        repository: { id: 'mock-repo-id' },
+      });
+      mockCreateThread.mockResolvedValue({});
+
+      await prReviewerService.postPRComment(
+        '/mock/repo',
+        '123',
+        {
+          type: 'line',
+          file: 'PartySystemApi\\src\\PartySystem.Domain\\Migrations\\20260624014055_Update-Table-OrganisationType-RemoveIdentity.cs',
+          line: 10,
+          comment: 'Fix this migration',
+        },
+        settings,
+      );
+
+      expect(mockCreateThread).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadContext: {
+            filePath:
+              '/PartySystemApi/src/PartySystem.Domain/Migrations/20260624014055_Update-Table-OrganisationType-RemoveIdentity.cs',
+            rightFileStart: { line: 10, offset: 1 },
+            rightFileEnd: { line: 10, offset: 1 },
+          },
+        }),
         'mock-repo-id',
         123,
         'mock-project',

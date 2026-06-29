@@ -729,8 +729,12 @@ export class PRReviewerService {
     };
 
     if (comment.type === 'line' && comment.file && comment.line) {
+      let formattedPath = comment.file.replace(/\\/g, '/');
+      if (!formattedPath.startsWith('/')) {
+        formattedPath = '/' + formattedPath;
+      }
       thread.threadContext = {
-        filePath: comment.file,
+        filePath: formattedPath,
         rightFileStart: {
           line: comment.line,
           offset: 1,
