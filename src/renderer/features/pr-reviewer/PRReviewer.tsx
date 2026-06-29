@@ -873,7 +873,7 @@ const PRReviewer: React.FC = () => {
                     className="card-body p-4 d-flex flex-column"
                     style={{
                       height: isHeaderCollapsed
-                        ? 'calc(100vh - 275px)'
+                        ? 'calc(100vh - 315px)'
                         : '450px',
                       minHeight: '300px',
                     }}
