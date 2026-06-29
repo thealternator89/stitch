@@ -30,6 +30,8 @@ The following files have been modified/added/deleted in this Pull Request and ar
 ${filesListStr}
 ${prDescription ? `\nHere is the Pull Request Description for additional context:\n--- PR DESCRIPTION ---\n${prDescription}\n----------------------\n` : ''}
 Please inspect these files using your codebase tools (such as reading file contents or looking at specific ranges of files) to understand the changes made.
+You MUST use the git history (such as git diff or git log) to identify the exact changes made to the files we are reviewing. Only suggest comments on the changed (added or modified) lines. Do not suggest line-specific comments on lines of code that are outside the scope of the change.
+
 Then, perform a thorough review, checking for adherence to the following phase guidelines:
 
 --- PHASE GUIDELINES ---
@@ -62,6 +64,7 @@ Each JSON object on each line must conform to one of the following formats:
 }
 
 Ensure the "line" number corresponds to the line in the modified version of the file (after applying the diff). The "context" field must be an integer indicating how many surrounding lines of code to display before and after this line (e.g. 0 to display only line 42, or 5 to display 5 lines before, line 42, and 5 lines after).
+You MUST only suggest line-specific comments (type: 'line') on lines that were actually changed (added or modified) as shown in the git history. Do not comment on unchanged lines.
 
 Begin your review now.`;
 }
