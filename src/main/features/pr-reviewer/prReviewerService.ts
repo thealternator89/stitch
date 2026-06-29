@@ -53,6 +53,7 @@ Each JSON object on each line must conform to one of the following formats:
   "type": "general",
   "comment": "Your review comment in Markdown format"
 }
+Only output a general comment if you have constructive feedback, suggestions, or issues to point out. Do NOT output a general comment stating that the code looks good, that there are no obvious issues, or that everything is fine. If you have no issues or feedback to report, do not output any comments (general or line) at all.
 
 2. For a line-specific comment anchored to a particular line:
 {
@@ -73,6 +74,7 @@ Ensure the "line" number corresponds to the line in the modified version of the 
 You MUST only suggest line-specific comments (type: 'line') on lines that were actually changed (added or modified) as shown in the git history. Do not comment on unchanged lines.
 
 You are highly encouraged to output status updates (type: 'status') periodically as you proceed to let the user know what you are doing.
+If you have no issues or feedback to report for a phase, simply do not output any review comments (general or line-specific) at all for that phase.
 
 Begin your review now.`;
 }
