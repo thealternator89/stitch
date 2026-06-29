@@ -481,6 +481,53 @@ describe('PRReviewerService', () => {
       mockReadFileSync.mockRestore();
     });
 
+    it('should wrap onLine callback and pass status message untouched when type is status', async () => {
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'src/index.ts', status: 'modified' },
+      ]);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+
+      let capturedCallback: any;
+      mockCopilotService.sendAndCollectStream.mockImplementation(
+        async (
+          _session: any,
+          _prompt: string,
+          onLine?: (line: string) => void,
+        ) => {
+          capturedCallback = onLine;
+          return 'done';
+        },
+      );
+
+      const onLineCallback = vi.fn();
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        onLine: onLineCallback,
+        enabledPhaseIds: ['010-definition-of-done.md'],
+      });
+
+      expect(capturedCallback).toBeDefined();
+
+      // Trigger status comment
+      capturedCallback('{"type":"status","status":"Checking index.ts"}');
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'status',
+          status: 'Checking index.ts',
+        }),
+      );
+    });
+
     it('should throw an error if no review phases are selected', async () => {
       await expect(
         prReviewerService.reviewPR('/mock/repo', 'main', settings, {

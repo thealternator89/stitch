@@ -41,6 +41,8 @@ const PRReviewer: React.FC = () => {
   // Review states
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
+  const [lastStatusTime, setLastStatusTime] = useState<Date | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
@@ -245,6 +247,8 @@ const PRReviewer: React.FC = () => {
     setIsReviewing(true);
     setComments([]);
     setCurrentPhase(null);
+    setCurrentStatus(null);
+    setLastStatusTime(null);
 
     const activePhases = phases.filter((p) => p.enabled);
     setPhaseProgress(
@@ -269,6 +273,8 @@ const PRReviewer: React.FC = () => {
             ),
           );
           setCurrentPhase(commentObj.phaseTitle);
+          setCurrentStatus(`Starting review phase: ${commentObj.phaseTitle}`);
+          setLastStatusTime(new Date());
         } else if (commentObj && commentObj.type === 'phase-skip') {
           setPhaseProgress((prev) =>
             prev.map((p) =>
@@ -283,11 +289,15 @@ const PRReviewer: React.FC = () => {
               p.id === commentObj.phaseId ? { ...p, status: 'completed' } : p,
             ),
           );
+        } else if (commentObj && commentObj.type === 'status') {
+          setCurrentStatus(commentObj.status);
+          setLastStatusTime(new Date());
         } else if (
           commentObj &&
           (commentObj.type === 'general' || commentObj.type === 'line')
         ) {
           setComments((prev) => [...prev, commentObj]);
+          setLastStatusTime(new Date());
         }
       } catch (err) {
         console.error('Failed to parse streaming review line:', err);
@@ -960,6 +970,25 @@ const PRReviewer: React.FC = () => {
                       Review Comments ({comments.length})
                     </h5>
 
+                    {isReviewing && currentStatus && comments.length > 0 && (
+                      <div className="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-info-subtle text-info-emphasis small">
+                        <div className="d-flex align-items-center gap-2">
+                          <span
+                            className="spinner-border spinner-border-sm text-info me-1"
+                            style={{ width: '1rem', height: '1rem' }}
+                          ></span>
+                          <span>
+                            <strong>Status:</strong> {currentStatus}
+                          </span>
+                        </div>
+                        {lastStatusTime && (
+                          <span className="text-muted small font-monospace">
+                            Last update: {lastStatusTime.toLocaleTimeString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div
                       className="flex-grow-1 overflow-y-auto pe-1"
                       style={{ maxHeight: 'none' }}
@@ -973,8 +1002,14 @@ const PRReviewer: React.FC = () => {
                                 style={{ width: '3rem', height: '3rem' }}
                               ></span>
                               <p className="fw-semibold text-body mb-1">
-                                Running Code Review...
+                                {currentStatus || 'Running Code Review...'}
                               </p>
+                              {lastStatusTime && (
+                                <p className="text-muted small mb-2">
+                                  Last update:{' '}
+                                  {lastStatusTime.toLocaleTimeString()}
+                                </p>
+                              )}
                               <p className="small mb-0 text-center px-4">
                                 Copilot is analyzing the repository. Comments
                                 will appear here as they are generated.

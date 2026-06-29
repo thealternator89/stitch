@@ -63,8 +63,16 @@ Each JSON object on each line must conform to one of the following formats:
   "comment": "Your line-specific review comment in Markdown format"
 }
 
+3. For reporting status updates (e.g., when you start checking a file, analyze a function, or run check guidelines):
+{
+  "type": "status",
+  "status": "A brief message describing what you are currently doing (e.g., 'Checking authService.ts for potential logic flaws')"
+}
+
 Ensure the "line" number corresponds to the line in the modified version of the file (after applying the diff). The "context" field must be an integer indicating how many surrounding lines of code to display before and after this line (e.g. 0 to display only line 42, or 5 to display 5 lines before, line 42, and 5 lines after).
 You MUST only suggest line-specific comments (type: 'line') on lines that were actually changed (added or modified) as shown in the git history. Do not comment on unchanged lines.
+
+You are highly encouraged to output status updates (type: 'status') periodically as you proceed to let the user know what you are doing.
 
 Begin your review now.`;
 }
