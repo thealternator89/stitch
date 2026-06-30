@@ -1034,11 +1034,6 @@ const PRReviewer: React.FC = () => {
                                 >
                                   <div className="card-body p-2 d-flex align-items-center justify-content-between">
                                     <div className="d-flex align-items-center gap-2">
-                                      <span
-                                        className={`badge ${isLine ? 'bg-primary' : 'bg-secondary'}`}
-                                      >
-                                        {isLine ? 'Line' : 'General'}
-                                      </span>
                                       {comment.phase && (
                                         <span className="badge bg-info-subtle text-info-emphasis">
                                           {comment.phase}
@@ -1091,13 +1086,6 @@ const PRReviewer: React.FC = () => {
                                 <div className="card-body p-3">
                                   <div className="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary-subtle">
                                     <div className="d-flex align-items-center gap-2">
-                                      <span
-                                        className={`badge ${isLine ? 'bg-primary' : 'bg-secondary'}`}
-                                      >
-                                        {isLine
-                                          ? 'Line Comment'
-                                          : 'General Comment'}
-                                      </span>
                                       {comment.phase && (
                                         <span className="badge bg-info-subtle text-info-emphasis">
                                           {comment.phase}
