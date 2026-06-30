@@ -801,7 +801,7 @@ export class PRReviewerService {
           offset: 1,
         },
         rightFileEnd: {
-          line: comment.line,
+          line: comment.line + 1,
           offset: 1,
         },
       };

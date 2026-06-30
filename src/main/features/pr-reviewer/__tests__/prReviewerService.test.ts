@@ -756,7 +756,7 @@ describe('PRReviewerService', () => {
           threadContext: {
             filePath: '/src/index.ts',
             rightFileStart: { line: 42, offset: 1 },
-            rightFileEnd: { line: 42, offset: 1 },
+            rightFileEnd: { line: 43, offset: 1 },
           },
         },
         'mock-repo-id',
@@ -789,7 +789,7 @@ describe('PRReviewerService', () => {
             filePath:
               '/PartySystemApi/src/PartySystem.Domain/Migrations/20260624014055_Update-Table-OrganisationType-RemoveIdentity.cs',
             rightFileStart: { line: 10, offset: 1 },
-            rightFileEnd: { line: 10, offset: 1 },
+            rightFileEnd: { line: 11, offset: 1 },
           },
         }),
         'mock-repo-id',
