@@ -421,6 +421,17 @@ const PRReviewer: React.FC = () => {
                       {selectedPR.targetBranch}
                     </span>
                   </div>
+                  {selectedPR.url && (
+                    <button
+                      className="btn btn-sm btn-outline-secondary fw-semibold shadow-sm"
+                      onClick={() =>
+                        window.electronAPI.openExternal(selectedPR.url!)
+                      }
+                    >
+                      <i className="fas fa-external-link-alt me-1"></i>
+                      Open
+                    </button>
+                  )}
                   <button
                     className="btn btn-sm btn-outline-primary fw-semibold shadow-sm"
                     onClick={() => setIsHeaderCollapsed(false)}

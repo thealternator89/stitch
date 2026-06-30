@@ -101,6 +101,7 @@ export interface PRMetadata {
   author?: string;
   repositoryName: string;
   hostType: 'azure' | 'unknown';
+  url?: string;
 }
 
 export interface PRDiffFile {

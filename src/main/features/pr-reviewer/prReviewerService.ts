@@ -395,16 +395,22 @@ export class PRReviewerService {
       }
 
       const cleanRef = (ref: string) => ref.replace(/^refs\/heads\//, '');
+      const orgUrl = this.getOrgUrl(org);
+      const baseUrl = orgUrl.endsWith('/') ? orgUrl.slice(0, -1) : orgUrl;
+      const prId = pr.pullRequestId?.toString() || prNumber.toString();
+      const repoName = pr.repository?.name || '';
+      const webUrl = `${baseUrl}/${project}/_git/${repoName}/pullrequest/${prId}`;
 
       return {
-        id: pr.pullRequestId?.toString() || prNumber.toString(),
+        id: prId,
         title: pr.title || '',
         description: pr.description || '',
         sourceBranch: cleanRef(pr.sourceRefName || ''),
         targetBranch: cleanRef(pr.targetRefName || ''),
         author: pr.createdBy?.displayName || '',
-        repositoryName: pr.repository?.name || '',
+        repositoryName: repoName,
         hostType: 'azure',
+        url: webUrl,
       };
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
@@ -469,17 +475,25 @@ export class PRReviewerService {
         searchCriteria,
       );
       const cleanRef = (ref: string) => ref.replace(/^refs\/heads\//, '');
-
-      return prs.map((pr) => ({
-        id: pr.pullRequestId?.toString() || '',
-        title: pr.title || '',
-        description: pr.description || '',
-        sourceBranch: cleanRef(pr.sourceRefName || ''),
-        targetBranch: cleanRef(pr.targetRefName || ''),
-        author: pr.createdBy?.displayName || '',
-        repositoryName: pr.repository?.name || '',
-        hostType: 'azure',
-      }));
+      return prs.map((pr) => {
+        const prId = pr.pullRequestId?.toString() || '';
+        const repoName = pr.repository?.name || '';
+        const baseUrl = orgUrl.endsWith('/') ? orgUrl.slice(0, -1) : orgUrl;
+        const webUrl = prId
+          ? `${baseUrl}/${project}/_git/${repoName}/pullrequest/${prId}`
+          : undefined;
+        return {
+          id: prId,
+          title: pr.title || '',
+          description: pr.description || '',
+          sourceBranch: cleanRef(pr.sourceRefName || ''),
+          targetBranch: cleanRef(pr.targetRefName || ''),
+          author: pr.createdBy?.displayName || '',
+          repositoryName: repoName,
+          hostType: 'azure',
+          url: webUrl,
+        };
+      });
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to query PRs from Azure DevOps: ${errMsg}`);

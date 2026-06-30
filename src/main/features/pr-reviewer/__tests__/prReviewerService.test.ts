@@ -163,6 +163,7 @@ describe('PRReviewerService', () => {
         sourceRefName: 'refs/heads/feature-x',
         targetRefName: 'refs/heads/main',
         createdBy: { displayName: 'John Doe' },
+        repository: { name: 'my-repo' },
       });
 
       const details = await prReviewerService.getPRDetails(
@@ -177,8 +178,9 @@ describe('PRReviewerService', () => {
         sourceBranch: 'feature-x',
         targetBranch: 'main',
         author: 'John Doe',
-        repositoryName: '',
+        repositoryName: 'my-repo',
         hostType: 'azure',
+        url: 'https://dev.azure.com/conf-org/conf-proj/_git/my-repo/pullrequest/123',
       });
     });
 
@@ -284,6 +286,7 @@ describe('PRReviewerService', () => {
           author: 'John Author',
           repositoryName: 'my-repo-name',
           hostType: 'azure',
+          url: 'https://dev.azure.com/conf-org/conf-proj/_git/my-repo-name/pullrequest/444',
         },
       ]);
 
