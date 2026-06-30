@@ -421,12 +421,6 @@ const PRReviewer: React.FC = () => {
                       {selectedPR.targetBranch}
                     </span>
                   </div>
-                  <div className="text-muted small">
-                    <strong>Commit:</strong>{' '}
-                    <span className="badge bg-light text-dark font-monospace border">
-                      {commitSha.slice(0, 7)}
-                    </span>
-                  </div>
                   <button
                     className="btn btn-sm btn-outline-primary fw-semibold shadow-sm"
                     onClick={() => setIsHeaderCollapsed(false)}
