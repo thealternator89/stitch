@@ -166,4 +166,29 @@ export class GitService {
       throw new Error(`Failed to get file diff for ${filePath}: ${errMsg}`);
     }
   }
+
+  async getCurrentRef(repoPath: string): Promise<string> {
+    try {
+      const branch = await this.runCommand(
+        repoPath,
+        'git symbolic-ref --short -q HEAD',
+      );
+      if (branch) {
+        return branch;
+      }
+    } catch {
+      // Ignore and fallback to commit SHA
+    }
+    return await this.runCommand(repoPath, 'git rev-parse HEAD');
+  }
+
+  async restoreRef(repoPath: string, ref: string): Promise<void> {
+    const isDirty = await this.hasUncommittedChanges(repoPath);
+    if (isDirty) {
+      throw new Error(
+        `Cannot restore repository because it has uncommitted changes.`,
+      );
+    }
+    await this.runCommand(repoPath, `git checkout ${ref}`);
+  }
 }

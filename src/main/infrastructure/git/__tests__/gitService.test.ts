@@ -248,4 +248,57 @@ describe('GitService', () => {
       expect(result).toBe('merge-diff-text');
     });
   });
+
+  describe('getCurrentRef', () => {
+    it('should return branch name if symbolic-ref succeeds', async () => {
+      mockExec = (cmd: string, options: any, cb: any) => {
+        expect(cmd).toBe('git symbolic-ref --short -q HEAD');
+        cb(null, { stdout: 'feature/pr-reviewer\n' });
+      };
+
+      const ref = await gitService.getCurrentRef(repoPath);
+      expect(ref).toBe('feature/pr-reviewer');
+    });
+
+    it('should return commit SHA if symbolic-ref fails', async () => {
+      let isFirstCall = true;
+      mockExec = (cmd: string, options: any, cb: any) => {
+        if (isFirstCall) {
+          expect(cmd).toBe('git symbolic-ref --short -q HEAD');
+          isFirstCall = false;
+          cb(new Error('not on a branch'), { stdout: '' });
+        } else {
+          expect(cmd).toBe('git rev-parse HEAD');
+          cb(null, { stdout: 'mock-commit-sha\n' });
+        }
+      };
+
+      const ref = await gitService.getCurrentRef(repoPath);
+      expect(ref).toBe('mock-commit-sha');
+    });
+  });
+
+  describe('restoreRef', () => {
+    it('should throw error if repository has uncommitted changes', async () => {
+      mockExec = (cmd: string, options: any, cb: any) => {
+        expect(cmd).toBe('git status --porcelain');
+        cb(null, { stdout: ' M src/index.ts\n' });
+      };
+
+      await expect(gitService.restoreRef(repoPath, 'master')).rejects.toThrow(
+        'Cannot restore repository because it has uncommitted changes.',
+      );
+    });
+
+    it('should check out ref if repository is clean', async () => {
+      const calls: string[] = [];
+      mockExec = (cmd: string, options: any, cb: any) => {
+        calls.push(cmd);
+        cb(null, { stdout: '' });
+      };
+
+      await gitService.restoreRef(repoPath, 'master');
+      expect(calls).toEqual(['git status --porcelain', 'git checkout master']);
+    });
+  });
 });

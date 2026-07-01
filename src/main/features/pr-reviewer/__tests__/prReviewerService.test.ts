@@ -62,6 +62,8 @@ describe('PRReviewerService', () => {
       fetchAndCheckoutPR: vi.fn(),
       getDiffFiles: vi.fn(),
       getFileDiff: vi.fn(),
+      getCurrentRef: vi.fn().mockResolvedValue('mock-original-ref'),
+      restoreRef: vi.fn().mockResolvedValue(undefined),
     };
     mockCopilotService = {
       createClientAndSession: vi.fn(),
@@ -1109,6 +1111,94 @@ describe('PRReviewerService', () => {
         mockSession,
         expectedPrompt,
         expect.any(Function),
+      );
+    });
+  });
+
+  describe('checkoutAndDiff with original state tracking', () => {
+    beforeEach(() => {
+      mockGitService.getCurrentRef = vi
+        .fn()
+        .mockResolvedValue('original-branch-ref');
+      mockGitService.restoreRef = vi.fn().mockResolvedValue(undefined);
+    });
+
+    it('should capture original ref and check out PR', async () => {
+      mockGitService.checkGitRepo.mockResolvedValue(true);
+      mockGitService.hasUncommittedChanges.mockResolvedValue(false);
+      mockGitService.fetchAndCheckoutPR.mockResolvedValue('pr-sha');
+
+      const result = await prReviewerService.checkoutAndDiff('/mock/repo', 123);
+      expect(result).toEqual({ commitSha: 'pr-sha' });
+      expect(mockGitService.getCurrentRef).toHaveBeenCalledWith('/mock/repo');
+    });
+
+    it('should restore previous checkout first if checking out again on the same repo', async () => {
+      mockGitService.checkGitRepo.mockResolvedValue(true);
+      mockGitService.hasUncommittedChanges.mockResolvedValue(false);
+      mockGitService.fetchAndCheckoutPR.mockResolvedValue('pr-sha');
+
+      // First checkout
+      await prReviewerService.checkoutAndDiff('/mock/repo', 123);
+      expect(mockGitService.restoreRef).not.toHaveBeenCalled();
+
+      // Second checkout on same repo
+      await prReviewerService.checkoutAndDiff('/mock/repo', 456);
+      expect(mockGitService.restoreRef).toHaveBeenCalledWith(
+        '/mock/repo',
+        'original-branch-ref',
+      );
+    });
+  });
+
+  describe('reviewPR with automatic restoration', () => {
+    const settings = {
+      copilotToken: 'mock-token',
+      copilotModel: 'mock-model',
+    };
+
+    beforeEach(() => {
+      mockGitService.getCurrentRef = vi
+        .fn()
+        .mockResolvedValue('original-branch-ref');
+      mockGitService.restoreRef = vi.fn().mockResolvedValue(undefined);
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue([
+        {
+          id: '010-dod.md',
+          title: 'DoD Review',
+          body: 'Check requirements',
+        },
+      ]);
+    });
+
+    it('should automatically restore repository to original ref in finally block', async () => {
+      mockGitService.checkGitRepo.mockResolvedValue(true);
+      mockGitService.hasUncommittedChanges.mockResolvedValue(false);
+      mockGitService.fetchAndCheckoutPR.mockResolvedValue('pr-sha');
+
+      // Checkout PR (captures original-branch-ref)
+      await prReviewerService.checkoutAndDiff('/mock/repo', 123);
+
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'src/index.ts', status: 'modified' },
+      ]);
+      const mockSession = { disconnect: vi.fn().mockResolvedValue(undefined) };
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue('done');
+
+      // Run review
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        enabledPhaseIds: ['010-dod.md'],
+      });
+
+      // Verify restoreRef was called with original-branch-ref
+      expect(mockGitService.restoreRef).toHaveBeenCalledWith(
+        '/mock/repo',
+        'original-branch-ref',
       );
     });
   });

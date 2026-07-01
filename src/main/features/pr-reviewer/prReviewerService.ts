@@ -156,6 +156,8 @@ export function extractFileContextSync(
 }
 
 export class PRReviewerService {
+  private activeCheckouts = new Map<string, string>();
+
   constructor(
     private gitService: GitService,
     private copilotService: CopilotService,
@@ -535,6 +537,24 @@ export class PRReviewerService {
       );
     }
 
+    // Restore any existing active checkout for this repo first to avoid leaks
+    const existingRef = this.activeCheckouts.get(repoPath);
+    if (existingRef) {
+      try {
+        await this.gitService.restoreRef(repoPath, existingRef);
+      } catch (err) {
+        console.error(
+          `Failed to restore existing checkout for ${repoPath}:`,
+          err,
+        );
+      }
+      this.activeCheckouts.delete(repoPath);
+    }
+
+    // Capture the current (original) ref before performing the PR checkout
+    const originalRef = await this.gitService.getCurrentRef(repoPath);
+    this.activeCheckouts.set(repoPath, originalRef);
+
     const commitSha = await this.gitService.fetchAndCheckoutPR(
       repoPath,
       prNumber,
@@ -717,6 +737,19 @@ export class PRReviewerService {
     } finally {
       if (blockerId !== null && powerSaveBlocker.isStarted(blockerId)) {
         powerSaveBlocker.stop(blockerId);
+      }
+
+      const originalRef = this.activeCheckouts.get(repoPath);
+      if (originalRef) {
+        try {
+          await this.gitService.restoreRef(repoPath, originalRef);
+        } catch (err) {
+          console.error(
+            `Failed to automatically restore repository at ${repoPath}:`,
+            err,
+          );
+        }
+        this.activeCheckouts.delete(repoPath);
       }
     }
   }
