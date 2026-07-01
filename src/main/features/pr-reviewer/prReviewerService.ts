@@ -33,11 +33,14 @@ ${prDescription ? `\nHere is the Pull Request Description for additional context
 Please inspect these files using your codebase tools (such as reading file contents or looking at specific ranges of files) to understand the changes made.
 You MUST use the git history (such as git diff or git log) to identify the exact changes made to the files we are reviewing. Only suggest comments on the changed (added or modified) lines. Do not suggest line-specific comments on lines of code that are outside the scope of the change.
 
-Then, perform a thorough review, checking for adherence to the following phase guidelines:
+Then, perform a thorough review, checking for adherence ONLY to the following phase guidelines:
 
 --- PHASE GUIDELINES ---
 ${phaseContent}
 ------------------------
+
+DO NOT comment on any issues you see which are not explicitly related to the phase guidelines. This is critical.
+You are conducting exactly one phase of a multi-phase review. Even if you spot a major issue, if it does not fall under the current phase guidelines, IGNORE IT. Assume it will be handled in a separate phase; mentioning it now will only cause disruptive, duplicate comments.
 
 ${customInstructions ? `Additional specific instructions for this review:\n${customInstructions}\n` : ''}
 
