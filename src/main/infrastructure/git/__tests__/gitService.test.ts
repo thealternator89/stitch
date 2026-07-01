@@ -51,6 +51,28 @@ describe('GitService', () => {
     });
   });
 
+  describe('getRepoRoot', () => {
+    it('should return repo root if show-toplevel succeeds', async () => {
+      mockExec = (cmd: string, options: any, cb: any) => {
+        expect(cmd).toBe('git rev-parse --show-toplevel');
+        expect(options.cwd).toBe(repoPath);
+        cb(null, { stdout: '/mock/repo-root\n' });
+      };
+
+      const result = await gitService.getRepoRoot(repoPath);
+      expect(result).toBe('/mock/repo-root');
+    });
+
+    it('should return null if show-toplevel fails', async () => {
+      mockExec = (cmd: string, options: any, cb: any) => {
+        cb(new Error('failed'), { stdout: '' });
+      };
+
+      const result = await gitService.getRepoRoot(repoPath);
+      expect(result).toBeNull();
+    });
+  });
+
   describe('getRemoteUrl', () => {
     it('should return origin remote URL', async () => {
       mockExec = (cmd: string, options: any, cb: any) => {

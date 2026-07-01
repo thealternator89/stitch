@@ -1,3 +1,4 @@
+import path from 'path';
 import {
   app,
   BrowserWindow,
@@ -386,6 +387,46 @@ ipcMain.handle(
     const s = await initStore();
     s.set(`repo-paths.${repoName}`, repoPath);
     return true;
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:verify-repo-path',
+  async (event, repoPath: string) => {
+    const isGitRepo = await gitService.checkGitRepo(repoPath);
+    if (!isGitRepo) {
+      return {
+        isGitRepo: false,
+        path: repoPath,
+        originalPath: repoPath,
+        wasModified: false,
+      };
+    }
+
+    const rootPath = await gitService.getRepoRoot(repoPath);
+    if (!rootPath) {
+      return {
+        isGitRepo: false,
+        path: repoPath,
+        originalPath: repoPath,
+        wasModified: false,
+      };
+    }
+
+    const normSelected = path.resolve(repoPath);
+    const normRoot = path.resolve(rootPath);
+
+    const isSame =
+      process.platform === 'win32' || process.platform === 'darwin'
+        ? normSelected.toLowerCase() === normRoot.toLowerCase()
+        : normSelected === normRoot;
+
+    return {
+      isGitRepo: true,
+      path: rootPath,
+      originalPath: repoPath,
+      wasModified: !isSame,
+    };
   },
 );
 

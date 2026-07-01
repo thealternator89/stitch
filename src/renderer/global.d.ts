@@ -77,6 +77,12 @@ export interface IElectronAPI {
   ) => Promise<PRMetadata[]>;
   getRepoPathHistory: (repoName: string) => Promise<string | null>;
   saveRepoPathHistory: (repoName: string, repoPath: string) => Promise<boolean>;
+  verifyRepoPath: (repoPath: string) => Promise<{
+    isGitRepo: boolean;
+    path: string;
+    originalPath: string;
+    wasModified: boolean;
+  }>;
   getPhases: () => Promise<ReviewPhase[]>;
   reviewPR: (
     repoPath: string,

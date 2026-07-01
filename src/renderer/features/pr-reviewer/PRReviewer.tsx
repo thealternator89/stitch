@@ -28,6 +28,7 @@ const PRReviewer: React.FC = () => {
   // Selected PR details
   const [selectedPR, setSelectedPR] = useState<PRMetadata | null>(null);
   const [repoPath, setRepoPath] = useState('');
+  const [repoPathModified, setRepoPathModified] = useState(false);
   const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
 
@@ -152,6 +153,7 @@ const PRReviewer: React.FC = () => {
   const handleSelectPR = async (pr: PRMetadata) => {
     setSelectedPR(pr);
     setRepoPath('');
+    setRepoPathModified(false);
     setCommitSha('');
     setComments([]);
     setIsHeaderCollapsed(false);
@@ -193,7 +195,9 @@ const PRReviewer: React.FC = () => {
     try {
       const path = await window.electronAPI.selectDirectory();
       if (path) {
-        setRepoPath(path);
+        const verifyResult = await window.electronAPI.verifyRepoPath(path);
+        setRepoPath(verifyResult.path);
+        setRepoPathModified(verifyResult.wasModified);
       }
     } catch (err) {
       console.error('Failed to select directory:', err);
@@ -648,6 +652,12 @@ const PRReviewer: React.FC = () => {
                           Browse
                         </button>
                       </div>
+                      {repoPathModified && (
+                        <div className="text-warning small mt-1">
+                          <i className="fas fa-exclamation-triangle me-1"></i>
+                          Updated to repository root
+                        </div>
+                      )}
                       <div className="form-text small">
                         {repoPath
                           ? 'Local clone matches mapping history.'

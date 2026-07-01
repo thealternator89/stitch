@@ -22,6 +22,14 @@ export class GitService {
     }
   }
 
+  async getRepoRoot(repoPath: string): Promise<string | null> {
+    try {
+      return await this.runCommand(repoPath, 'git rev-parse --show-toplevel');
+    } catch {
+      return null;
+    }
+  }
+
   async getRemoteUrl(repoPath: string): Promise<string | null> {
     try {
       return await this.runCommand(

@@ -128,6 +128,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       repoName,
       repoPath,
     ),
+  verifyRepoPath: (
+    repoPath: string,
+  ): Promise<{
+    isGitRepo: boolean;
+    path: string;
+    originalPath: string;
+    wasModified: boolean;
+  }> => ipcRenderer.invoke('pr-reviewer:verify-repo-path', repoPath),
   getPhases: (): Promise<ReviewPhase[]> =>
     ipcRenderer.invoke('pr-reviewer:get-phases'),
   reviewPR: (
