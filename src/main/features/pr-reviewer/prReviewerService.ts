@@ -172,6 +172,28 @@ export class PRReviewerService {
     }
 
     try {
+      let groupOrder: string[] = [];
+      const configPath = path.join(
+        homeDir,
+        '.stitch',
+        'pr-reviewer',
+        'config.json',
+      );
+      if (fs.existsSync(configPath)) {
+        try {
+          const configContent = fs.readFileSync(configPath, 'utf8');
+          const config = JSON.parse(configContent);
+          if (config && Array.isArray(config.groups)) {
+            groupOrder = config.groups;
+          }
+        } catch (err) {
+          console.error(
+            `Failed to read or parse config.json at ${configPath}:`,
+            err,
+          );
+        }
+      }
+
       const files = fs.readdirSync(phasesDir);
       const mdFiles = files.filter((f) => f.endsWith('.md')).sort();
 
@@ -227,9 +249,22 @@ export class PRReviewerService {
         if (groupB === 'Ungrouped' && groupA !== 'Ungrouped') {
           return 1;
         }
-        const groupCompare = groupA.localeCompare(groupB);
-        if (groupCompare !== 0) {
-          return groupCompare;
+        if (groupA !== groupB) {
+          const idxA = groupOrder.indexOf(groupA);
+          const idxB = groupOrder.indexOf(groupB);
+          if (idxA !== -1 && idxB !== -1) {
+            return idxA - idxB;
+          }
+          if (idxA !== -1) {
+            return -1;
+          }
+          if (idxB !== -1) {
+            return 1;
+          }
+          const groupCompare = groupA.localeCompare(groupB);
+          if (groupCompare !== 0) {
+            return groupCompare;
+          }
         }
         return a.id.localeCompare(b.id);
       });

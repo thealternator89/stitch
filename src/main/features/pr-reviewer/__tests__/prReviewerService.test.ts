@@ -512,7 +512,11 @@ describe('PRReviewerService', () => {
         session: mockSession,
       });
 
-      const mockExistsSync = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      const mockExistsSync = vi
+        .spyOn(fs, 'existsSync')
+        .mockImplementation((filePath: any) => {
+          return !filePath.toString().endsWith('config.json');
+        });
       const mockReadFileSync = vi
         .spyOn(fs, 'readFileSync')
         .mockReturnValue('const a = 1;\nconst b = 2;\nconst c = 3;');
@@ -845,7 +849,9 @@ describe('PRReviewerService', () => {
     });
 
     it('should load phases, assign default Ungrouped group, and sort correctly', async () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        return !filePath.toString().endsWith('config.json');
+      });
       vi.spyOn(fs, 'readdirSync').mockReturnValue([
         '030-python.md',
         '010-definition-of-done.md',
@@ -889,7 +895,9 @@ describe('PRReviewerService', () => {
     });
 
     it('should successfully load a template and interpolate body', async () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        return !filePath.toString().endsWith('config.json');
+      });
       vi.spyOn(fs, 'readdirSync').mockReturnValue(['010-templated.md'] as any);
 
       vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
@@ -920,6 +928,9 @@ describe('PRReviewerService', () => {
         if (normalized.includes('pr-reviewer/templates/missing-template.md')) {
           return false;
         }
+        if (normalized.includes('config.json')) {
+          return false;
+        }
         return true;
       });
       vi.spyOn(fs, 'readdirSync').mockReturnValue(['010-templated.md'] as any);
@@ -946,7 +957,9 @@ describe('PRReviewerService', () => {
     });
 
     it('should block template directory traversal and skip the phase', async () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        return !filePath.toString().endsWith('config.json');
+      });
       vi.spyOn(fs, 'readdirSync').mockReturnValue(['010-templated.md'] as any);
 
       vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
@@ -971,6 +984,159 @@ describe('PRReviewerService', () => {
       expect(consoleErrorSpy.mock.calls[0][1].message).toContain(
         'Directory traversal detected',
       );
+    });
+
+    it('should sort groups according to config.json when available', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/config.json')) {
+          return true;
+        }
+        return true;
+      });
+
+      vi.spyOn(fs, 'readdirSync').mockReturnValue([
+        '030-python.md',
+        '010-definition-of-done.md',
+        '020-dotnet.md',
+        '040-js.md',
+      ] as any);
+
+      const filesContent: Record<string, string> = {
+        'config.json': JSON.stringify({
+          groups: ['Security', 'Analytics'],
+        }),
+        '010-definition-of-done.md':
+          '---\ntitle: DoD\ngroup: Security\n---\nDoD body',
+        '020-dotnet.md': '---\ntitle: .NET\n---\nDotnet body',
+        '030-python.md':
+          '---\ntitle: Python\ngroup: Security\n---\nPython body',
+        '040-js.md': '---\ntitle: JS\ngroup: Analytics\n---\nJS body',
+      };
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const basename = path.basename(filePath);
+        return filesContent[basename] || '';
+      });
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toHaveLength(4);
+
+      // Verify custom sorting order:
+      // 1. Ungrouped first: '020-dotnet.md'
+      // 2. 'Security' ('010-definition-of-done.md', '030-python.md') - sorted first in config.json groups
+      // 3. 'Analytics' ('040-js.md') - sorted second in config.json groups
+      expect(result[0].id).toBe('020-dotnet.md');
+      expect(result[0].group).toBe('Ungrouped');
+
+      expect(result[1].id).toBe('010-definition-of-done.md');
+      expect(result[1].group).toBe('Security');
+
+      expect(result[2].id).toBe('030-python.md');
+      expect(result[2].group).toBe('Security');
+
+      expect(result[3].id).toBe('040-js.md');
+      expect(result[3].group).toBe('Analytics');
+    });
+
+    it('should sort fallback groups (not in config.json) last and alphabetically', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/config.json')) {
+          return true;
+        }
+        return true;
+      });
+
+      vi.spyOn(fs, 'readdirSync').mockReturnValue([
+        '010-definition-of-done.md',
+        '020-dotnet.md',
+        '030-python.md',
+        '040-js.md',
+        '050-perf.md',
+      ] as any);
+
+      const filesContent: Record<string, string> = {
+        'config.json': JSON.stringify({
+          groups: ['Analytics'],
+        }),
+        '010-definition-of-done.md':
+          '---\ntitle: DoD\ngroup: Security\n---\nDoD body',
+        '020-dotnet.md': '---\ntitle: .NET\n---\nDotnet body',
+        '030-python.md':
+          '---\ntitle: Python\ngroup: Security\n---\nPython body',
+        '040-js.md': '---\ntitle: JS\ngroup: Analytics\n---\nJS body',
+        '050-perf.md': '---\ntitle: Perf\ngroup: Performance\n---\nPerf body',
+      };
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const basename = path.basename(filePath);
+        return filesContent[basename] || '';
+      });
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toHaveLength(5);
+
+      // Verify custom/fallback sorting:
+      // 1. Ungrouped first: '020-dotnet.md'
+      // 2. Specified group: 'Analytics' ('040-js.md')
+      // 3. Fallback groups sorted alphabetically: 'Performance' ('050-perf.md') then 'Security' ('010-definition-of-done.md', '030-python.md')
+      expect(result[0].id).toBe('020-dotnet.md');
+      expect(result[1].id).toBe('040-js.md');
+      expect(result[2].id).toBe('050-perf.md');
+      expect(result[3].id).toBe('010-definition-of-done.md');
+      expect(result[4].id).toBe('030-python.md');
+    });
+
+    it('should ignore invalid config.json or missing groups and sort alphabetically', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/config.json')) {
+          return true;
+        }
+        return true;
+      });
+
+      vi.spyOn(fs, 'readdirSync').mockReturnValue([
+        '030-python.md',
+        '010-definition-of-done.md',
+        '020-dotnet.md',
+        '040-js.md',
+      ] as any);
+
+      const filesContent: Record<string, string> = {
+        'config.json': 'invalid-json',
+        '010-definition-of-done.md':
+          '---\ntitle: DoD\ngroup: Security\n---\nDoD body',
+        '020-dotnet.md': '---\ntitle: .NET\n---\nDotnet body',
+        '030-python.md':
+          '---\ntitle: Python\ngroup: Security\n---\nPython body',
+        '040-js.md': '---\ntitle: JS\ngroup: Analytics\n---\nJS body',
+      };
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const basename = path.basename(filePath);
+        return filesContent[basename] || '';
+      });
+
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      // Alphabetical sorting fallback:
+      // 1. Ungrouped: '020-dotnet.md'
+      // 2. Analytics: '040-js.md'
+      // 3. Security: '010-definition-of-done.md', '030-python.md'
+      expect(result[0].id).toBe('020-dotnet.md');
+      expect(result[1].id).toBe('040-js.md');
+      expect(result[2].id).toBe('010-definition-of-done.md');
+      expect(result[3].id).toBe('030-python.md');
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
     });
   });
 
