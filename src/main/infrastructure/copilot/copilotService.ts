@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { CopilotModel, EnvironmentCheckResult } from '../../../types';
 import {
   checkEnvironment,
@@ -110,6 +112,7 @@ function getTimeoutMs(): number {
 export class CopilotService {
   private model = 'auto';
   private cachedModels: CopilotModel[] = [];
+  private promptLogPath = process.env.STITCH_PROMPT_LOG || null;
 
   async checkEnvironment(): Promise<EnvironmentCheckResult> {
     return checkEnvironment();
@@ -218,6 +221,25 @@ export class CopilotService {
     });
   }
 
+  private logPrompt(prompt: string): void {
+    if (!this.promptLogPath) {
+      return;
+    }
+    try {
+      const dir = path.dirname(this.promptLogPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const logEntry = `\n=========================================\n[${new Date().toISOString()}] Prompt:\n=========================================\n${prompt}\n`;
+      fs.appendFileSync(this.promptLogPath, logEntry, 'utf8');
+    } catch (error: any) {
+      console.error(
+        `Failed to write prompt log to ${this.promptLogPath}:`,
+        error.message || error,
+      );
+    }
+  }
+
   async createClientAndSession(
     copilotToken: string | undefined,
     modelOverride: string | undefined,
@@ -255,6 +277,7 @@ export class CopilotService {
       args?: any,
     ) => void,
   ): Promise<string> {
+    this.logPrompt(prompt);
     const timeoutMs = getTimeoutMs();
     const chunks: string[] = [];
     let buffer = '';
