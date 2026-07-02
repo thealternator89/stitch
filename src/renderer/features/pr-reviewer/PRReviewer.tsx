@@ -58,6 +58,7 @@ const PRReviewer: React.FC = () => {
   const [showDirtyModal, setShowDirtyModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [errorTitle, setErrorTitle] = useState('Fetch & Checkout Failed');
 
   interface LocalReviewPhase extends ReviewPhase {
     enabled: boolean;
@@ -248,13 +249,22 @@ const PRReviewer: React.FC = () => {
   const handleStartReview = async () => {
     if (!selectedPR || !commitSha) return;
 
+    const activePhases = phases.filter((p) => p.enabled);
+    const phaseWithTemplateError = activePhases.find((p) => p.templateError);
+    if (phaseWithTemplateError) {
+      showError(
+        phaseWithTemplateError.templateError!,
+        'Template Validation Error',
+      );
+      return;
+    }
+
     setIsReviewing(true);
     setComments([]);
     setCurrentPhase(null);
     setCurrentStatus(null);
     setLastStatusTime(null);
 
-    const activePhases = phases.filter((p) => p.enabled);
     setPhaseProgress(
       activePhases.map((p) => ({
         id: p.id,
@@ -329,8 +339,9 @@ const PRReviewer: React.FC = () => {
     }
   };
 
-  const showError = (msg: string) => {
+  const showError = (msg: string, title = 'Fetch & Checkout Failed') => {
     setErrorMessage(msg);
+    setErrorTitle(title);
     setShowErrorModal(true);
   };
 
@@ -746,6 +757,15 @@ const PRReviewer: React.FC = () => {
                                           <span className="text-muted font-monospace tiny-text ms-1">
                                             ({phase.id})
                                           </span>
+                                          {phase.templateError && (
+                                            <span
+                                              className="text-danger ms-2"
+                                              title={phase.templateError}
+                                              style={{ cursor: 'help' }}
+                                            >
+                                              <i className="fas fa-exclamation-circle"></i>
+                                            </span>
+                                          )}
                                         </label>
                                       </div>
                                     ),
@@ -1270,7 +1290,7 @@ const PRReviewer: React.FC = () => {
             <div className="env-error-icon bg-danger text-white">
               <i className="fas fa-xmark"></i>
             </div>
-            <h4 className="env-error-title mt-3">Fetch & Checkout Failed</h4>
+            <h4 className="env-error-title mt-3">{errorTitle}</h4>
             <div
               className="env-error-details w-100 text-start overflow-y-auto mb-3"
               style={{ maxHeight: '150px' }}

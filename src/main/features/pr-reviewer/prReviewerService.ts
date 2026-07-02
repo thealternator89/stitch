@@ -206,6 +206,8 @@ export class PRReviewerService {
 
           let body = parsed.body;
           const templateName = parsed.frontmatter.template;
+          let templateError: string | undefined = undefined;
+
           if (templateName) {
             const templatesDir = path.join(
               path.dirname(phasesDir),
@@ -214,15 +216,20 @@ export class PRReviewerService {
             const templatePath = path.resolve(templatesDir, templateName);
             const relative = path.relative(templatesDir, templatePath);
             if (relative.startsWith('..') || path.isAbsolute(relative)) {
-              throw new Error(
-                `Directory traversal detected in template path: ${templateName}`,
-              );
+              templateError = `Directory traversal detected in template path: ${templateName}`;
+            } else if (!fs.existsSync(templatePath)) {
+              templateError = `Template file not found: ${templatePath}`;
+            } else {
+              const templateContent = fs.readFileSync(templatePath, 'utf8');
+              if (!templateContent.includes('<%content%>')) {
+                templateError = `Template "${templateName}" is missing the required <%content%> placeholder.`;
+              } else {
+                body = templateContent.replace(
+                  /<%content%>/g,
+                  () => parsed.body,
+                );
+              }
             }
-            if (!fs.existsSync(templatePath)) {
-              throw new Error(`Template file not found: ${templatePath}`);
-            }
-            const templateContent = fs.readFileSync(templatePath, 'utf8');
-            body = templateContent.replace(/<%content%>/g, () => parsed.body);
           }
 
           phases.push({
@@ -234,6 +241,7 @@ export class PRReviewerService {
             attach: parsed.frontmatter.attach,
             body,
             template: templateName,
+            templateError,
           });
         } catch (err) {
           console.error(`Failed to read/parse phase file ${file}:`, err);
@@ -637,6 +645,12 @@ export class PRReviewerService {
         throw new Error(
           'None of the selected review phases were found on disk.',
         );
+      }
+
+      for (const phase of enabledPhases) {
+        if (phase.templateError) {
+          throw new Error(phase.templateError);
+        }
       }
 
       let accumulatedResult = '';

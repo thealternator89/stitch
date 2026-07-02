@@ -634,6 +634,24 @@ describe('PRReviewerService', () => {
         'No custom review phases found on disk. Please configure them in ~/.stitch/pr-reviewer/phases',
       );
     });
+
+    it('should throw an error if an enabled phase has a templateError', async () => {
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue([
+        {
+          id: '010-templated.md',
+          title: 'Templated Phase',
+          body: 'My phase content',
+          template: 'missing-template.md',
+          templateError: 'Template file not found: missing-template.md',
+        },
+      ]);
+
+      await expect(
+        prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+          enabledPhaseIds: ['010-templated.md'],
+        }),
+      ).rejects.toThrow('Template file not found: missing-template.md');
+    });
   });
 
   describe('extractFileContextSync', () => {
@@ -922,7 +940,7 @@ describe('PRReviewerService', () => {
       );
     });
 
-    it('should handle missing template files by logging error and skipping the phase', async () => {
+    it('should load phase with templateError set if template file is missing', async () => {
       vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
         const normalized = filePath.replace(/\\/g, '/');
         if (normalized.includes('pr-reviewer/templates/missing-template.md')) {
@@ -943,20 +961,15 @@ describe('PRReviewerService', () => {
         return '';
       });
 
-      const consoleErrorSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
-
       const result = await prReviewerService.loadPhasesFromDisk();
 
-      expect(result).toHaveLength(0);
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(consoleErrorSpy.mock.calls[0][0]).toContain(
-        'Failed to read/parse phase file',
-      );
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('010-templated.md');
+      expect(result[0].templateError).toContain('Template file not found:');
+      expect(result[0].templateError).toContain('missing-template.md');
     });
 
-    it('should block template directory traversal and skip the phase', async () => {
+    it('should block template directory traversal and set templateError', async () => {
       vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
         return !filePath.toString().endsWith('config.json');
       });
@@ -970,19 +983,38 @@ describe('PRReviewerService', () => {
         return '';
       });
 
-      const consoleErrorSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('010-templated.md');
+      expect(result[0].templateError).toContain(
+        'Directory traversal detected in template path: ../../passwd',
+      );
+    });
+
+    it('should load phase with templateError set if template does not contain <%content%> placeholder', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        return !filePath.toString().endsWith('config.json');
+      });
+      vi.spyOn(fs, 'readdirSync').mockReturnValue(['010-templated.md'] as any);
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/phases/010-templated.md')) {
+          return '---\ntitle: Templated Phase\ntemplate: my-template.md\n---\nMy phase content';
+        }
+        if (normalized.includes('pr-reviewer/templates/my-template.md')) {
+          return 'Template header but no placeholder';
+        }
+        return '';
+      });
 
       const result = await prReviewerService.loadPhasesFromDisk();
 
-      expect(result).toHaveLength(0);
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(consoleErrorSpy.mock.calls[0][0]).toContain(
-        'Failed to read/parse phase file',
-      );
-      expect(consoleErrorSpy.mock.calls[0][1].message).toContain(
-        'Directory traversal detected',
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('010-templated.md');
+      expect(result[0].templateError).toContain(
+        'Template "my-template.md" is missing the required <%content%> placeholder.',
       );
     });
 
