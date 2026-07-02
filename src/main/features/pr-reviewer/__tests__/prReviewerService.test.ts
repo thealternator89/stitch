@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import {
   PRReviewerService,
   extractFileContextSync,
@@ -73,6 +74,7 @@ describe('PRReviewerService', () => {
       mockGitService,
       mockCopilotService,
     );
+    vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
     mockGetPullRequestById.mockReset();
     mockGetPullRequestsByProject.mockReset();
     mockConnect.mockClear();
@@ -864,6 +866,27 @@ describe('PRReviewerService', () => {
       vi.spyOn(fs, 'existsSync').mockReturnValue(false);
       const result = await prReviewerService.loadPhasesFromDisk();
       expect(result).toEqual([]);
+    });
+
+    it('should scaffold phases and templates directories if they do not exist', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+      const mockMkdirSync = vi
+        .spyOn(fs, 'mkdirSync')
+        .mockImplementation(() => undefined as any);
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toEqual([]);
+      expect(mockMkdirSync).toHaveBeenCalledTimes(2);
+      const homeDir = os.homedir();
+      expect(mockMkdirSync).toHaveBeenCalledWith(
+        path.join(homeDir, '.stitch', 'pr-reviewer', 'phases'),
+        { recursive: true },
+      );
+      expect(mockMkdirSync).toHaveBeenCalledWith(
+        path.join(homeDir, '.stitch', 'pr-reviewer', 'templates'),
+        { recursive: true },
+      );
     });
 
     it('should load phases, assign default Ungrouped group, and sort correctly', async () => {

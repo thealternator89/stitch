@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../components/PageLayout';
 import ModelDropdown from '../../components/ModelDropdown';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
@@ -18,6 +19,7 @@ interface ReviewComment {
 }
 
 const PRReviewer: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<
     'assigned' | 'created' | 'all' | 'manual'
   >('assigned');
@@ -57,6 +59,7 @@ const PRReviewer: React.FC = () => {
   // Modals
   const [showDirtyModal, setShowDirtyModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [showNoPhasesModal, setShowNoPhasesModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [errorTitle, setErrorTitle] = useState('Fetch & Checkout Failed');
 
@@ -123,10 +126,19 @@ const PRReviewer: React.FC = () => {
     try {
       const results = await window.electronAPI.getPhases();
       setPhases(results.map((p) => ({ ...p, enabled: true })));
+      setShowNoPhasesModal(results.length === 0);
     } catch (err) {
       console.error('Failed to load review phases:', err);
     } finally {
       setIsLoadingPhases(false);
+    }
+  };
+
+  const handleViewDirectory = async () => {
+    try {
+      await window.electronAPI.openPRReviewerDirectory();
+    } catch (err) {
+      console.error('Failed to open PR reviewer directory:', err);
     }
   };
 
@@ -1308,6 +1320,86 @@ const PRReviewer: React.FC = () => {
                 onClick={() => setShowErrorModal(false)}
               >
                 Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No Phases Modal */}
+      {showNoPhasesModal && (
+        <div className="env-error-overlay">
+          <div className="near-full-modal">
+            <button
+              className="btn btn-link text-decoration-none text-secondary position-absolute d-flex align-items-center"
+              style={{ top: '20px', left: '20px', fontSize: '14px' }}
+              onClick={() => navigate('/')}
+            >
+              <i className="fas fa-arrow-left me-2"></i>
+              Back
+            </button>
+            <div className="env-error-icon info">
+              <i className="fas fa-sliders-h"></i>
+            </div>
+            <h3 className="env-error-title mt-3">Set Up Review Phases</h3>
+            <p
+              className="env-error-message text-center text-muted px-4 mb-4"
+              style={{ maxWidth: '600px' }}
+            >
+              To use the PR Reviewer, you must configure at least one review
+              phase. Review phases define the guidelines and checkpoints used
+              during your reviews. We've automatically scaffolded the
+              configuration folders on your system.
+            </p>
+
+            <div className="env-error-details w-100 mb-4 text-start font-monospace small">
+              <div className="mb-2 fw-semibold text-body">Required Setup:</div>
+              <div className="d-flex align-items-center gap-2 mb-3">
+                <i className="far fa-folder text-warning"></i>
+                <span className="text-secondary">
+                  ~/.stitch/pr-reviewer/phases/
+                </span>
+                <span className="badge bg-danger-subtle text-danger-emphasis ms-auto">
+                  Add .md files here
+                </span>
+              </div>
+
+              <div className="mb-2 fw-semibold text-body">
+                Optional Scaffolding:
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <i className="far fa-folder text-muted"></i>
+                <span className="text-secondary">
+                  ~/.stitch/pr-reviewer/templates/
+                </span>
+              </div>
+            </div>
+
+            <div className="d-flex flex-column flex-sm-row gap-3 mt-2 w-100 justify-content-center">
+              <button
+                className="btn btn-outline-secondary px-4 py-2"
+                onClick={() =>
+                  window.electronAPI.openExternal(
+                    'https://github.com/thealternator89/stitch/blob/main/docs/pr-reviewer/README.md',
+                  )
+                }
+              >
+                <i className="fas fa-book me-2"></i>
+                Documentation
+              </button>
+              <button
+                className="btn btn-outline-primary px-4 py-2"
+                onClick={handleViewDirectory}
+              >
+                <i className="fas fa-folder-open me-2"></i>
+                View Directory
+              </button>
+              <button
+                className="btn btn-indigo px-4 py-2 shadow-sm"
+                onClick={loadPhases}
+              >
+                <i className="fas fa-sync-alt me-2"></i>
+                Check Again
               </button>
             </div>
           </div>

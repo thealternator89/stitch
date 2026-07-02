@@ -138,6 +138,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }> => ipcRenderer.invoke('pr-reviewer:verify-repo-path', repoPath),
   getPhases: (): Promise<ReviewPhase[]> =>
     ipcRenderer.invoke('pr-reviewer:get-phases'),
+  openPRReviewerDirectory: (): Promise<boolean> =>
+    ipcRenderer.invoke('pr-reviewer:open-directory'),
   reviewPR: (
     repoPath: string,
     targetBranch: string,

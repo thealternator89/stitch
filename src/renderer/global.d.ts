@@ -84,6 +84,7 @@ export interface IElectronAPI {
     wasModified: boolean;
   }>;
   getPhases: () => Promise<ReviewPhase[]>;
+  openPRReviewerDirectory: () => Promise<boolean>;
   reviewPR: (
     repoPath: string,
     targetBranch: string,

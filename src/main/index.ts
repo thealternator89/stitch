@@ -1,4 +1,5 @@
 import path from 'path';
+import os from 'os';
 import {
   app,
   BrowserWindow,
@@ -335,6 +336,18 @@ ipcMain.handle('pr-reviewer:search-prs', async (event, searchType) => {
 
 ipcMain.handle('pr-reviewer:get-phases', async () => {
   return prReviewerService.loadPhasesFromDisk();
+});
+
+ipcMain.handle('pr-reviewer:open-directory', async () => {
+  const homeDir = os.homedir();
+  const dirPath = path.join(homeDir, '.stitch', 'pr-reviewer');
+  try {
+    await shell.openPath(dirPath);
+    return true;
+  } catch (err) {
+    console.error(`Failed to open directory ${dirPath}:`, err);
+    return false;
+  }
 });
 
 ipcMain.handle(

@@ -165,7 +165,19 @@ export class PRReviewerService {
 
   async loadPhasesFromDisk(): Promise<ReviewPhase[]> {
     const homeDir = os.homedir();
-    const phasesDir = path.join(homeDir, '.stitch', 'pr-reviewer', 'phases');
+    const stitchDir = path.join(homeDir, '.stitch', 'pr-reviewer');
+    const phasesDir = path.join(stitchDir, 'phases');
+    const templatesDir = path.join(stitchDir, 'templates');
+
+    for (const dir of [phasesDir, templatesDir]) {
+      if (!fs.existsSync(dir)) {
+        try {
+          fs.mkdirSync(dir, { recursive: true });
+        } catch (err) {
+          console.error(`Failed to create directory ${dir}:`, err);
+        }
+      }
+    }
 
     if (!fs.existsSync(phasesDir)) {
       return [];
