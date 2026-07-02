@@ -317,6 +317,7 @@ const PRReviewer: React.FC = () => {
         selectedModel,
         enabledPhaseIds,
         selectedPR.description,
+        selectedPR.id,
       );
     } catch (err: unknown) {
       console.error('Review execution failed:', err);

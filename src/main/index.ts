@@ -347,6 +347,7 @@ ipcMain.handle(
     modelOverride,
     enabledPhaseIds,
     prDescription,
+    prId,
   ) => {
     const s = await initStore();
     const settings = (s.get('settings') ?? {}) as AppSettings;
@@ -355,6 +356,7 @@ ipcMain.handle(
       customInstructions,
       enabledPhaseIds,
       prDescription,
+      prId,
       onLine: (line: string) => {
         event.sender.send('pr-reviewer:review-line', line);
       },

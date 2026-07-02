@@ -606,6 +606,7 @@ export class PRReviewerService {
       customInstructions?: string;
       enabledPhaseIds?: string[];
       prDescription?: string;
+      prId?: string;
       onLine?: (line: string) => void;
     } = {},
   ): Promise<string> {
@@ -695,12 +696,31 @@ export class PRReviewerService {
         const attachDescription =
           phase.attach && phase.attach.toLowerCase().includes('description');
 
+        let fullDescription = options.prDescription;
+        if (attachDescription && options.prId) {
+          try {
+            const prDetails = await this.getPRDetails(
+              repoPath,
+              options.prId,
+              settings,
+            );
+            if (prDetails && prDetails.description) {
+              fullDescription = prDetails.description;
+            }
+          } catch (err) {
+            console.error(
+              `Failed to fetch full PR description for PR ${options.prId}:`,
+              err,
+            );
+          }
+        }
+
         const prompt = buildPhaseReviewPrompt(
           eligibleFiles,
           phase.title,
           phase.body,
           options.customInstructions,
-          attachDescription ? options.prDescription : undefined,
+          attachDescription ? fullDescription : undefined,
         );
 
         const wrappedOnLine = (line: string) => {

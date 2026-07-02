@@ -145,6 +145,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     modelOverride: string,
     enabledPhaseIds?: string[],
     prDescription?: string,
+    prId?: string,
   ): Promise<string> =>
     ipcRenderer.invoke(
       'pr-reviewer:review',
@@ -154,6 +155,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       modelOverride,
       enabledPhaseIds,
       prDescription,
+      prId,
     ),
   onPRReviewLine: (callback: (line: string) => void) => {
     const listener = (_event: unknown, line: string) => callback(line);

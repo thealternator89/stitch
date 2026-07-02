@@ -1279,6 +1279,76 @@ describe('PRReviewerService', () => {
         expect.any(Function),
       );
     });
+
+    it('should fetch PR description dynamically using getPRDetails if prId is provided', async () => {
+      const mockFiles = [{ path: 'src/Program.cs', status: 'modified' }];
+      mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
+
+      const mockPhases = [
+        {
+          id: '010-dod.md',
+          title: 'DoD Review',
+          attach: "['description']",
+          body: 'Check requirements',
+        },
+      ];
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue(
+        mockPhases,
+      );
+
+      const getPRDetailsSpy = vi
+        .spyOn(prReviewerService, 'getPRDetails')
+        .mockResolvedValue({
+          id: '123',
+          title: 'Title',
+          description: 'Dynamically fetched full description of the PR.',
+          sourceBranch: 'feature',
+          targetBranch: 'main',
+          author: 'John Author',
+          repositoryName: 'repo',
+          hostType: 'azure',
+        });
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue(
+        '{"type":"general","comment":"Comment"}',
+      );
+
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        enabledPhaseIds: ['010-dod.md'],
+        prId: '123',
+        prDescription: 'Truncated description...',
+        onLine: vi.fn(),
+      });
+
+      const expectedPrompt = buildPhaseReviewPrompt(
+        mockFiles,
+        'DoD Review',
+        'Check requirements',
+        '',
+        'Dynamically fetched full description of the PR.',
+      );
+
+      expect(getPRDetailsSpy).toHaveBeenCalledWith(
+        '/mock/repo',
+        '123',
+        settings,
+      );
+      expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
+        mockSession,
+        expectedPrompt,
+        expect.any(Function),
+      );
+    });
   });
 
   describe('checkoutAndDiff with original state tracking', () => {
