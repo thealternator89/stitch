@@ -169,6 +169,8 @@ const PRReviewer: React.FC = () => {
     setRepoPathModified(false);
     setCommitSha('');
     setComments([]);
+    setCollapsedComments({});
+    setIsPostingComment({});
     setIsHeaderCollapsed(false);
 
     // Fetch local path history for this repository name
@@ -228,6 +230,8 @@ const PRReviewer: React.FC = () => {
     setLoadingStatus('Running repository checks and checking out branch...');
     setCommitSha('');
     setComments([]);
+    setCollapsedComments({});
+    setIsPostingComment({});
 
     try {
       // 1. Checkout (runs dirty checking and remote URL matching internally on backend)
@@ -273,6 +277,8 @@ const PRReviewer: React.FC = () => {
 
     setIsReviewing(true);
     setComments([]);
+    setCollapsedComments({});
+    setIsPostingComment({});
     setCurrentPhase(null);
     setCurrentStatus(null);
     setLastStatusTime(null);
