@@ -846,15 +846,14 @@ const PRReviewer: React.FC = () => {
                   >
                     <h5 className="card-title fw-bold mb-3">
                       <i className="fas fa-robot me-2 text-primary"></i>
-                      Review Settings
+                      {isReviewing || phaseProgress.length > 0
+                        ? 'Review Progress'
+                        : 'Review Settings'}
                     </h5>
 
                     {isReviewing || phaseProgress.length > 0 ? (
                       /* Phase Progress Checklist */
                       <div className="flex-grow-1 d-flex flex-column">
-                        <h6 className="fw-bold mb-3 text-muted small text-uppercase">
-                          Review Progress
-                        </h6>
                         <div
                           className="list-group list-group-flush border rounded overflow-hidden flex-grow-1 overflow-y-auto mb-3"
                           style={{ maxHeight: '300px' }}
