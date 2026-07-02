@@ -38,9 +38,12 @@ TypeScript using Electron Forge.
   - Option to post the final plan as an Azure DevOps comment.
 - **PR Reviewer**:
   - Automatically conducts code reviews divided into customizable, isolated review phases.
+  - Features **Git Workspace Safety**: requires zero uncommitted changes, captures original branch reference, checks out the PR branch, and safely restores user's original branch state when completed or cancelled.
   - Dynamically filters eligible phases based on modified file paths using glob patterns (e.g., only run C# analysis on `.cs` files).
-  - Employs shared templates to enforce consistent roles, instructions, or response formats.
+  - Employs shared templates to enforce consistent roles, instructions, or response formats across phases.
   - Optionally attaches full pull request descriptions for richer target and requirement context.
+  - Displays real-time streaming status logs, general review feedback, and line-specific comments enriched with local code context.
+  - Publishes review feedback directly to Azure DevOps as active, line-anchored discussion threads.
   - For configuration details, see [docs/pr-reviewer/README.md](./docs/pr-reviewer/README.md).
 - **Persistent Settings**: Securely store Azure DevOps credentials, Confluence
   tokens, and project configuration locally, select a **default Copilot model**,

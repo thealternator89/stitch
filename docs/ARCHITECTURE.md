@@ -46,6 +46,8 @@ locally on the machine.
   - Creates new **Tasks** linked to a parent ID via `Hierarchy-Reverse`
     relationships.
   - Creates new **Product Backlog Items (PBIs)** linked to a Feature ID.
+  - Fetches details of a specific Pull Request (`gitApi.getPullRequestById`) or lists active pull requests for the project (`gitApi.getPullRequestsByProject`).
+  - Posts code review findings (both general and line-specific comments) to the PR as new active comment threads (`gitApi.createThread`) targeting precise file paths and line offsets with an AI disclaimer.
 
 ### Confluence
 
@@ -71,15 +73,22 @@ locally on the machine.
   3.5 Sonnet) and allowing users to choose a model for each generation session.
 - **Generation & Multi-turn Sessions:**
   - For single-shot operations (Test Case Writer, Story Writer), it uses a transient session.
-  - For the interactive **Story Elaborator**, `StoryElaboratorService` maintains a stateful in-memory registry (`activeElaborations = new Map<string, { client: any, session: any }>()`) that keeps the same session alive across multiple user turns/answers.
+  - For the **PR Reviewer**, it starts a new transient session per active review phase, executing them sequentially to enforce phase isolation.
+  - For the **Story Elaborator**, `StoryElaboratorService` maintains a stateful in-memory registry (`activeElaborations = new Map<string, { client: any, session: any }>()`) that keeps the same session alive across multiple user turns/answers.
 - **Real-time Streaming & JSONL Protocol:**
   - Does not use a blocking request-response model. Instead, the main process streams generated data progressively to the renderer.
   - For single-shot tools, lines are pushed via `test-case-line` and `story-line` IPC events.
+  - For the **PR Reviewer**, review comments and status outputs are parsed as JSONL lines (`type: "status"`, `type: "general"`, or `type: "line"`). When a `line` comment is parsed, the backend dynamically resolves context lines using `extractFileContextSync` and enriches the JSON object before pushing it to the UI.
   - For the **Story Elaborator**, lines are emitted via `elaboration-line`. The communication uses a strict JSON Lines (JSONL) protocol, streaming objects of type `status` (thoughts and directory search updates), `question` (with suggested answers for the user), or `plan` (the finalized implementation plan).
   - Inside `sendAndCollectStream`, a newline buffer fallback processes block-delivered responses when incremental token deltas are skipped during tool executions, ensuring smooth UI status tracking.
-- **Workspace Tool Integration (Local Repositories)**:
+- **Workspace Tool Integration (Local Repositories & Git Safety)**:
   - If a repository directory path is provided to the Story Elaborator, the Copilot session is created with `workingDirectory` set to that directory, giving the model first-party tool capability (e.g., browsing files, reading code, searching with grep). The model is instructed to write the plan to a file in the workspace (e.g. `implementation_plan.md`) using its tools.
   - If no repository directory is provided, the session is created with `availableTools: []` (empty array) and without workspace bounds, confining the model's operation to the ticket's text context only.
+  - **PR Reviewer Git Lifecycle & Session Safety:**
+    - To prevent systems from sleeping during multi-phase reviews, Stitch starts an Electron `powerSaveBlocker` during execution.
+    - To prevent loss of work, the PR Reviewer throws an error if there are uncommitted changes in the repository.
+    - It captures the current branch ref and stores it in an active checkouts map (`activeCheckouts = new Map<string, string>()`) to guarantee that the repository is restored back to the user's original checkout state when the review completes, is cancelled, or fails.
+    - Files are checked out and diffed against the target branch, then filtered per phase using `picomatch` based on `include` and `exclude` glob patterns defined in the phase frontmatter. If no files match, the phase is safely skipped.
 
 ## Technical Decisions
 
