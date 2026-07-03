@@ -29,7 +29,7 @@ Do NOT attempt to run any filesystem or command tools, as no repository context 
       .map((d) => `- "${d.title}" (ID: ${d.id})`)
       .join('\n');
     docsInstructions = `
-You have identified the following documentation links in this ticket. You can request the content of any of these documents using the "request_doc" command.
+You have identified the following documentation links in this ticket. You can request the content of any of these documents using the "request_documentation" tool with the corresponding document ID:
 ${docsList}
 `;
   }
@@ -65,14 +65,10 @@ You must choose one of the following JSON formats for each line you output:
 3. The Final Plan (when all questions are answered and the plan is ready. In this case, output a single JSON object:
    \`{"type": "plan", "text": "# Detailed Implementation Plan\\n\\n### Proposed Changes..."}\`
 
-4. Request Documentation (if you want to fetch and read the content of a known Confluence page):
-   \`{"type": "request_doc", "documentId": "12345"}\` or \`{"type": "request_doc", "id": "12345"}\`
-   *IMPORTANT*: When you request documentation, you must not output any other JSON lines in that turn. You must end your turn immediately so the host application can retrieve the document and provide it to you.
-
 Follow this process:
 1. Analyze the ticket, and if a repository is available, inspect the files using your tools.
-2. If you want to request any of the known documents, output the "request_doc" message in JSONL and end your turn. The host application will fetch it and provide the document content in the next turn.
-3. If you are still analyzing or reading files, call your filesystem/grep tools to continue. Each turn where you do not call a tool must ask the user a clarifying question, request a document, or present the final plan. Do not stop without either calling a tool or asking a question/requesting a document/plan.
+2. If you want to request the content of any of the known documents, use the "request_documentation" tool to fetch its content.
+3. If you are still analyzing or reading files, call your filesystem/grep tools to continue. Each turn where you do not call a tool must ask the user a clarifying question or present the final plan. Do not stop without either calling a tool or asking a question/presenting the plan.
 4. Ask clarifying questions one by one, stopping after each question to wait for the user's response.
 5. Once all details are resolved, draft the detailed implementation plan and return the "plan" message in JSONL format.
 
