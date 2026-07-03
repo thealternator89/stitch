@@ -4,6 +4,7 @@ import Menu from './features/menu/Menu';
 import TestCaseWriter from './features/test-case-writer/TestCaseWriter';
 import StoryWriter from './features/story-writer/StoryWriter';
 import StoryElaborator from './features/story-elaborator/StoryElaborator';
+import PRReviewer from './features/pr-reviewer/PRReviewer';
 import Settings from './features/settings/components/Settings';
 import { TimeoutProvider } from './context/TimeoutContext';
 import { UpdateStatus, EnvironmentCheckResult } from '../types';
@@ -158,6 +159,7 @@ const App: React.FC = () => {
             <Route path="/story-writer" element={<StoryWriter />} />
             <Route path="/story-elaborator" element={<StoryElaborator />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/pr-reviewer" element={<PRReviewer />} />
           </Routes>
         </div>
 

@@ -6,6 +6,9 @@ import {
   CopilotModel,
   UpdateStatus,
   EnvironmentCheckResult,
+  PRMetadata,
+  PRDiffFile,
+  ReviewPhase,
 } from '../types';
 
 export interface IElectronAPI {
@@ -54,6 +57,54 @@ export interface IElectronAPI {
   sendElaborationAnswer: (ticketId: string, answer: string) => Promise<string>;
   stopStoryElaboration: (ticketId: string) => Promise<void>;
   onElaborationLine: (callback: (line: string) => void) => () => void;
+  getPRDetails: (repoPath: string, prUrlOrId: string) => Promise<PRMetadata>;
+  checkoutPR: (
+    repoPath: string,
+    prNumber: number,
+    expectedRepoName?: string,
+  ) => Promise<{ commitSha: string }>;
+  getPRDiffFiles: (
+    repoPath: string,
+    targetBranch: string,
+  ) => Promise<PRDiffFile[]>;
+  getPRFileDiff: (
+    repoPath: string,
+    targetBranch: string,
+    filePath: string,
+  ) => Promise<string>;
+  searchPRs: (
+    searchType: 'assigned' | 'created' | 'all',
+  ) => Promise<PRMetadata[]>;
+  getRepoPathHistory: (repoName: string) => Promise<string | null>;
+  saveRepoPathHistory: (repoName: string, repoPath: string) => Promise<boolean>;
+  verifyRepoPath: (repoPath: string) => Promise<{
+    isGitRepo: boolean;
+    path: string;
+    originalPath: string;
+    wasModified: boolean;
+  }>;
+  getPhases: () => Promise<ReviewPhase[]>;
+  openPRReviewerDirectory: () => Promise<boolean>;
+  reviewPR: (
+    repoPath: string,
+    targetBranch: string,
+    customInstructions: string,
+    modelOverride: string,
+    enabledPhaseIds?: string[],
+    prDescription?: string,
+    prId?: string,
+  ) => Promise<string>;
+  onPRReviewLine: (callback: (line: string) => void) => () => void;
+  postPRComment: (
+    repoPath: string,
+    prUrlOrId: string,
+    comment: {
+      type: 'general' | 'line';
+      file?: string;
+      line?: number;
+      comment: string;
+    },
+  ) => Promise<void>;
   isWindows: boolean;
 }
 

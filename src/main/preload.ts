@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { AppSettings, TicketData, DocPageData } from '../types';
+import {
+  AppSettings,
+  TicketData,
+  DocPageData,
+  PRMetadata,
+  PRDiffFile,
+  ReviewPhase,
+} from '../types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -80,5 +87,100 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('elaboration-line', listener);
     };
   },
+  getPRDetails: (repoPath: string, prUrlOrId: string): Promise<PRMetadata> =>
+    ipcRenderer.invoke('pr-reviewer:get-details', repoPath, prUrlOrId),
+  checkoutPR: (
+    repoPath: string,
+    prNumber: number,
+    expectedRepoName?: string,
+  ): Promise<{ commitSha: string }> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:checkout',
+      repoPath,
+      prNumber,
+      expectedRepoName,
+    ),
+  getPRDiffFiles: (
+    repoPath: string,
+    targetBranch: string,
+  ): Promise<PRDiffFile[]> =>
+    ipcRenderer.invoke('pr-reviewer:get-diff-files', repoPath, targetBranch),
+  getPRFileDiff: (
+    repoPath: string,
+    targetBranch: string,
+    filePath: string,
+  ): Promise<string> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:get-file-diff',
+      repoPath,
+      targetBranch,
+      filePath,
+    ),
+  searchPRs: (
+    searchType: 'assigned' | 'created' | 'all',
+  ): Promise<PRMetadata[]> =>
+    ipcRenderer.invoke('pr-reviewer:search-prs', searchType),
+  getRepoPathHistory: (repoName: string): Promise<string | null> =>
+    ipcRenderer.invoke('pr-reviewer:get-repo-path-history', repoName),
+  saveRepoPathHistory: (repoName: string, repoPath: string): Promise<boolean> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:save-repo-path-history',
+      repoName,
+      repoPath,
+    ),
+  verifyRepoPath: (
+    repoPath: string,
+  ): Promise<{
+    isGitRepo: boolean;
+    path: string;
+    originalPath: string;
+    wasModified: boolean;
+  }> => ipcRenderer.invoke('pr-reviewer:verify-repo-path', repoPath),
+  getPhases: (): Promise<ReviewPhase[]> =>
+    ipcRenderer.invoke('pr-reviewer:get-phases'),
+  openPRReviewerDirectory: (): Promise<boolean> =>
+    ipcRenderer.invoke('pr-reviewer:open-directory'),
+  reviewPR: (
+    repoPath: string,
+    targetBranch: string,
+    customInstructions: string,
+    modelOverride: string,
+    enabledPhaseIds?: string[],
+    prDescription?: string,
+    prId?: string,
+  ): Promise<string> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:review',
+      repoPath,
+      targetBranch,
+      customInstructions,
+      modelOverride,
+      enabledPhaseIds,
+      prDescription,
+      prId,
+    ),
+  onPRReviewLine: (callback: (line: string) => void) => {
+    const listener = (_event: unknown, line: string) => callback(line);
+    ipcRenderer.on('pr-reviewer:review-line', listener);
+    return () => {
+      ipcRenderer.removeListener('pr-reviewer:review-line', listener);
+    };
+  },
+  postPRComment: (
+    repoPath: string,
+    prUrlOrId: string,
+    comment: {
+      type: 'general' | 'line';
+      file?: string;
+      line?: number;
+      comment: string;
+    },
+  ): Promise<void> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:post-comment',
+      repoPath,
+      prUrlOrId,
+      comment,
+    ),
   isWindows: process.platform === 'win32',
 });

@@ -1,3 +1,5 @@
+import path from 'path';
+import os from 'os';
 import {
   app,
   BrowserWindow,
@@ -16,6 +18,8 @@ import { StoryWriterService } from './features/story-writer/storyWriterService';
 import { TestCaseWriterService } from './features/test-case-writer/testCaseWriterService';
 import { StoryElaboratorService } from './features/story-elaborator/storyElaboratorService';
 import { PromptComplexityService } from './features/settings/promptComplexityService';
+import { GitService } from './infrastructure/git/gitService';
+import { PRReviewerService } from './features/pr-reviewer/prReviewerService';
 
 // Initialize auto-updates
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -58,6 +62,8 @@ const storyElaboratorService = new StoryElaboratorService(
   },
 );
 const promptComplexityService = new PromptComplexityService(copilotService);
+const gitService = new GitService();
+const prReviewerService = new PRReviewerService(gitService, copilotService);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -287,6 +293,157 @@ ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
 ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
   return storyElaboratorService.stopStoryElaboration(ticketId);
 });
+
+ipcMain.handle(
+  'pr-reviewer:get-details',
+  async (event, repoPath, prUrlOrId) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
+    return prReviewerService.getPRDetails(repoPath, prUrlOrId, settings);
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:checkout',
+  async (event, repoPath, prNumber, expectedRepoName) => {
+    return prReviewerService.checkoutAndDiff(
+      repoPath,
+      prNumber,
+      expectedRepoName,
+    );
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:get-diff-files',
+  async (event, repoPath, targetBranch) => {
+    return gitService.getDiffFiles(repoPath, targetBranch);
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:get-file-diff',
+  async (event, repoPath, targetBranch, filePath) => {
+    return gitService.getFileDiff(repoPath, targetBranch, filePath);
+  },
+);
+
+ipcMain.handle('pr-reviewer:search-prs', async (event, searchType) => {
+  const s = await initStore();
+  const settings = (s.get('settings') ?? {}) as AppSettings;
+  return prReviewerService.getProjectPRs(searchType, settings);
+});
+
+ipcMain.handle('pr-reviewer:get-phases', async () => {
+  return prReviewerService.loadPhasesFromDisk();
+});
+
+ipcMain.handle('pr-reviewer:open-directory', async () => {
+  const homeDir = os.homedir();
+  const dirPath = path.join(homeDir, '.stitch', 'pr-reviewer');
+  try {
+    await shell.openPath(dirPath);
+    return true;
+  } catch (err) {
+    console.error(`Failed to open directory ${dirPath}:`, err);
+    return false;
+  }
+});
+
+ipcMain.handle(
+  'pr-reviewer:review',
+  async (
+    event,
+    repoPath,
+    targetBranch,
+    customInstructions,
+    modelOverride,
+    enabledPhaseIds,
+    prDescription,
+    prId,
+  ) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
+    return prReviewerService.reviewPR(repoPath, targetBranch, settings, {
+      modelOverride,
+      customInstructions,
+      enabledPhaseIds,
+      prDescription,
+      prId,
+      onLine: (line: string) => {
+        event.sender.send('pr-reviewer:review-line', line);
+      },
+    });
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:post-comment',
+  async (event, repoPath, prUrlOrId, comment) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
+    return prReviewerService.postPRComment(
+      repoPath,
+      prUrlOrId,
+      comment,
+      settings,
+    );
+  },
+);
+
+ipcMain.handle('pr-reviewer:get-repo-path-history', async (event, repoName) => {
+  const s = await initStore();
+  return s.get(`repo-paths.${repoName}`) || null;
+});
+
+ipcMain.handle(
+  'pr-reviewer:save-repo-path-history',
+  async (event, repoName, repoPath) => {
+    const s = await initStore();
+    s.set(`repo-paths.${repoName}`, repoPath);
+    return true;
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:verify-repo-path',
+  async (event, repoPath: string) => {
+    const isGitRepo = await gitService.checkGitRepo(repoPath);
+    if (!isGitRepo) {
+      return {
+        isGitRepo: false,
+        path: repoPath,
+        originalPath: repoPath,
+        wasModified: false,
+      };
+    }
+
+    const rootPath = await gitService.getRepoRoot(repoPath);
+    if (!rootPath) {
+      return {
+        isGitRepo: false,
+        path: repoPath,
+        originalPath: repoPath,
+        wasModified: false,
+      };
+    }
+
+    const normSelected = path.resolve(repoPath);
+    const normRoot = path.resolve(rootPath);
+
+    const isSame =
+      process.platform === 'win32' || process.platform === 'darwin'
+        ? normSelected.toLowerCase() === normRoot.toLowerCase()
+        : normSelected === normRoot;
+
+    return {
+      isGitRepo: true,
+      path: rootPath,
+      originalPath: repoPath,
+      wasModified: !isSame,
+    };
+  },
+);
 
 ipcMain.handle('add-comment', async (event, ticketId, text) => {
   const service = await getAzureService();

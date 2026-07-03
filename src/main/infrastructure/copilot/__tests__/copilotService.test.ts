@@ -440,4 +440,88 @@ describe('CopilotService', () => {
       'Copilot CLI client cannot be started: Node.js executable or Copilot CLI script path could not be resolved',
     );
   });
+
+  describe('Prompt Logging (STITCH_PROMPT_LOG)', () => {
+    afterEach(() => {
+      delete process.env.STITCH_PROMPT_LOG;
+    });
+
+    it('should write the prompt to file and create directories if STITCH_PROMPT_LOG is configured', async () => {
+      const logPath = '/mock/path/to/my/prompt.log';
+      process.env.STITCH_PROMPT_LOG = logPath;
+
+      const mockExistsSync = vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+      const mockMkdirSync = vi
+        .spyOn(fs, 'mkdirSync')
+        .mockImplementation(() => undefined as any);
+      const mockAppendFileSync = vi
+        .spyOn(fs, 'appendFileSync')
+        .mockImplementation(() => {});
+
+      const testService = new CopilotService();
+      const responsePromise = testService.sendAndCollectStream(
+        mockSession as any,
+        'my-test-prompt-content',
+      );
+
+      await vi.advanceTimersByTimeAsync(10);
+      sessionListener!({ type: 'session.idle' });
+      await responsePromise;
+
+      expect(mockExistsSync).toHaveBeenCalledWith('/mock/path/to/my');
+      expect(mockMkdirSync).toHaveBeenCalledWith('/mock/path/to/my', {
+        recursive: true,
+      });
+      expect(mockAppendFileSync).toHaveBeenCalledWith(
+        logPath,
+        expect.stringContaining('my-test-prompt-content'),
+        'utf8',
+      );
+    });
+
+    it('should not write to file if STITCH_PROMPT_LOG is not configured', async () => {
+      const mockAppendFileSync = vi.spyOn(fs, 'appendFileSync');
+
+      const testService = new CopilotService();
+      const responsePromise = testService.sendAndCollectStream(
+        mockSession as any,
+        'my-test-prompt-content',
+      );
+
+      await vi.advanceTimersByTimeAsync(10);
+      sessionListener!({ type: 'session.idle' });
+      await responsePromise;
+
+      expect(mockAppendFileSync).not.toHaveBeenCalled();
+    });
+
+    it('should print an error to console but not block if writing to file fails', async () => {
+      const logPath = '/mock/path/to/my/prompt.log';
+      process.env.STITCH_PROMPT_LOG = logPath;
+
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'appendFileSync').mockImplementation(() => {
+        throw new Error('Disk full');
+      });
+      const mockConsoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+
+      const testService = new CopilotService();
+      const responsePromise = testService.sendAndCollectStream(
+        mockSession as any,
+        'my-test-prompt-content',
+      );
+
+      await vi.advanceTimersByTimeAsync(10);
+      sessionListener!({ type: 'session.idle' });
+      const result = await responsePromise;
+
+      expect(result).toBe(''); // completed successfully
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to write prompt log'),
+        expect.stringContaining('Disk full'),
+      );
+    });
+  });
 });

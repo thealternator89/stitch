@@ -91,3 +91,46 @@ export interface EnvironmentCheckResult {
   requiredCopilotVersion?: string;
   installedCopilotVersion?: string;
 }
+
+export interface PRMetadata {
+  id: string;
+  title: string;
+  description: string;
+  sourceBranch: string;
+  targetBranch: string;
+  author?: string;
+  repositoryName: string;
+  hostType: 'azure' | 'unknown';
+  url?: string;
+}
+
+export interface PRDiffFile {
+  path: string;
+  status:
+    | 'added'
+    | 'modified'
+    | 'deleted'
+    | 'renamed'
+    | 'type_changed'
+    | 'unknown';
+}
+
+export interface PRCheckoutResult {
+  success: boolean;
+  commitSha?: string;
+  targetBranch: string;
+  sourceBranch: string;
+  error?: string;
+}
+
+export interface ReviewPhase {
+  id: string;
+  title: string;
+  group?: string;
+  include?: string | string[];
+  exclude?: string | string[];
+  attach?: string;
+  body: string;
+  template?: string;
+  templateError?: string;
+}

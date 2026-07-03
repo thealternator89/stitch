@@ -36,6 +36,15 @@ TypeScript using Electron Forge.
   - Interactive Q&A chat interface with quick-select suggested answer pill buttons.
   - Streams real-time logging status updates from the Copilot session.
   - Option to post the final plan as an Azure DevOps comment.
+- **PR Reviewer**:
+  - Automatically conducts code reviews divided into customizable, isolated review phases.
+  - Features **Git Workspace Safety**: requires zero uncommitted changes, captures original branch reference, checks out the PR branch, and safely restores user's original branch state when completed or cancelled.
+  - Dynamically filters eligible phases based on modified file paths using glob patterns (e.g., only run C# analysis on `.cs` files).
+  - Employs shared templates to enforce consistent roles, instructions, or response formats across phases.
+  - Optionally attaches full pull request descriptions for richer target and requirement context.
+  - Displays real-time streaming status logs, general review feedback, and line-specific comments enriched with local code context.
+  - Publishes review feedback directly to Azure DevOps as active, line-anchored discussion threads.
+  - For configuration details, see [docs/pr-reviewer/README.md](./docs/pr-reviewer/README.md).
 - **Persistent Settings**: Securely store Azure DevOps credentials, Confluence
   tokens, and project configuration locally, select a **default Copilot model**,
   and actively **check the status** of local GitHub Copilot CLI authentication.
@@ -125,7 +134,7 @@ npm run make
 │   │   ├── index.ts    # Main process entry point & IPC Handlers
 │   │   ├── preload.ts  # Preload script for IPC and secure bridge
 │   │   ├── infrastructure/ # Low-level shared infrastructure (Azure, Confluence, Copilot SDK lifecycle)
-│   │   └── features/       # Self-contained main-side backend feature slices (story-writer, test-case-writer, story-elaborator)
+│   │   └── features/       # Self-contained main-side backend feature slices (story-writer, test-case-writer, story-elaborator, pr-reviewer)
 │   └── renderer/       # Renderer process (React environment)
 │       ├── components/ # Shared React UI components
 │       ├── hooks/      # Shared React hooks (e.g., useCopilotModels)
