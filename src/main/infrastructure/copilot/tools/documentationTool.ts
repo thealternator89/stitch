@@ -3,9 +3,9 @@ import { DocumentationProvider } from '../../providers/DocumentationProvider';
 
 export function createRequestDocumentationTool(
   getDocProvider: () => Promise<DocumentationProvider | null>,
-  providedDocIds: Set<string>,
   getOnLine: () => ((line: string) => void) | undefined,
 ) {
+  const providedDocIds = new Set<string>();
   return {
     name: 'request_documentation',
     description:

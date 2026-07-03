@@ -11,7 +11,6 @@ export class StoryElaboratorService {
     {
       client: any;
       session: any;
-      providedDocIds: Set<string>;
       onLine?: (line: string) => void;
     }
   >();
@@ -33,11 +32,8 @@ export class StoryElaboratorService {
     await this.stopStoryElaboration(ticketData.id || '');
 
     try {
-      const providedDocIds = new Set<string>();
-
       const requestDocumentationTool = createRequestDocumentationTool(
         this.getDocProvider,
-        providedDocIds,
         () => this.activeElaborations.get(ticketData.id || '')?.onLine,
       );
 
@@ -60,7 +56,6 @@ export class StoryElaboratorService {
       this.activeElaborations.set(ticketData.id || '', {
         client,
         session,
-        providedDocIds,
         onLine,
       });
 
