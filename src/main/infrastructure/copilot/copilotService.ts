@@ -246,6 +246,7 @@ export class CopilotService {
     options: {
       workingDirectory?: string | null;
       availableTools?: any[];
+      tools?: any[];
       streaming?: boolean;
     },
   ): Promise<{ client: any; session: any; approveAll: any }> {
@@ -260,6 +261,9 @@ export class CopilotService {
       sessionOptions.workingDirectory = options.workingDirectory;
     } else if (options.availableTools) {
       sessionOptions.availableTools = options.availableTools;
+    }
+    if (options.tools) {
+      sessionOptions.tools = options.tools;
     }
     const session = await client.createSession(sessionOptions);
     return { client, session, approveAll };
