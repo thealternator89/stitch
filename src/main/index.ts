@@ -63,7 +63,24 @@ const storyElaboratorService = new StoryElaboratorService(
 );
 const promptComplexityService = new PromptComplexityService(copilotService);
 const gitService = new GitService();
-const prReviewerService = new PRReviewerService(gitService, copilotService);
+const prReviewerService = new PRReviewerService(
+  gitService,
+  copilotService,
+  async () => {
+    try {
+      return await getAzureService();
+    } catch {
+      return null;
+    }
+  },
+  async () => {
+    try {
+      return await getConfluenceService();
+    } catch {
+      return null;
+    }
+  },
+);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 // eslint-disable-next-line @typescript-eslint/no-require-imports

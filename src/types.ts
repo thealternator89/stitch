@@ -100,6 +100,7 @@ export interface PRMetadata {
   targetBranch: string;
   author?: string;
   repositoryName: string;
+  repositoryId?: string;
   hostType: 'azure' | 'unknown';
   url?: string;
 }
