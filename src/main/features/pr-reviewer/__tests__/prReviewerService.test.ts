@@ -855,6 +855,59 @@ describe('PRReviewerService', () => {
         body: 'body-content-2',
       });
     });
+
+    it('should parse array format using JSON-like arrays', () => {
+      const content =
+        '---\ntitle: test-phase\ninclude: ["*.ts", "*.js"]\nexclude: [\'*.spec.ts\', \'*.test.ts\']\n---\nbody-content';
+      const result = parseFrontmatter(content);
+      expect(result).toEqual({
+        frontmatter: {
+          title: 'test-phase',
+          include: ['*.ts', '*.js'],
+          exclude: ['*.spec.ts', '*.test.ts'],
+        },
+        body: 'body-content',
+      });
+    });
+
+    it('should parse array format using YAML lists', () => {
+      const content =
+        '---\ntitle: test-phase\ninclude:\n  - "*.ts"\n  - \'*.js\'\nexclude:\n  - "*.spec.ts"\n  - "*.test.ts"\n---\nbody-content';
+      const result = parseFrontmatter(content);
+      expect(result).toEqual({
+        frontmatter: {
+          title: 'test-phase',
+          include: ['*.ts', '*.js'],
+          exclude: ['*.spec.ts', '*.test.ts'],
+        },
+        body: 'body-content',
+      });
+    });
+
+    it('should parse array with glob comma braces correctly', () => {
+      const content =
+        '---\ntitle: test-phase\ninclude: ["{a,b}.ts", "c.js"]\n---\nbody';
+      const result = parseFrontmatter(content);
+      expect(result).toEqual({
+        frontmatter: {
+          title: 'test-phase',
+          include: ['{a,b}.ts', 'c.js'],
+        },
+        body: 'body',
+      });
+    });
+
+    it('should parse empty arrays correctly', () => {
+      const content = '---\ntitle: test-phase\ninclude: []\n---\nbody';
+      const result = parseFrontmatter(content);
+      expect(result).toEqual({
+        frontmatter: {
+          title: 'test-phase',
+          include: [],
+        },
+        body: 'body',
+      });
+    });
   });
 
   describe('loadPhasesFromDisk', () => {
@@ -1273,6 +1326,112 @@ describe('PRReviewerService', () => {
           type: 'phase-skip',
           phaseId: '030-python.md',
           phaseTitle: 'Python Review',
+          reason: 'No matching files found',
+        }),
+      );
+
+      expect(mockCopilotService.createClientAndSession).toHaveBeenCalledTimes(
+        2,
+      );
+      expect(mockSession.disconnect).toHaveBeenCalledTimes(2);
+      expect(mockClient.stop).toHaveBeenCalledTimes(2);
+    });
+
+    it('should execute review phases matching file changes using array include and exclude filters', async () => {
+      const mockFiles = [
+        { path: 'src/Program.cs', status: 'modified' },
+        { path: 'src/index.js', status: 'added' },
+        { path: 'src/main.test.ts', status: 'added' },
+      ];
+      mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
+
+      const mockPhases = [
+        {
+          id: '010-src.md',
+          title: 'Source Review',
+          include: ['**/*.cs', '**/*.js'],
+          body: 'Check source code style',
+        },
+        {
+          id: '020-tests.md',
+          title: 'Test Review',
+          include: ['**/*.test.ts', '**/*.spec.ts'],
+          exclude: ['**/*.js'],
+          body: 'Check test style',
+        },
+        {
+          id: '030-ignored.md',
+          title: 'Ignored Review',
+          include: ['**/*.py'],
+          body: 'Check python style',
+        },
+        {
+          id: '040-excluded.md',
+          title: 'Excluded Review',
+          include: ['**/*.cs', '**/*.js'],
+          exclude: ['**/*.cs', '**/*.js'],
+          body: 'Check excluded style',
+        },
+      ];
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue(
+        mockPhases,
+      );
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue(
+        '{"type":"general","comment":"Comment"}',
+      );
+
+      const onLineCallback = vi.fn();
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        enabledPhaseIds: [
+          '010-src.md',
+          '020-tests.md',
+          '030-ignored.md',
+          '040-excluded.md',
+        ],
+        onLine: onLineCallback,
+      });
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-start',
+          phaseId: '010-src.md',
+          phaseTitle: 'Source Review',
+        }),
+      );
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-start',
+          phaseId: '020-tests.md',
+          phaseTitle: 'Test Review',
+        }),
+      );
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-skip',
+          phaseId: '030-ignored.md',
+          phaseTitle: 'Ignored Review',
+          reason: 'No matching files found',
+        }),
+      );
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-skip',
+          phaseId: '040-excluded.md',
+          phaseTitle: 'Excluded Review',
           reason: 'No matching files found',
         }),
       );

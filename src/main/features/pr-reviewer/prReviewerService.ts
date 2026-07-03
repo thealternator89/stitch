@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import picomatch from 'picomatch';
+import matter from 'gray-matter';
 import { powerSaveBlocker } from 'electron';
 import * as azdev from 'azure-devops-node-api';
 import { IGitApi } from 'azure-devops-node-api/GitApi';
@@ -83,37 +84,32 @@ If you have no issues or feedback to report for a phase, simply do not output an
 Begin your review now.`;
 }
 
+export function getGlobMatcher(
+  globInput: string | string[],
+): (str: string) => boolean {
+  const globs = Array.isArray(globInput) ? globInput : [globInput];
+  const matchers = globs.map((g) => picomatch(g, { dot: true }));
+  return (str: string) => matchers.some((m) => m(str));
+}
+
 export function parseFrontmatter(content: string): {
-  frontmatter: Record<string, string>;
+  frontmatter: Record<string, string | string[]>;
   body: string;
 } {
-  const normalized = content.replace(/\r\n/g, '\n');
-  const parts = normalized.split('---\n');
-  if (parts.length >= 3) {
-    const yamlSection = parts[1];
-    const bodySection = parts.slice(2).join('---\n');
-    const frontmatter: Record<string, string> = {};
-
-    const lines = yamlSection.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const colonIdx = trimmed.indexOf(':');
-      if (colonIdx !== -1) {
-        const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
-        let value = trimmed.slice(colonIdx + 1).trim();
-        if (
-          (value.startsWith("'") && value.endsWith("'")) ||
-          (value.startsWith('"') && value.endsWith('"'))
-        ) {
-          value = value.slice(1, -1);
-        }
-        frontmatter[key] = value;
-      }
+  try {
+    const parsed = matter(content);
+    const lowercaseFrontmatter: Record<string, string | string[]> = {};
+    for (const [key, val] of Object.entries(parsed.data)) {
+      lowercaseFrontmatter[key.toLowerCase()] = val as string | string[];
     }
-    return { frontmatter, body: bodySection.trim() };
+    return {
+      frontmatter: lowercaseFrontmatter,
+      body: parsed.content.trim(),
+    };
+  } catch (err) {
+    console.error('Failed to parse frontmatter with gray-matter:', err);
+    return { frontmatter: {}, body: content.trim() };
   }
-  return { frontmatter: {}, body: content.trim() };
 }
 
 export function extractFileContextSync(
@@ -217,7 +213,9 @@ export class PRReviewerService {
           const parsed = parseFrontmatter(content);
 
           let body = parsed.body;
-          const templateName = parsed.frontmatter.template;
+          const templateName = Array.isArray(parsed.frontmatter.template)
+            ? parsed.frontmatter.template[0]
+            : parsed.frontmatter.template;
           let templateError: string | undefined = undefined;
 
           if (templateName) {
@@ -244,13 +242,23 @@ export class PRReviewerService {
             }
           }
 
+          const title = Array.isArray(parsed.frontmatter.title)
+            ? parsed.frontmatter.title[0]
+            : parsed.frontmatter.title;
+          const group = Array.isArray(parsed.frontmatter.group)
+            ? parsed.frontmatter.group[0]
+            : parsed.frontmatter.group;
+          const attach = Array.isArray(parsed.frontmatter.attach)
+            ? parsed.frontmatter.attach[0]
+            : parsed.frontmatter.attach;
+
           phases.push({
             id: file,
-            title: parsed.frontmatter.title || file,
-            group: parsed.frontmatter.group || 'Ungrouped',
+            title: title || file,
+            group: group || 'Ungrouped',
             include: parsed.frontmatter.include,
             exclude: parsed.frontmatter.exclude,
-            attach: parsed.frontmatter.attach,
+            attach: attach,
             body,
             template: templateName,
             templateError,
@@ -672,7 +680,7 @@ export class PRReviewerService {
 
         if (phase.include) {
           try {
-            const isMatch = picomatch(phase.include, { dot: true });
+            const isMatch = getGlobMatcher(phase.include);
             eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
           } catch (err) {
             console.error(`Invalid include glob: ${phase.include}`, err);
@@ -681,7 +689,7 @@ export class PRReviewerService {
 
         if (phase.exclude) {
           try {
-            const isMatch = picomatch(phase.exclude, { dot: true });
+            const isMatch = getGlobMatcher(phase.exclude);
             eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
           } catch (err) {
             console.error(`Invalid exclude glob: ${phase.exclude}`, err);

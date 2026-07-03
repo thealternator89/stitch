@@ -127,8 +127,8 @@ export interface ReviewPhase {
   id: string;
   title: string;
   group?: string;
-  include?: string;
-  exclude?: string;
+  include?: string | string[];
+  exclude?: string | string[];
   attach?: string;
   body: string;
   template?: string;
