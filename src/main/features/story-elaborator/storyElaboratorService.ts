@@ -98,8 +98,6 @@ export class StoryElaboratorService {
         knownDocs,
       );
 
-      console.log(prompt);
-
       return await this.runElaborationTurn(ticketData.id || '', prompt, onLine);
     } catch (error) {
       console.error('Error starting story elaboration:', error);
