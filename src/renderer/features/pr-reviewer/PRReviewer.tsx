@@ -44,6 +44,7 @@ const PRReviewer: React.FC = () => {
   // Review states
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<string | null>(null);
   const [lastStatusTime, setLastStatusTime] = useState<Date | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
@@ -172,6 +173,7 @@ const PRReviewer: React.FC = () => {
     setCollapsedComments({});
     setIsPostingComment({});
     setIsHeaderCollapsed(false);
+    setHasReviewed(false);
 
     // Fetch local path history for this repository name
     try {
@@ -232,6 +234,7 @@ const PRReviewer: React.FC = () => {
     setComments([]);
     setCollapsedComments({});
     setIsPostingComment({});
+    setHasReviewed(false);
 
     try {
       // 1. Checkout (runs dirty checking and remote URL matching internally on backend)
@@ -276,6 +279,7 @@ const PRReviewer: React.FC = () => {
     }
 
     setIsReviewing(true);
+    setHasReviewed(false);
     setComments([]);
     setCollapsedComments({});
     setIsPostingComment({});
@@ -347,6 +351,7 @@ const PRReviewer: React.FC = () => {
         selectedPR.description,
         selectedPR.id,
       );
+      setHasReviewed(true);
     } catch (err: unknown) {
       console.error('Review execution failed:', err);
       const msg = err instanceof Error ? err.message : String(err);
@@ -1042,6 +1047,22 @@ const PRReviewer: React.FC = () => {
                       </div>
                     )}
 
+                    {!isReviewing && hasReviewed && comments.length > 0 && (
+                      <div className="alert alert-success py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-success-subtle text-success-emphasis small">
+                        <div className="d-flex align-items-center gap-2">
+                          <i className="fas fa-check-circle text-success me-1"></i>
+                          <span>
+                            <strong>Review complete</strong>
+                          </span>
+                        </div>
+                        {lastStatusTime && (
+                          <span className="text-muted small font-monospace">
+                            Completed at: {lastStatusTime.toLocaleTimeString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div
                       className="flex-grow-1 overflow-y-auto pe-1"
                       style={{ maxHeight: 'none' }}
@@ -1066,6 +1087,16 @@ const PRReviewer: React.FC = () => {
                               <p className="small mb-0 text-center px-4">
                                 Copilot is analyzing the repository. Comments
                                 will appear here as they are generated.
+                              </p>
+                            </>
+                          ) : hasReviewed ? (
+                            <>
+                              <i className="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                              <p className="fw-bold text-success fs-5 mb-1">
+                                Review complete
+                              </p>
+                              <p className="small mb-0 text-center px-4 text-muted">
+                                No comments were suggested.
                               </p>
                             </>
                           ) : (
