@@ -187,6 +187,45 @@ const App: React.FC = () => {
         </div>
 
         <div className="footer">
+          <div className="me-auto d-flex align-items-center">
+            <button
+              className="btn btn-link p-0 border-0 d-flex align-items-center text-decoration-none no-drag"
+              onClick={runAuthCheck}
+              disabled={checkingAuth}
+              title={
+                checkingAuth
+                  ? 'Checking authentication status...'
+                  : authCheckResult &&
+                      authCheckResult.authStatus?.isAuthenticated
+                    ? `Authenticated as ${authCheckResult.authStatus.login}`
+                    : 'Not authenticated with GitHub Copilot. Click to re-check.'
+              }
+              style={{
+                fontSize: '11px',
+                color: 'inherit',
+                textDecoration: 'none',
+              }}
+            >
+              <i
+                className={`fab fa-github me-1 ${
+                  checkingAuth
+                    ? 'fa-spin text-muted'
+                    : authCheckResult &&
+                        authCheckResult.authStatus?.isAuthenticated
+                      ? 'text-success'
+                      : 'text-warning'
+                }`}
+              ></i>
+              <span className="small">
+                {checkingAuth
+                  ? 'Checking Auth...'
+                  : authCheckResult &&
+                      authCheckResult.authStatus?.isAuthenticated
+                    ? 'Copilot Connected'
+                    : 'Copilot Disconnected'}
+              </span>
+            </button>
+          </div>
           <span className="me-2 text-muted">Version {version}</span>
         </div>
 
