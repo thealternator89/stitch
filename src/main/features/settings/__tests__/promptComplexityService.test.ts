@@ -87,15 +87,14 @@ describe('PromptComplexity feature', () => {
       expect(mockClient.stop).toHaveBeenCalled();
     });
 
-    it('should throw an error if no custom prompt statements are provided', async () => {
+    it('should return PASS message if no custom prompt statements are provided', async () => {
       const settings: AppSettings = {
         prompts: {},
       };
 
-      await expect(
-        service.checkPromptComplexity('story', {}, settings),
-      ).rejects.toThrow(
-        'No customized prompt statements detected. Please customize at least one field before checking.',
+      const result = await service.checkPromptComplexity('story', {}, settings);
+      expect(result).toBe(
+        'PASS: No customized prompt statements detected. Please customize at least one field before checking.',
       );
     });
   });

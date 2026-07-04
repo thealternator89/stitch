@@ -19,9 +19,7 @@ export class PromptComplexityService {
     );
 
     if (!hasCustomPrompt) {
-      throw new Error(
-        'No customized prompt statements detected. Please customize at least one field before checking.',
-      );
+      return 'PASS: No customized prompt statements detected. Please customize at least one field before checking.';
     }
 
     const { client, session } =

@@ -112,10 +112,10 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
     ].some((val) => val && val.trim() !== '');
 
     if (!hasCustom) {
-      setStoryError(
-        'No customized prompt statements detected. Please customize at least one field before checking.',
+      setStoryResult(
+        'PASS: No customized prompt statements detected. Please customize at least one field before checking.',
       );
-      setStoryResult(null);
+      setStoryError(null);
       setLastCheckedStory(null);
       setModalTab('story');
       setShowModal(true);
@@ -173,10 +173,10 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
     ].some((val) => val && val.trim() !== '');
 
     if (!hasCustom) {
-      setTestCaseError(
-        'No customized prompt statements detected. Please customize at least one field before checking.',
+      setTestCaseResult(
+        'PASS: No customized prompt statements detected. Please customize at least one field before checking.',
       );
-      setTestCaseResult(null);
+      setTestCaseError(null);
       setLastCheckedTestCase(null);
       setModalTab('testcase');
       setShowModal(true);
@@ -587,123 +587,160 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
       {showModal &&
         modalTab &&
         createPortal(
-          <div className="env-error-overlay" style={{ zIndex: 3000 }}>
-            <div
-              className="near-full-modal text-start align-items-stretch"
-              style={{ width: '800px', padding: '30px' }}
-            >
-              <button
-                type="button"
-                className="btn btn-link text-secondary position-absolute"
-                style={{
-                  top: '20px',
-                  right: '20px',
-                  fontSize: '1.2rem',
-                  padding: '5px',
-                  textDecoration: 'none',
-                }}
-                onClick={() => {
-                  setShowModal(false);
-                  setModalTab(null);
-                }}
-              >
-                <i className="fas fa-times"></i>
-              </button>
+          (() => {
+            const resultText =
+              modalTab === 'story' ? storyResult : testCaseResult;
+            const errorText = modalTab === 'story' ? storyError : testCaseError;
+            const checking =
+              modalTab === 'story' ? checkingStory : checkingTestCase;
 
-              <div className="d-flex align-items-center gap-3 border-bottom pb-3 mb-4">
+            const isPass = resultText?.trim().toUpperCase().startsWith('PASS:');
+            const isFail = resultText?.trim().toUpperCase().startsWith('FAIL:');
+
+            const cleanResultText = (text: string | null) => {
+              if (!text) return '';
+              return text.replace(/^(PASS|FAIL):\s*/i, '');
+            };
+
+            return (
+              <div className="env-error-overlay" style={{ zIndex: 3000 }}>
                 <div
-                  className="env-error-icon bg-info text-white m-0"
-                  style={{
-                    width: '50px',
-                    height: '50px',
-                    fontSize: '1.2rem',
-                    flexShrink: 0,
-                  }}
+                  className="near-full-modal text-start align-items-stretch"
+                  style={{ width: '800px', padding: '30px' }}
                 >
-                  <i className="fas fa-magnifying-glass-chart"></i>
-                </div>
-                <div>
-                  <h4 className="mb-1 fw-bold text-body">
-                    Prompt Analysis Feedback
-                  </h4>
-                  <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
-                    {modalTab === 'story' ? 'Story Writer' : 'Test Case Writer'}
-                  </span>
-                </div>
-              </div>
+                  <button
+                    type="button"
+                    className="btn btn-link text-secondary position-absolute"
+                    style={{
+                      top: '20px',
+                      right: '20px',
+                      fontSize: '1.2rem',
+                      padding: '5px',
+                      textDecoration: 'none',
+                    }}
+                    onClick={() => {
+                      setShowModal(false);
+                      setModalTab(null);
+                    }}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
 
-              <div
-                className="overflow-y-auto px-1"
-                style={{ maxHeight: '60vh' }}
-              >
-                {/* Loading State */}
-                {((modalTab === 'story' && checkingStory) ||
-                  (modalTab === 'testcase' && checkingTestCase)) && (
-                  <div className="d-flex flex-column align-items-center justify-content-center py-5 my-3">
-                    <span
-                      className="spinner-border text-info mb-3"
-                      style={{ width: '3rem', height: '3rem' }}
-                      role="status"
-                      aria-hidden="true"
-                    ></span>
-                    <p className="text-muted fw-semibold">
-                      Analyzing prompt structure & complexity...
-                    </p>
+                  <div className="d-flex align-items-center gap-3 border-bottom pb-3 mb-4">
+                    {/* Display outcome icon based on PASS/FAIL prefix if result is ready and not loading */}
+                    {!checking && !errorText && isPass && (
+                      <div
+                        className="env-error-icon bg-success text-white m-0"
+                        style={{
+                          width: '50px',
+                          height: '50px',
+                          fontSize: '1.2rem',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <i className="fas fa-check"></i>
+                      </div>
+                    )}
+                    {!checking && !errorText && isFail && (
+                      <div
+                        className="env-error-icon text-white m-0"
+                        style={{
+                          width: '50px',
+                          height: '50px',
+                          fontSize: '1.2rem',
+                          flexShrink: 0,
+                          backgroundColor: '#f59e0b', // Premium warm orange warning color
+                        }}
+                      >
+                        <i className="fas fa-exclamation-triangle"></i>
+                      </div>
+                    )}
+
+                    <div>
+                      <h4 className="mb-1 fw-bold text-body">
+                        Prompt Analysis Feedback
+                      </h4>
+                      <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
+                        {modalTab === 'story'
+                          ? 'Story Writer'
+                          : 'Test Case Writer'}
+                      </span>
+                    </div>
                   </div>
-                )}
 
-                {/* Results */}
-                {modalTab === 'story' && !checkingStory && (
-                  <>
-                    {storyResult && (
-                      <div className="markdown-content selectable-text bg-body-secondary p-4 rounded-4 border border-light-subtle shadow-sm">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {storyResult}
-                        </ReactMarkdown>
+                  <div
+                    className="overflow-y-auto px-1"
+                    style={{ maxHeight: '60vh' }}
+                  >
+                    {/* Loading State */}
+                    {checking && (
+                      <div className="d-flex flex-column align-items-center justify-content-center py-5 my-3">
+                        <span
+                          className="spinner-border text-info mb-3"
+                          style={{ width: '3rem', height: '3rem' }}
+                          role="status"
+                          aria-hidden="true"
+                        ></span>
+                        <p className="text-muted fw-semibold">
+                          Analyzing prompt structure & complexity...
+                        </p>
                       </div>
                     )}
-                    {storyError && (
-                      <div className="alert alert-danger d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis p-4 rounded-4">
-                        <i className="fas fa-triangle-exclamation mt-1"></i>
-                        <div>{storyError}</div>
-                      </div>
-                    )}
-                  </>
-                )}
 
-                {modalTab === 'testcase' && !checkingTestCase && (
-                  <>
-                    {testCaseResult && (
-                      <div className="markdown-content selectable-text bg-body-secondary p-4 rounded-4 border border-light-subtle shadow-sm">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {testCaseResult}
-                        </ReactMarkdown>
-                      </div>
+                    {/* Results */}
+                    {modalTab === 'story' && !checkingStory && (
+                      <>
+                        {storyResult && (
+                          <div className="markdown-content selectable-text bg-body-secondary p-4 rounded-4 border border-light-subtle shadow-sm">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {cleanResultText(storyResult)}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                        {storyError && (
+                          <div className="alert alert-danger d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis p-4 rounded-4">
+                            <i className="fas fa-triangle-exclamation mt-1"></i>
+                            <div>{storyError}</div>
+                          </div>
+                        )}
+                      </>
                     )}
-                    {testCaseError && (
-                      <div className="alert alert-danger d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis p-4 rounded-4">
-                        <i className="fas fa-triangle-exclamation mt-1"></i>
-                        <div>{testCaseError}</div>
-                      </div>
+
+                    {modalTab === 'testcase' && !checkingTestCase && (
+                      <>
+                        {testCaseResult && (
+                          <div className="markdown-content selectable-text bg-body-secondary p-4 rounded-4 border border-light-subtle shadow-sm">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {cleanResultText(testCaseResult)}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                        {testCaseError && (
+                          <div className="alert alert-danger d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis p-4 rounded-4">
+                            <i className="fas fa-triangle-exclamation mt-1"></i>
+                            <div>{testCaseError}</div>
+                          </div>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
+                  </div>
+
+                  <div className="d-flex justify-content-end mt-4 pt-3 border-top">
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary px-4 py-2 fw-semibold"
+                      onClick={() => {
+                        setShowModal(false);
+                        setModalTab(null);
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
               </div>
-
-              <div className="d-flex justify-content-end mt-4 pt-3 border-top">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary px-4 py-2 fw-semibold"
-                  onClick={() => {
-                    setShowModal(false);
-                    setModalTab(null);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>,
+            );
+          })(),
           document.body,
         )}
     </div>

@@ -19,7 +19,20 @@ CRITICAL INSTRUCTIONS:
 3. Assess the user-customized statements in relation to the rules and structure of the overall prompt template. Specifically check if any custom inputs might encourage code blocks, markdown fences, unescaped double quotes, or raw newlines inside JSON properties.
 4. Avoid being unnecessarily pessimistic. If the user-customized statements are clear and safe, DO NOT invent potential issues.
 
-Explain any issues detected in the user-customized statements clearly and suggest action-oriented improvements, or respond with a confirmation that the prompt template looks perfectly safe and compliant. Keep your response brief, clear, and formatted nicely as markdown.
+CRITICAL FORMATTING REQUIREMENT:
+You MUST start your response with either "PASS:", "FAIL:", or no prefix at all.
+- Start with "PASS:" (followed by a space and then your feedback/confirmation) if, on balance, the custom prompt statements are likely to work correctly without causing issues. Be lenient; do not fail prompts for minor style preferences or low-risk phrasing.
+- Start with "FAIL:" (followed by a space and then your feedback/issues list) ONLY if there are significant, high-probability risks to the output format (such as violating the requirement to produce valid JSONL, causing unescaped quotes, or breaking JSON syntax).
+- Start with NO prefix (e.g., start directly with your markdown text feedback) if you are uncertain, or if there are mild issues that do not justify a full FAIL but aren't a clean PASS. An uncertain or mild issue is better off without a prefix than an overzealous FAIL.
+
+Example PASS response:
+PASS: The custom prompt statements are clear and fully compliant.
+
+Example FAIL response:
+FAIL: The customized statements contain formatting risks.
+- **general**: Avoid requesting raw newlines as it may break JSONL structures.
+
+Keep your response brief, clear, and formatted nicely as markdown.
 
 OVERALL PROMPT TEMPLATE CONTEXT:
 """
