@@ -6,14 +6,17 @@ import { AppSettings } from '../../../../types';
 
 describe('PromptComplexity feature', () => {
   describe('buildPromptComplexityCheckPrompt', () => {
-    it('should generate prompt complexity check prompt containing the prompt to check', () => {
+    it('should generate prompt complexity check prompt containing the prompt context and user statements', () => {
       const testPrompt = 'This is a test prompt content';
-      const prompt = buildPromptComplexityCheckPrompt(testPrompt);
+      const customInputs = { general: 'Custom general instruction', notes: '' };
+      const prompt = buildPromptComplexityCheckPrompt(testPrompt, customInputs);
 
       expect(prompt).toContain(
         'You are an expert AI prompt engineer and validator.',
       );
       expect(prompt).toContain('This is a test prompt content');
+      expect(prompt).toContain('[Customized Field: general]');
+      expect(prompt).toContain('Custom general instruction');
     });
   });
 

@@ -41,7 +41,10 @@ export class PromptComplexityService {
         );
       }
 
-      const metaPrompt = buildPromptComplexityCheckPrompt(promptToCheck);
+      const metaPrompt = buildPromptComplexityCheckPrompt(
+        promptToCheck,
+        prompts,
+      );
 
       return await this.copilotService.sendAndCollectStream(
         session,
