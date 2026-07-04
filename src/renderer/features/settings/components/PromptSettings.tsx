@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -72,6 +73,14 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
   const [testCaseResult, setTestCaseResult] = useState<string | null>(null);
   const [testCaseError, setTestCaseError] = useState<string | null>(null);
 
+  const [showModal, setShowModal] = useState(false);
+  const [modalTab, setModalTab] = useState<'story' | 'testcase' | null>(null);
+
+  const [lastCheckedStory, setLastCheckedStory] = useState<string | null>(null);
+  const [lastCheckedTestCase, setLastCheckedTestCase] = useState<string | null>(
+    null,
+  );
+
   const handleResetStoryDefaults = () => {
     setStoryGeneral('');
     setStoryTitle('');
@@ -94,9 +103,44 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
   };
 
   const handleCheckStory = async () => {
+    const hasCustom = [
+      storyGeneral,
+      storyTitle,
+      storyDescription,
+      storyAcceptanceCriteria,
+      storyNotes,
+    ].some((val) => val && val.trim() !== '');
+
+    if (!hasCustom) {
+      setStoryResult(
+        'PASS: No customized prompt statements detected. Please customize at least one field before checking.',
+      );
+      setStoryError(null);
+      setLastCheckedStory(null);
+      setModalTab('story');
+      setShowModal(true);
+      return;
+    }
+
+    const currentKey = JSON.stringify({
+      general: storyGeneral,
+      title: storyTitle,
+      description: storyDescription,
+      acceptanceCriteria: storyAcceptanceCriteria,
+      notes: storyNotes,
+    });
+
+    if ((storyResult || storyError) && currentKey === lastCheckedStory) {
+      setModalTab('story');
+      setShowModal(true);
+      return;
+    }
+
     setCheckingStory(true);
     setStoryResult(null);
     setStoryError(null);
+    setModalTab('story');
+    setShowModal(true);
     try {
       const response = await window.electronAPI.checkPromptComplexity('story', {
         general: storyGeneral,
@@ -106,20 +150,62 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
         notes: storyNotes,
       });
       setStoryResult(response);
+      setLastCheckedStory(currentKey);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       setStoryError(
         errorMsg || 'An error occurred while validating the prompt.',
       );
+      setLastCheckedStory(currentKey);
     } finally {
       setCheckingStory(false);
     }
   };
 
   const handleCheckTestCase = async () => {
+    const hasCustom = [
+      testCaseGeneral,
+      testCaseId,
+      testCaseDescription,
+      testCasePreConditions,
+      testCaseSteps,
+      testCaseExpectedResult,
+    ].some((val) => val && val.trim() !== '');
+
+    if (!hasCustom) {
+      setTestCaseResult(
+        'PASS: No customized prompt statements detected. Please customize at least one field before checking.',
+      );
+      setTestCaseError(null);
+      setLastCheckedTestCase(null);
+      setModalTab('testcase');
+      setShowModal(true);
+      return;
+    }
+
+    const currentKey = JSON.stringify({
+      general: testCaseGeneral,
+      id: testCaseId,
+      description: testCaseDescription,
+      preConditions: testCasePreConditions,
+      steps: testCaseSteps,
+      expectedResult: testCaseExpectedResult,
+    });
+
+    if (
+      (testCaseResult || testCaseError) &&
+      currentKey === lastCheckedTestCase
+    ) {
+      setModalTab('testcase');
+      setShowModal(true);
+      return;
+    }
+
     setCheckingTestCase(true);
     setTestCaseResult(null);
     setTestCaseError(null);
+    setModalTab('testcase');
+    setShowModal(true);
     try {
       const response = await window.electronAPI.checkPromptComplexity(
         'testcase',
@@ -133,11 +219,13 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
         },
       );
       setTestCaseResult(response);
+      setLastCheckedTestCase(currentKey);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       setTestCaseError(
         errorMsg || 'An error occurred while validating the prompt.',
       );
+      setLastCheckedTestCase(currentKey);
     } finally {
       setCheckingTestCase(false);
     }
@@ -346,27 +434,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                 Instruct what extra warnings, assumptions, or notes to include.
               </div>
             </div>
-
-            {storyResult && (
-              <div className="card border-info bg-info-subtle mt-4">
-                <div className="card-header bg-transparent border-0 pt-3 pb-0 fw-semibold text-info-emphasis d-flex align-items-center gap-2">
-                  <i className="fas fa-magnifying-glass-chart"></i>Prompt
-                  Analysis Feedback
-                </div>
-                <div className="card-body markdown-content p-3">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {storyResult}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
-
-            {storyError && (
-              <div className="alert alert-danger mt-4 d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis">
-                <i className="fas fa-triangle-exclamation mt-1"></i>
-                <div>{storyError}</div>
-              </div>
-            )}
           </div>
         )}
 
@@ -487,27 +554,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                 cannot be customized.
               </div>
             </div>
-
-            {testCaseResult && (
-              <div className="card border-info bg-info-subtle mt-4">
-                <div className="card-header bg-transparent border-0 pt-3 pb-0 fw-semibold text-info-emphasis d-flex align-items-center gap-2">
-                  <i className="fas fa-magnifying-glass-chart"></i>Prompt
-                  Analysis Feedback
-                </div>
-                <div className="card-body markdown-content p-3">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {testCaseResult}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
-
-            {testCaseError && (
-              <div className="alert alert-danger mt-4 d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis">
-                <i className="fas fa-triangle-exclamation mt-1"></i>
-                <div>{testCaseError}</div>
-              </div>
-            )}
           </div>
         )}
 
@@ -537,6 +583,166 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
           </div>
         )}
       </div>
+
+      {showModal &&
+        modalTab &&
+        createPortal(
+          (() => {
+            const resultText =
+              modalTab === 'story' ? storyResult : testCaseResult;
+            const errorText = modalTab === 'story' ? storyError : testCaseError;
+            const checking =
+              modalTab === 'story' ? checkingStory : checkingTestCase;
+
+            const isPass = resultText?.trim().toUpperCase().startsWith('PASS:');
+            const isFail = resultText?.trim().toUpperCase().startsWith('FAIL:');
+
+            const cleanResultText = (text: string | null) => {
+              if (!text) return '';
+              return text.replace(/^(PASS|FAIL):\s*/i, '');
+            };
+
+            return (
+              <div className="env-error-overlay" style={{ zIndex: 3000 }}>
+                <div
+                  className="near-full-modal text-start align-items-stretch"
+                  style={{ width: '800px', padding: '30px' }}
+                >
+                  <button
+                    type="button"
+                    className="btn btn-link text-secondary position-absolute"
+                    style={{
+                      top: '20px',
+                      right: '20px',
+                      fontSize: '1.2rem',
+                      padding: '5px',
+                      textDecoration: 'none',
+                    }}
+                    onClick={() => {
+                      setShowModal(false);
+                      setModalTab(null);
+                    }}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+
+                  <div className="d-flex align-items-center gap-3 border-bottom pb-3 mb-4">
+                    {/* Display outcome icon based on PASS/FAIL prefix if result is ready and not loading */}
+                    {!checking && !errorText && isPass && (
+                      <div
+                        className="env-error-icon bg-success text-white m-0"
+                        style={{
+                          width: '50px',
+                          height: '50px',
+                          fontSize: '1.2rem',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <i className="fas fa-check"></i>
+                      </div>
+                    )}
+                    {!checking && !errorText && isFail && (
+                      <div
+                        className="env-error-icon text-white m-0"
+                        style={{
+                          width: '50px',
+                          height: '50px',
+                          fontSize: '1.2rem',
+                          flexShrink: 0,
+                          backgroundColor: '#f59e0b', // Premium warm orange warning color
+                        }}
+                      >
+                        <i className="fas fa-exclamation-triangle"></i>
+                      </div>
+                    )}
+
+                    <div>
+                      <h4 className="mb-1 fw-bold text-body">
+                        Prompt Analysis Feedback
+                      </h4>
+                      <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
+                        {modalTab === 'story'
+                          ? 'Story Writer'
+                          : 'Test Case Writer'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    className="overflow-y-auto px-1"
+                    style={{ maxHeight: '60vh' }}
+                  >
+                    {/* Loading State */}
+                    {checking && (
+                      <div className="d-flex flex-column align-items-center justify-content-center py-5 my-3">
+                        <span
+                          className="spinner-border text-info mb-3"
+                          style={{ width: '3rem', height: '3rem' }}
+                          role="status"
+                          aria-hidden="true"
+                        ></span>
+                        <p className="text-muted fw-semibold">
+                          Analyzing prompt structure & complexity...
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Results */}
+                    {modalTab === 'story' && !checkingStory && (
+                      <>
+                        {storyResult && (
+                          <div className="markdown-content selectable-text bg-body-secondary p-4 rounded-4 border border-light-subtle shadow-sm">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {cleanResultText(storyResult)}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                        {storyError && (
+                          <div className="alert alert-danger d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis p-4 rounded-4">
+                            <i className="fas fa-triangle-exclamation mt-1"></i>
+                            <div>{storyError}</div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {modalTab === 'testcase' && !checkingTestCase && (
+                      <>
+                        {testCaseResult && (
+                          <div className="markdown-content selectable-text bg-body-secondary p-4 rounded-4 border border-light-subtle shadow-sm">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {cleanResultText(testCaseResult)}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                        {testCaseError && (
+                          <div className="alert alert-danger d-flex align-items-start gap-2 border-0 bg-danger-subtle text-danger-emphasis p-4 rounded-4">
+                            <i className="fas fa-triangle-exclamation mt-1"></i>
+                            <div>{testCaseError}</div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="d-flex justify-content-end mt-4 pt-3 border-top">
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary px-4 py-2 fw-semibold"
+                      onClick={() => {
+                        setShowModal(false);
+                        setModalTab(null);
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })(),
+          document.body,
+        )}
     </div>
   );
 };

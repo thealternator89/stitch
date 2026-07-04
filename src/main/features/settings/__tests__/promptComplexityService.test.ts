@@ -6,14 +6,17 @@ import { AppSettings } from '../../../../types';
 
 describe('PromptComplexity feature', () => {
   describe('buildPromptComplexityCheckPrompt', () => {
-    it('should generate prompt complexity check prompt containing the prompt to check', () => {
+    it('should generate prompt complexity check prompt containing the prompt context and user statements', () => {
       const testPrompt = 'This is a test prompt content';
-      const prompt = buildPromptComplexityCheckPrompt(testPrompt);
+      const customInputs = { general: 'Custom general instruction', notes: '' };
+      const prompt = buildPromptComplexityCheckPrompt(testPrompt, customInputs);
 
       expect(prompt).toContain(
         'You are an expert AI prompt engineer and validator.',
       );
       expect(prompt).toContain('This is a test prompt content');
+      expect(prompt).toContain('[Customized Field: general]');
+      expect(prompt).toContain('Custom general instruction');
     });
   });
 
@@ -41,11 +44,15 @@ describe('PromptComplexity feature', () => {
         prompts: {},
       };
 
-      const result = await service.checkPromptComplexity('story', {}, settings);
+      const result = await service.checkPromptComplexity(
+        'story',
+        { general: 'My customized instructions' },
+        settings,
+      );
       expect(result).toBe('Mocked complexity response');
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         undefined,
-        undefined,
+        'auto',
         { availableTools: [], streaming: false },
       );
       expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
@@ -63,13 +70,13 @@ describe('PromptComplexity feature', () => {
 
       const result = await service.checkPromptComplexity(
         'testcase',
-        {},
+        { general: 'My customized instructions' },
         settings,
       );
       expect(result).toBe('Mocked complexity response');
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         undefined,
-        undefined,
+        'auto',
         { availableTools: [], streaming: false },
       );
       expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
@@ -78,6 +85,17 @@ describe('PromptComplexity feature', () => {
       );
       expect(mockSession.disconnect).toHaveBeenCalled();
       expect(mockClient.stop).toHaveBeenCalled();
+    });
+
+    it('should return PASS message if no custom prompt statements are provided', async () => {
+      const settings: AppSettings = {
+        prompts: {},
+      };
+
+      const result = await service.checkPromptComplexity('story', {}, settings);
+      expect(result).toBe(
+        'PASS: No customized prompt statements detected. Please customize at least one field before checking.',
+      );
     });
   });
 });

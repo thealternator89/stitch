@@ -12,12 +12,19 @@ export class PromptComplexityService {
     type: 'story' | 'testcase',
     prompts: any,
     settings: AppSettings,
-    modelOverride?: string,
   ): Promise<string> {
+    const hasCustomPrompt = Object.values(prompts).some(
+      (val) => typeof val === 'string' && val.trim() !== '',
+    );
+
+    if (!hasCustomPrompt) {
+      return 'PASS: No customized prompt statements detected. Please customize at least one field before checking.';
+    }
+
     const { client, session } =
       await this.copilotService.createClientAndSession(
         settings.copilotToken,
-        modelOverride,
+        'auto',
         { availableTools: [], streaming: false },
       );
 
@@ -41,7 +48,10 @@ export class PromptComplexityService {
         );
       }
 
-      const metaPrompt = buildPromptComplexityCheckPrompt(promptToCheck);
+      const metaPrompt = buildPromptComplexityCheckPrompt(
+        promptToCheck,
+        prompts,
+      );
 
       return await this.copilotService.sendAndCollectStream(
         session,
