@@ -45,7 +45,7 @@ Stitch:
 | `group`    | `string`   | Categorizes the phase under a group in the UI.                                                            | `"Ungrouped"`                                |
 | `include`  | `string`   | Glob pattern (parsed by `picomatch`) specifying which files must be in the PR diff for this phase to run. | None (runs on all files)                     |
 | `exclude`  | `string`   | Glob pattern specifying files that should be ignored during this phase.                                   | None                                         |
-| `attach`   | `string[]` | List of data sources to attach to the prompt context. Currently supported: `["description"]`.             | None                                         |
+| `attach`   | `string[]` | List of data sources to attach to the prompt context. Supported: `["description"]` or `["story"]`.        | None                                         |
 | `template` | `string`   | The filename of a template inside `~/.stitch/pr-reviewer/templates/` to wrap this phase's guidelines.     | None                                         |
 
 ---
@@ -69,12 +69,17 @@ filtered out by the `exclude` glob), the phase will be skipped entirely.
 ## Context Attachment (`attach`)
 
 If your phase needs additional information from the pull request (such as
-checking if the code changes meet the PR requirements), you can configure
-`attach: description`.
+checking if the code changes meet the PR requirements or user story), you can configure
+attachment sources:
 
-When set, Stitch will fetch the full pull request description via the Azure
-DevOps API and append it to the reviewer's prompt context, allowing the LLM to
-compare the changes against the stated goals of the PR.
+- **`description`**: Stitch will fetch the full pull request description via the Azure
+  DevOps API and append it to the reviewer's prompt context, allowing the LLM to
+  compare the changes against the stated goals of the PR.
+- **`story`**: Stitch will fetch the stories/work items linked to the pull request in Azure DevOps.
+  - The contents (Title, Description, and Acceptance Criteria) of the linked stories are appended to the prompt context.
+  - Any documentation/Confluence links within the stories are automatically extracted and listed.
+  - The `request_documentation` tool is registered with Copilot during this phase, enabling the LLM to request and read the full contents of these documentation pages as needed.
+  - If `attach: story` is set but there are no linked stories associated with the PR, this phase will be skipped automatically.
 
 ---
 
