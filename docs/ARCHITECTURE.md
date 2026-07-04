@@ -47,6 +47,7 @@ locally on the machine.
     relationships.
   - Creates new **Product Backlog Items (PBIs)** linked to a Feature ID.
   - Fetches details of a specific Pull Request (`gitApi.getPullRequestById`) or lists active pull requests for the project (`gitApi.getPullRequestsByProject`).
+  - Fetches work item references linked to a Pull Request (`gitApi.getPullRequestWorkItemRefs`) to attach user stories as additional code review context.
   - Posts code review findings (both general and line-specific comments) to the PR as new active comment threads (`gitApi.createThread`) targeting precise file paths and line offsets with an AI disclaimer.
 
 ### Confluence
@@ -81,6 +82,10 @@ locally on the machine.
   - For the **PR Reviewer**, review comments and status outputs are parsed as JSONL lines (`type: "status"`, `type: "general"`, or `type: "line"`). When a `line` comment is parsed, the backend dynamically resolves context lines using `extractFileContextSync` and enriches the JSON object before pushing it to the UI.
   - For the **Story Elaborator**, lines are emitted via `elaboration-line`. The communication uses a strict JSON Lines (JSONL) protocol, streaming objects of type `status` (thoughts and directory search updates), `question` (with suggested answers for the user), or `plan` (the finalized implementation plan).
   - Inside `sendAndCollectStream`, a newline buffer fallback processes block-delivered responses when incremental token deltas are skipped during tool executions, ensuring smooth UI status tracking.
+- **`request_documentation` Custom Tool**:
+  - Exposed to the Copilot session during both **PR Reviewer** (when attaching linked stories) and **Story Elaborator** tasks.
+  - The custom tool (`createRequestDocumentationTool` from `src/main/infrastructure/copilot/tools/documentationTool.ts`) takes a `documentId` (e.g., Confluence Page ID) and queries `ConfluenceService` to retrieve the page title and storage body layout.
+  - Features an internal request deduplication map to prevent the agent from repeatedly querying the same documentation ID in a single session.
 - **Workspace Tool Integration (Local Repositories & Git Safety)**:
   - If a repository directory path is provided to the Story Elaborator, the Copilot session is created with `workingDirectory` set to that directory, giving the model first-party tool capability (e.g., browsing files, reading code, searching with grep). The model is instructed to write the plan to a file in the workspace (e.g. `implementation_plan.md`) using its tools.
   - If no repository directory is provided, the session is created with `availableTools: []` (empty array) and without workspace bounds, confining the model's operation to the ticket's text context only.
@@ -117,7 +122,7 @@ support modern ESM-only libraries like `electron-store` and
 
 - `get-settings`: Returns the current application configuration.
 - `save-settings`: Updates and persists configuration.
-- `get-version`: Returns the application version.
+- `get-version-status`: Returns the application version update status, used to display the "Updated" toast notification.
 - `open-external`: Opens a URL in the default browser.
 - `fetch-ticket`: Retrieves work item data from Azure DevOps.
 - `fetch-confluence-page`: Retrieves documentation content from Confluence.
@@ -131,9 +136,21 @@ support modern ESM-only libraries like `electron-store` and
 - `check-environment`: Validates the environment by checking that Node.js is present (v22+) and checking the local `@github/copilot` installation version.
 - `install-copilot-cli`: Performs the automated local installation of `@github/copilot` in the application data directory.
 - `list-copilot-models`: Retrieves available GitHub Copilot models.
+- `check-prompt-complexity`: Runs Copilot-based complexity and safety validation on user-customized prompt templates.
 - `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
 - `create-ticket`: Creates a new work item (PBI or Task) in Azure DevOps linked to a parent.
 - `select-directory`: Triggers Electron's native `dialog.showOpenDialog` to allow user directory selection.
 - `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, set with the ticket info and workspace path context. Streams lines to the renderer via `elaboration-line`.
 - `send-elaboration-answer`: Sends subsequent replies/responses to the ongoing story elaboration session.
 - `stop-story-elaboration`: Cleans up and destroys an active story elaboration session.
+- `pr-reviewer:get-details`: Fetches Azure DevOps PR metadata, target/source branch references, and linked work item references.
+- `pr-reviewer:checkout`: Sanitizes repository state, checkout the PR branch, and returns comparison details.
+- `pr-reviewer:get-diff-files`: Lists all modified files in the repository between HEAD and the target branch.
+- `pr-reviewer:get-file-diff`: Retrieves the git diff for a specific file compared to the target branch.
+- `pr-reviewer:search-prs`: Queries Azure DevOps for active PRs matching user search criteria.
+- `pr-reviewer:get-phases`: Reads, parses, and sorts frontmatter metadata from review phase files in `~/.stitch/pr-reviewer/phases/`.
+- `pr-reviewer:open-directory`: Opens the local `~/.stitch/pr-reviewer/` configuration folder using the OS shell.
+- `pr-reviewer:review`: Triggers a sequential multi-phase PR review, streaming real-time status and line-anchored code feedback to the UI.
+- `pr-reviewer:post-comment`: Submits a code review comment (general or line-anchored code block thread) back to the Azure DevOps PR.
+- `pr-reviewer:get-repo-path-history` / `pr-reviewer:save-repo-path-history`: Stores the last used local filesystem clone path mapping for a given repository.
+- `pr-reviewer:verify-repo-path`: Asserts if a path represents a git repository, resolving its root directory if necessary.

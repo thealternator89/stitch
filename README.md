@@ -33,6 +33,7 @@ TypeScript using Electron Forge.
   - **Dual Operating Modes**:
     - _With Repository_: Initializes the Copilot session using the local directory as the workspace context, allowing the model to use built-in tools (reading files, browsing directories) to analyze code and write the final implementation plan file directly to the workspace.
     - _Without Repository_: Disables LLM filesystem tools and runs entirely context-free, building the plan solely from ticket details and user replies.
+  - **Context-Aware Documentation Retrieval**: In either operating mode, if the ticket details contain Confluence page links, the Story Elaborator automatically identifies them, fetches their titles, and provides the custom `request_documentation` tool to the Copilot session so that the AI can fetch and read their contents to enrich the implementation plan.
   - Interactive Q&A chat interface with quick-select suggested answer pill buttons.
   - Streams real-time logging status updates from the Copilot session.
   - Option to post the final plan as an Azure DevOps comment.
@@ -42,14 +43,13 @@ TypeScript using Electron Forge.
   - Dynamically filters eligible phases based on modified file paths using glob patterns (e.g., only run C# analysis on `.cs` files).
   - Employs shared templates to enforce consistent roles, instructions, or response formats across phases.
   - Optionally attaches full pull request descriptions for richer target and requirement context.
-  - Displays real-time streaming status logs, general review feedback, and line-specific comments enriched with local code context.
+  - **Linked Work Item & Documentation Context**: Optionally attaches linked Azure DevOps user stories/work items. This automatically extracts Confluence documentation links and equips the Copilot session with a custom `request_documentation` tool to fetch and read their contents.
+  - Displays real-time streaming status logs, phase success indicators, general review feedback, and line-specific comments enriched with local code context.
   - Publishes review feedback directly to Azure DevOps as active, line-anchored discussion threads.
   - For configuration details, see [docs/pr-reviewer/README.md](./docs/pr-reviewer/README.md).
-- **Persistent Settings**: Securely store Azure DevOps credentials, Confluence
-  tokens, and project configuration locally, select a **default Copilot model**,
-  and actively **check the status** of local GitHub Copilot CLI authentication.
-  The settings page features a **fixed top panel** for quick access to save and
-  back actions.
+- **Persistent Settings & Prompt Customization**: Securely store Azure DevOps credentials, Confluence tokens, and project configurations locally. Select a default Copilot model and actively check the status of local GitHub Copilot CLI authentication.
+  - **Prompt Customization**: Fine-tune the base and detail prompt templates used by the **Test Case Writer**, **Story Writer**, and **Story Elaborator**. Includes an integrated **Prompt Complexity Check** powered by Copilot to validate templates, estimate token complexity, detect rule contradictions, and catch safety issues.
+  - The settings page features a **fixed top panel** for quick access to save and back actions.
 
 ## Tech Stack
 
