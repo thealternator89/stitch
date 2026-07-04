@@ -12,7 +12,15 @@ import {
 } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { GitService } from '../../infrastructure/git/gitService';
 import { CopilotService } from '../../infrastructure/copilot/copilotService';
-import { PRMetadata, AppSettings, ReviewPhase } from '../../../types';
+import {
+  PRMetadata,
+  AppSettings,
+  ReviewPhase,
+  TicketData,
+} from '../../../types';
+import { IssueTrackerProvider } from '../../infrastructure/providers/IssueTrackerProvider';
+import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
+import { createRequestDocumentationTool } from '../../infrastructure/copilot/tools/documentationTool';
 
 export function buildPhaseReviewPrompt(
   files: { path: string; status: string }[],
@@ -20,10 +28,20 @@ export function buildPhaseReviewPrompt(
   phaseContent: string,
   customInstructions = '',
   prDescription = '',
+  storyContent = '',
+  knownDocs?: { id: string; title: string }[],
 ): string {
   const filesListStr = files
     .map((file) => `- ${file.path} (${file.status})`)
     .join('\n');
+
+  let docsInstructions = '';
+  if (knownDocs && knownDocs.length > 0) {
+    const docsList = knownDocs
+      .map((d) => `- "${d.title}" (ID: ${d.id})`)
+      .join('\n');
+    docsInstructions = `\n\nYou have identified the following documentation links in the linked story. You can request the content of any of these documents using the "request_documentation" tool with the corresponding document ID:\n${docsList}\n`;
+  }
 
   return `You are an expert software engineer and code reviewer.
 Your task is to review the changes in the repository for the phase: "${phaseTitle}".
@@ -31,6 +49,7 @@ Your task is to review the changes in the repository for the phase: "${phaseTitl
 The following files have been modified/added/deleted in this Pull Request and are relevant to this phase:
 ${filesListStr}
 ${prDescription ? `\nHere is the Pull Request Description for additional context:\n--- PR DESCRIPTION ---\n${prDescription}\n----------------------\n` : ''}
+${storyContent ? `\nHere is the User Story/Work Item for additional context:\n--- LINKED STORY ---\n${storyContent}\n--------------------\n` : ''}${docsInstructions}
 Please inspect these files using your codebase tools (such as reading file contents or looking at specific ranges of files) to understand the changes made.
 You MUST use the git history (such as git diff or git log) to identify the exact changes made to the files we are reviewing. Only suggest comments on the changed (added or modified) lines. Do not suggest line-specific comments on lines of code that are outside the scope of the change.
 
@@ -157,7 +176,26 @@ export class PRReviewerService {
   constructor(
     private gitService: GitService,
     private copilotService: CopilotService,
+    private getIssueTrackerProvider: () => Promise<IssueTrackerProvider | null>,
+    private getDocProvider: () => Promise<DocumentationProvider | null>,
   ) {}
+
+  private extractUrls(text: string): string[] {
+    const urls: string[] = [];
+    const hrefRegex = /href=["'](https?:\/\/[^"']+)["']/gi;
+    let match;
+    while ((match = hrefRegex.exec(text)) !== null) {
+      urls.push(match[1]);
+    }
+    const rawRegex = /(https?:\/\/[^\s"<>]+)/gi;
+    while ((match = rawRegex.exec(text)) !== null) {
+      const url = match[1].replace(/[.,;:!?)]+$/, '');
+      if (!urls.includes(url)) {
+        urls.push(url);
+      }
+    }
+    return urls;
+  }
 
   async loadPhasesFromDisk(): Promise<ReviewPhase[]> {
     const homeDir = os.homedir();
@@ -477,6 +515,7 @@ export class PRReviewerService {
         targetBranch: cleanRef(pr.targetRefName || ''),
         author: pr.createdBy?.displayName || '',
         repositoryName: repoName,
+        repositoryId: pr.repository?.id,
         hostType: 'azure',
         url: webUrl,
       };
@@ -673,6 +712,129 @@ export class PRReviewerService {
         }
       }
 
+      let prDetails: PRMetadata | null = null;
+      if (options.prId) {
+        try {
+          prDetails = await this.getPRDetails(repoPath, options.prId, settings);
+        } catch (err) {
+          console.error(
+            `Failed to fetch PR details for PR ${options.prId}:`,
+            err,
+          );
+        }
+      }
+
+      let linkedStoriesContent = '';
+      const knownDocs: { id: string; title: string }[] = [];
+
+      const anyPhaseNeedsStory = enabledPhases.some(
+        (phase) => phase.attach && phase.attach.toLowerCase().includes('story'),
+      );
+
+      if (
+        anyPhaseNeedsStory &&
+        prDetails &&
+        prDetails.repositoryId &&
+        options.prId
+      ) {
+        try {
+          const prNumber = parseInt(prDetails.id);
+          let org = settings.azureOrg || '';
+          let project = settings.azureProject || '';
+          const parsedUrl = this.parsePRUrl(options.prId);
+          if (parsedUrl) {
+            org = parsedUrl.org;
+            project = parsedUrl.project;
+          }
+          const pat = settings.azurePat;
+          if (pat && org && project) {
+            const orgUrl = this.getOrgUrl(org);
+            const authHandler = azdev.getPersonalAccessTokenHandler(pat);
+            const connection = new azdev.WebApi(orgUrl, authHandler);
+            const gitApi: IGitApi = await connection.getGitApi();
+
+            const workItemRefs = await gitApi.getPullRequestWorkItemRefs(
+              prDetails.repositoryId,
+              prNumber,
+            );
+
+            if (workItemRefs && workItemRefs.length > 0) {
+              const issueTracker = await this.getIssueTrackerProvider();
+              const docProvider = await this.getDocProvider();
+              const storiesList: string[] = [];
+
+              for (const ref of workItemRefs) {
+                if (ref.id) {
+                  try {
+                    let ticketData: TicketData;
+                    if (issueTracker) {
+                      ticketData = await issueTracker.fetchTicket(ref.id);
+                    } else {
+                      ticketData = {
+                        id: ref.id,
+                        title: `Work Item ${ref.id}`,
+                        description: '',
+                      };
+                    }
+
+                    const storyFormatted = `Ticket ID: ${ticketData.id || 'N/A'}\nTitle: ${ticketData.title}\nDescription: ${ticketData.description}\nAcceptance Criteria: ${ticketData.acceptanceCriteria || 'N/A'}`;
+                    storiesList.push(storyFormatted);
+
+                    if (docProvider) {
+                      const urls = [
+                        ...this.extractUrls(ticketData.description || ''),
+                        ...this.extractUrls(
+                          ticketData.acceptanceCriteria || '',
+                        ),
+                      ];
+                      const pageIds = Array.from(
+                        new Set(
+                          urls
+                            .filter((url) => docProvider.isDocPageUrl(url))
+                            .map((url) => docProvider.extractPageId(url))
+                            .filter((id): id is string => id !== null),
+                        ),
+                      );
+
+                      for (const pageId of pageIds) {
+                        try {
+                          const page = await docProvider.fetchPage(pageId);
+                          if (!knownDocs.some((d) => d.id === page.id)) {
+                            knownDocs.push({ id: page.id, title: page.title });
+                          }
+                        } catch (e) {
+                          console.error(
+                            `Failed to fetch metadata for Confluence page ${pageId}:`,
+                            e,
+                          );
+                          if (!knownDocs.some((d) => d.id === pageId)) {
+                            knownDocs.push({
+                              id: pageId,
+                              title: `Document ID: ${pageId}`,
+                            });
+                          }
+                        }
+                      }
+                    }
+                  } catch (err) {
+                    console.error(
+                      `Failed to fetch details for work item ${ref.id}:`,
+                      err,
+                    );
+                  }
+                }
+              }
+
+              if (storiesList.length > 0) {
+                linkedStoriesContent = storiesList.join('\n\n');
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to retrieve associated work items:', err);
+        }
+      }
+
       let accumulatedResult = '';
 
       for (const phase of enabledPhases) {
@@ -710,6 +872,23 @@ export class PRReviewerService {
           continue;
         }
 
+        const attachStory =
+          phase.attach && phase.attach.toLowerCase().includes('story');
+
+        if (attachStory && !linkedStoriesContent) {
+          if (options.onLine) {
+            options.onLine(
+              JSON.stringify({
+                type: 'phase-skip',
+                phaseId: phase.id,
+                phaseTitle: phase.title,
+                reason: 'No linked stories found for this Pull Request',
+              }),
+            );
+          }
+          continue;
+        }
+
         if (options.onLine) {
           options.onLine(
             JSON.stringify({
@@ -720,33 +899,31 @@ export class PRReviewerService {
           );
         }
 
+        const sessionOpts = attachStory
+          ? {
+              workingDirectory: repoPath,
+              tools: [
+                createRequestDocumentationTool(
+                  this.getDocProvider,
+                  () => options.onLine,
+                ),
+              ],
+            }
+          : { workingDirectory: repoPath };
+
         const { client, session } =
           await this.copilotService.createClientAndSession(
             settings.copilotToken,
             options.modelOverride,
-            { workingDirectory: repoPath },
+            sessionOpts,
           );
 
         const attachDescription =
           phase.attach && phase.attach.toLowerCase().includes('description');
 
         let fullDescription = options.prDescription;
-        if (attachDescription && options.prId) {
-          try {
-            const prDetails = await this.getPRDetails(
-              repoPath,
-              options.prId,
-              settings,
-            );
-            if (prDetails && prDetails.description) {
-              fullDescription = prDetails.description;
-            }
-          } catch (err) {
-            console.error(
-              `Failed to fetch full PR description for PR ${options.prId}:`,
-              err,
-            );
-          }
+        if (attachDescription && prDetails && prDetails.description) {
+          fullDescription = prDetails.description;
         }
 
         const prompt = buildPhaseReviewPrompt(
@@ -755,6 +932,8 @@ export class PRReviewerService {
           phase.body,
           options.customInstructions,
           attachDescription ? fullDescription : undefined,
+          attachStory ? linkedStoriesContent : undefined,
+          attachStory ? knownDocs : undefined,
         );
 
         const wrappedOnLine = (line: string) => {
@@ -788,11 +967,34 @@ export class PRReviewerService {
           }
         };
 
+        const onToolCallback = (
+          type: 'start' | 'end',
+          tool: string,
+          success?: boolean,
+          error?: string,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          args?: any,
+        ) => {
+          if (options.onLine) {
+            options.onLine(
+              JSON.stringify({
+                type: 'tool',
+                status: type,
+                name: tool,
+                success,
+                error,
+                arguments: args,
+              }),
+            );
+          }
+        };
+
         try {
           const res = await this.copilotService.sendAndCollectStream(
             session,
             prompt,
             options.onLine ? wrappedOnLine : undefined,
+            ...(attachStory ? [onToolCallback] : []),
           );
           accumulatedResult += `\n--- Phase ${phase.title} Result ---\n${res}`;
         } catch (err) {

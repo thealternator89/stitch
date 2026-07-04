@@ -13,6 +13,7 @@ import {
 const mockGetPullRequestById = vi.fn();
 const mockGetPullRequestsByProject = vi.fn();
 const mockCreateThread = vi.fn();
+const mockGetPullRequestWorkItemRefs = vi.fn();
 const mockConnect = vi.fn().mockResolvedValue({
   authorizedUser: { id: 'mock-user-id' },
 });
@@ -21,6 +22,7 @@ const mockGetGitApi = vi.fn().mockResolvedValue({
   getPullRequestById: mockGetPullRequestById,
   getPullRequestsByProject: mockGetPullRequestsByProject,
   createThread: mockCreateThread,
+  getPullRequestWorkItemRefs: mockGetPullRequestWorkItemRefs,
 });
 const mockWebApi = {
   getGitApi: mockGetGitApi,
@@ -73,10 +75,13 @@ describe('PRReviewerService', () => {
     prReviewerService = new PRReviewerService(
       mockGitService,
       mockCopilotService,
+      async () => null,
+      async () => null,
     );
     vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
     mockGetPullRequestById.mockReset();
     mockGetPullRequestsByProject.mockReset();
+    mockGetPullRequestWorkItemRefs.mockReset();
     mockConnect.mockClear();
     mockGetGitApi.mockClear();
     mockPowerSaveBlockerStart.mockClear().mockReturnValue(42);
@@ -653,6 +658,192 @@ describe('PRReviewerService', () => {
           enabledPhaseIds: ['010-templated.md'],
         }),
       ).rejects.toThrow('Template file not found: missing-template.md');
+    });
+
+    it('should fetch and attach linked Azure DevOps stories, resolve doc links, and register the request_documentation tool when phase requires Story', async () => {
+      const mockFiles = [{ path: 'src/index.ts', status: 'modified' }];
+      mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue(
+        '{"type":"general","comment":"Reviewed story"}',
+      );
+
+      mockGetPullRequestById.mockResolvedValue({
+        pullRequestId: 123,
+        title: 'Pr Title',
+        description: 'Pr Description',
+        sourceRefName: 'refs/heads/feature-x',
+        targetRefName: 'refs/heads/main',
+        createdBy: { displayName: 'John Doe' },
+        repository: { id: 'repo-123', name: 'my-repo' },
+      });
+      mockGetPullRequestWorkItemRefs.mockResolvedValue([{ id: 'story-123' }]);
+
+      const mockIssueTracker = {
+        fetchTicket: vi.fn().mockResolvedValue({
+          id: 'story-123',
+          title: 'My Story Title',
+          description:
+            'Please read https://confluence.com/page/456 for details.',
+          acceptanceCriteria: 'Criteria content',
+        }),
+      };
+      const mockDocProvider = {
+        isDocPageUrl: vi.fn().mockReturnValue(true),
+        extractPageId: vi.fn().mockReturnValue('page-456'),
+        fetchPage: vi.fn().mockResolvedValue({
+          id: 'page-456',
+          title: 'My Confluence Doc',
+          body: 'Confluence content',
+        }),
+      };
+
+      const customPRReviewerService = new PRReviewerService(
+        mockGitService,
+        mockCopilotService,
+        async () => mockIssueTracker as any,
+        async () => mockDocProvider as any,
+      );
+
+      vi.spyOn(customPRReviewerService, 'loadPhasesFromDisk').mockResolvedValue(
+        [
+          {
+            id: '020-story-phase.md',
+            title: 'Story Phase',
+            body: 'Phase body contents',
+            attach: 'Story',
+          },
+        ],
+      );
+
+      const localSettings = {
+        copilotToken: 'mock-token',
+        copilotModel: 'mock-model',
+        azureOrg: 'conf-org',
+        azureProject: 'conf-proj',
+        azurePat: 'conf-pat',
+      };
+
+      const onLineCallback = vi.fn();
+      await customPRReviewerService.reviewPR(
+        '/mock/repo',
+        'main',
+        localSettings,
+        {
+          enabledPhaseIds: ['020-story-phase.md'],
+          prId: '123',
+          onLine: onLineCallback,
+        },
+      );
+
+      expect(mockGetPullRequestWorkItemRefs).toHaveBeenCalledWith(
+        'repo-123',
+        123,
+      );
+      expect(mockIssueTracker.fetchTicket).toHaveBeenCalledWith('story-123');
+
+      expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
+        'mock-token',
+        undefined,
+        expect.objectContaining({
+          workingDirectory: '/mock/repo',
+          tools: expect.any(Array),
+        }),
+      );
+
+      const expectedPrompt = buildPhaseReviewPrompt(
+        mockFiles,
+        'Story Phase',
+        'Phase body contents',
+        '',
+        undefined,
+        'Ticket ID: story-123\nTitle: My Story Title\nDescription: Please read https://confluence.com/page/456 for details.\nAcceptance Criteria: Criteria content',
+        [{ id: 'page-456', title: 'My Confluence Doc' }],
+      );
+
+      expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
+        mockSession,
+        expectedPrompt,
+        expect.any(Function),
+        expect.any(Function),
+      );
+    });
+
+    it('should skip the phase if attach is Story but no stories are linked to the PR', async () => {
+      const mockFiles = [{ path: 'src/index.ts', status: 'modified' }];
+      mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
+
+      mockGetPullRequestById.mockResolvedValue({
+        pullRequestId: 123,
+        title: 'Pr Title',
+        description: 'Pr Description',
+        sourceRefName: 'refs/heads/feature-x',
+        targetRefName: 'refs/heads/main',
+        createdBy: { displayName: 'John Doe' },
+        repository: { id: 'repo-123', name: 'my-repo' },
+      });
+      mockGetPullRequestWorkItemRefs.mockResolvedValue([]);
+
+      const mockIssueTracker = { fetchTicket: vi.fn() };
+      const mockDocProvider = { fetchPage: vi.fn() };
+
+      const customPRReviewerService = new PRReviewerService(
+        mockGitService,
+        mockCopilotService,
+        async () => mockIssueTracker as any,
+        async () => mockDocProvider as any,
+      );
+
+      vi.spyOn(customPRReviewerService, 'loadPhasesFromDisk').mockResolvedValue(
+        [
+          {
+            id: '020-story-phase.md',
+            title: 'Story Phase',
+            body: 'Phase body contents',
+            attach: 'Story',
+          },
+        ],
+      );
+
+      const localSettings = {
+        copilotToken: 'mock-token',
+        copilotModel: 'mock-model',
+        azureOrg: 'conf-org',
+        azureProject: 'conf-proj',
+        azurePat: 'conf-pat',
+      };
+
+      const onLineCallback = vi.fn();
+      await customPRReviewerService.reviewPR(
+        '/mock/repo',
+        'main',
+        localSettings,
+        {
+          enabledPhaseIds: ['020-story-phase.md'],
+          prId: '123',
+          onLine: onLineCallback,
+        },
+      );
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-skip',
+          phaseId: '020-story-phase.md',
+          phaseTitle: 'Story Phase',
+          reason: 'No linked stories found for this Pull Request',
+        }),
+      );
+      expect(mockCopilotService.createClientAndSession).not.toHaveBeenCalled();
     });
   });
 
