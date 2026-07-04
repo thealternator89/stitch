@@ -13,7 +13,7 @@ import {
 const mockGetPullRequestById = vi.fn();
 const mockGetPullRequestsByProject = vi.fn();
 const mockCreateThread = vi.fn();
-const mockGetPullRequestWorkItems = vi.fn();
+const mockGetPullRequestWorkItemRefs = vi.fn();
 const mockConnect = vi.fn().mockResolvedValue({
   authorizedUser: { id: 'mock-user-id' },
 });
@@ -22,7 +22,7 @@ const mockGetGitApi = vi.fn().mockResolvedValue({
   getPullRequestById: mockGetPullRequestById,
   getPullRequestsByProject: mockGetPullRequestsByProject,
   createThread: mockCreateThread,
-  getPullRequestWorkItems: mockGetPullRequestWorkItems,
+  getPullRequestWorkItemRefs: mockGetPullRequestWorkItemRefs,
 });
 const mockWebApi = {
   getGitApi: mockGetGitApi,
@@ -81,7 +81,7 @@ describe('PRReviewerService', () => {
     vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
     mockGetPullRequestById.mockReset();
     mockGetPullRequestsByProject.mockReset();
-    mockGetPullRequestWorkItems.mockReset();
+    mockGetPullRequestWorkItemRefs.mockReset();
     mockConnect.mockClear();
     mockGetGitApi.mockClear();
     mockPowerSaveBlockerStart.mockClear().mockReturnValue(42);
@@ -687,7 +687,7 @@ describe('PRReviewerService', () => {
         createdBy: { displayName: 'John Doe' },
         repository: { id: 'repo-123', name: 'my-repo' },
       });
-      mockGetPullRequestWorkItems.mockResolvedValue([{ id: 'story-123' }]);
+      mockGetPullRequestWorkItemRefs.mockResolvedValue([{ id: 'story-123' }]);
 
       const mockIssueTracker = {
         fetchTicket: vi.fn().mockResolvedValue({
@@ -746,7 +746,10 @@ describe('PRReviewerService', () => {
         },
       );
 
-      expect(mockGetPullRequestWorkItems).toHaveBeenCalledWith('repo-123', 123);
+      expect(mockGetPullRequestWorkItemRefs).toHaveBeenCalledWith(
+        'repo-123',
+        123,
+      );
       expect(mockIssueTracker.fetchTicket).toHaveBeenCalledWith('story-123');
 
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
@@ -789,7 +792,7 @@ describe('PRReviewerService', () => {
         createdBy: { displayName: 'John Doe' },
         repository: { id: 'repo-123', name: 'my-repo' },
       });
-      mockGetPullRequestWorkItems.mockResolvedValue([]);
+      mockGetPullRequestWorkItemRefs.mockResolvedValue([]);
 
       const mockIssueTracker = { fetchTicket: vi.fn() };
       const mockDocProvider = { fetchPage: vi.fn() };

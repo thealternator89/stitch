@@ -753,7 +753,7 @@ export class PRReviewerService {
             const connection = new azdev.WebApi(orgUrl, authHandler);
             const gitApi: IGitApi = await connection.getGitApi();
 
-            const workItemRefs = await gitApi.getPullRequestWorkItems(
+            const workItemRefs = await gitApi.getPullRequestWorkItemRefs(
               prDetails.repositoryId,
               prNumber,
             );
