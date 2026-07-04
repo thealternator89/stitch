@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Menu from './features/menu/Menu';
 import TestCaseWriter from './features/test-case-writer/TestCaseWriter';
@@ -7,7 +7,7 @@ import StoryElaborator from './features/story-elaborator/StoryElaborator';
 import PRReviewer from './features/pr-reviewer/PRReviewer';
 import Settings from './features/settings/components/Settings';
 import { TimeoutProvider } from './context/TimeoutContext';
-import { UpdateStatus, EnvironmentCheckResult } from '../types';
+import { UpdateStatus, EnvironmentCheckResult, CopilotAuth } from '../types';
 
 function repoUrl(suffix: string): string {
   return 'https://github.com/thealternator89/stitch/' + suffix;
@@ -22,6 +22,26 @@ const App: React.FC = () => {
     'idle' | 'installing' | 'success' | 'error'
   >('idle');
   const [installError, setInstallError] = useState<string | null>(null);
+  const [authCheckResult, setAuthCheckResult] = useState<CopilotAuth | null>(
+    null,
+  );
+  const [checkingAuth, setCheckingAuth] = useState<boolean>(false);
+  const [authModalDismissed, setAuthModalDismissed] = useState<boolean>(false);
+
+  const runAuthCheck = useCallback(async () => {
+    setCheckingAuth(true);
+    try {
+      const res = await window.electronAPI.checkCopilotAuth();
+      setAuthCheckResult(res);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setAuthCheckResult({
+        error: errMsg || 'Unknown authentication check error',
+      });
+    } finally {
+      setCheckingAuth(false);
+    }
+  }, []);
 
   const handleInstallCopilot = async () => {
     setInstallStatus('installing');
@@ -35,6 +55,7 @@ const App: React.FC = () => {
             const result = await window.electronAPI.checkEnvironment();
             if (result.success) {
               setEnvCheckResult(null);
+              await runAuthCheck();
             } else {
               setEnvCheckResult(result);
             }
@@ -65,13 +86,15 @@ const App: React.FC = () => {
         const result = await window.electronAPI.checkEnvironment();
         if (!result.success) {
           setEnvCheckResult(result);
+        } else {
+          await runAuthCheck();
         }
       } catch (err) {
         console.error('Failed to run environment check:', err);
       }
     };
     runEnvCheck();
-  }, []);
+  }, [runAuthCheck]);
 
   useEffect(() => {
     const fetchVersionAndStatus = async () => {
@@ -164,6 +187,45 @@ const App: React.FC = () => {
         </div>
 
         <div className="footer">
+          <div className="me-auto d-flex align-items-center">
+            <button
+              className="btn btn-link p-0 border-0 d-flex align-items-center text-decoration-none no-drag"
+              onClick={runAuthCheck}
+              disabled={checkingAuth}
+              title={
+                checkingAuth
+                  ? 'Checking authentication status...'
+                  : authCheckResult &&
+                      authCheckResult.authStatus?.isAuthenticated
+                    ? `Authenticated as ${authCheckResult.authStatus.login}`
+                    : 'Not authenticated with GitHub Copilot. Click to re-check.'
+              }
+              style={{
+                fontSize: '11px',
+                color: 'inherit',
+                textDecoration: 'none',
+              }}
+            >
+              <i
+                className={`fab fa-github me-1 ${
+                  checkingAuth
+                    ? 'fa-spin text-muted'
+                    : authCheckResult &&
+                        authCheckResult.authStatus?.isAuthenticated
+                      ? 'text-success'
+                      : 'text-warning'
+                }`}
+              ></i>
+              <span className="small">
+                {checkingAuth
+                  ? 'Checking Auth...'
+                  : authCheckResult &&
+                      authCheckResult.authStatus?.isAuthenticated
+                    ? 'Copilot Connected'
+                    : 'Copilot Disconnected'}
+              </span>
+            </button>
+          </div>
           <span className="me-2 text-muted">Version {version}</span>
         </div>
 
@@ -291,6 +353,75 @@ const App: React.FC = () => {
             )}
           </div>
         )}
+
+        {!envCheckResult &&
+          authCheckResult &&
+          (!authCheckResult.authStatus?.isAuthenticated ||
+            authCheckResult.error) &&
+          !authModalDismissed && (
+            <div className="env-error-overlay">
+              <div className="env-error-modal">
+                <div className="env-error-icon info">
+                  <i className="fas fa-lock"></i>
+                </div>
+                <h4 className="env-error-title">
+                  GitHub Copilot Authentication Required
+                </h4>
+                <p className="env-error-message text-center">
+                  Stitch requires GitHub Copilot to function, but no active
+                  authentication session was found.
+                </p>
+                <div className="env-error-details w-100">
+                  Please open your terminal and authenticate using one of the
+                  following commands:
+                  <div className="mt-2 font-monospace bg-body-secondary text-body p-2 rounded small border text-center">
+                    <code>copilot auth signin</code>
+                  </div>
+                  <div className="text-muted text-center my-1 small">or</div>
+                  <div className="font-monospace bg-body-secondary text-body p-2 rounded small border text-center">
+                    <code>gh auth login</code>
+                  </div>
+                  <div className="mt-3 text-muted">
+                    If you are using an API key/token instead, click{' '}
+                    <strong>Close</strong> to proceed and configure it under{' '}
+                    <strong>Settings &gt; Copilot</strong>.
+                  </div>
+                </div>
+                <div className="env-error-actions">
+                  <div className="d-flex gap-2 w-100">
+                    <button
+                      className="btn btn-indigo flex-grow-1"
+                      onClick={runAuthCheck}
+                      disabled={checkingAuth}
+                    >
+                      {checkingAuth ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-2"
+                            role="status"
+                            aria-hidden="true"
+                          ></span>
+                          Checking...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-sync-alt me-2"></i>
+                          Check Again
+                        </>
+                      )}
+                    </button>
+                    <button
+                      className="btn btn-outline-secondary flex-grow-1"
+                      onClick={() => setAuthModalDismissed(true)}
+                      disabled={checkingAuth}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
       </Router>
     </TimeoutProvider>
   );
