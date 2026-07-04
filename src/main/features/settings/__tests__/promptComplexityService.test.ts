@@ -52,7 +52,7 @@ describe('PromptComplexity feature', () => {
       expect(result).toBe('Mocked complexity response');
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         undefined,
-        undefined,
+        'auto',
         { availableTools: [], streaming: false },
       );
       expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
@@ -76,7 +76,7 @@ describe('PromptComplexity feature', () => {
       expect(result).toBe('Mocked complexity response');
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         undefined,
-        undefined,
+        'auto',
         { availableTools: [], streaming: false },
       );
       expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(

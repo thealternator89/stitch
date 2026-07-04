@@ -12,7 +12,6 @@ export class PromptComplexityService {
     type: 'story' | 'testcase',
     prompts: any,
     settings: AppSettings,
-    modelOverride?: string,
   ): Promise<string> {
     const hasCustomPrompt = Object.values(prompts).some(
       (val) => typeof val === 'string' && val.trim() !== '',
@@ -25,7 +24,7 @@ export class PromptComplexityService {
     const { client, session } =
       await this.copilotService.createClientAndSession(
         settings.copilotToken,
-        modelOverride,
+        'auto',
         { availableTools: [], streaming: false },
       );
 
