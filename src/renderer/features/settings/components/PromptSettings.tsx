@@ -76,6 +76,11 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
   const [showModal, setShowModal] = useState(false);
   const [modalTab, setModalTab] = useState<'story' | 'testcase' | null>(null);
 
+  const [lastCheckedStory, setLastCheckedStory] = useState<string | null>(null);
+  const [lastCheckedTestCase, setLastCheckedTestCase] = useState<string | null>(
+    null,
+  );
+
   const handleResetStoryDefaults = () => {
     setStoryGeneral('');
     setStoryTitle('');
@@ -111,6 +116,21 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
         'No customized prompt statements detected. Please customize at least one field before checking.',
       );
       setStoryResult(null);
+      setLastCheckedStory(null);
+      setModalTab('story');
+      setShowModal(true);
+      return;
+    }
+
+    const currentKey = JSON.stringify({
+      general: storyGeneral,
+      title: storyTitle,
+      description: storyDescription,
+      acceptanceCriteria: storyAcceptanceCriteria,
+      notes: storyNotes,
+    });
+
+    if ((storyResult || storyError) && currentKey === lastCheckedStory) {
       setModalTab('story');
       setShowModal(true);
       return;
@@ -130,11 +150,13 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
         notes: storyNotes,
       });
       setStoryResult(response);
+      setLastCheckedStory(currentKey);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       setStoryError(
         errorMsg || 'An error occurred while validating the prompt.',
       );
+      setLastCheckedStory(currentKey);
     } finally {
       setCheckingStory(false);
     }
@@ -155,6 +177,25 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
         'No customized prompt statements detected. Please customize at least one field before checking.',
       );
       setTestCaseResult(null);
+      setLastCheckedTestCase(null);
+      setModalTab('testcase');
+      setShowModal(true);
+      return;
+    }
+
+    const currentKey = JSON.stringify({
+      general: testCaseGeneral,
+      id: testCaseId,
+      description: testCaseDescription,
+      preConditions: testCasePreConditions,
+      steps: testCaseSteps,
+      expectedResult: testCaseExpectedResult,
+    });
+
+    if (
+      (testCaseResult || testCaseError) &&
+      currentKey === lastCheckedTestCase
+    ) {
       setModalTab('testcase');
       setShowModal(true);
       return;
@@ -178,11 +219,13 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
         },
       );
       setTestCaseResult(response);
+      setLastCheckedTestCase(currentKey);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       setTestCaseError(
         errorMsg || 'An error occurred while validating the prompt.',
       );
+      setLastCheckedTestCase(currentKey);
     } finally {
       setCheckingTestCase(false);
     }
@@ -221,18 +264,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                     </>
                   )}
                 </button>
-                {(storyResult || storyError) && (
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
-                    onClick={() => {
-                      setModalTab('story');
-                      setShowModal(true);
-                    }}
-                  >
-                    <i className="fas fa-comment-dots"></i>View Feedback
-                  </button>
-                )}
                 <button
                   type="button"
                   className="btn btn-outline-secondary btn-sm"
@@ -265,18 +296,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
                     </>
                   )}
                 </button>
-                {(testCaseResult || testCaseError) && (
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
-                    onClick={() => {
-                      setModalTab('testcase');
-                      setShowModal(true);
-                    }}
-                  >
-                    <i className="fas fa-comment-dots"></i>View Feedback
-                  </button>
-                )}
                 <button
                   type="button"
                   className="btn btn-outline-secondary btn-sm"
