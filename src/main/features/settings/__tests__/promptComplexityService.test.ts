@@ -44,7 +44,11 @@ describe('PromptComplexity feature', () => {
         prompts: {},
       };
 
-      const result = await service.checkPromptComplexity('story', {}, settings);
+      const result = await service.checkPromptComplexity(
+        'story',
+        { general: 'My customized instructions' },
+        settings,
+      );
       expect(result).toBe('Mocked complexity response');
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         undefined,
@@ -66,7 +70,7 @@ describe('PromptComplexity feature', () => {
 
       const result = await service.checkPromptComplexity(
         'testcase',
-        {},
+        { general: 'My customized instructions' },
         settings,
       );
       expect(result).toBe('Mocked complexity response');
@@ -81,6 +85,18 @@ describe('PromptComplexity feature', () => {
       );
       expect(mockSession.disconnect).toHaveBeenCalled();
       expect(mockClient.stop).toHaveBeenCalled();
+    });
+
+    it('should throw an error if no custom prompt statements are provided', async () => {
+      const settings: AppSettings = {
+        prompts: {},
+      };
+
+      await expect(
+        service.checkPromptComplexity('story', {}, settings),
+      ).rejects.toThrow(
+        'No customized prompt statements detected. Please customize at least one field before checking.',
+      );
     });
   });
 });

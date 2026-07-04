@@ -14,6 +14,16 @@ export class PromptComplexityService {
     settings: AppSettings,
     modelOverride?: string,
   ): Promise<string> {
+    const hasCustomPrompt = Object.values(prompts).some(
+      (val) => typeof val === 'string' && val.trim() !== '',
+    );
+
+    if (!hasCustomPrompt) {
+      throw new Error(
+        'No customized prompt statements detected. Please customize at least one field before checking.',
+      );
+    }
+
     const { client, session } =
       await this.copilotService.createClientAndSession(
         settings.copilotToken,

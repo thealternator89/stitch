@@ -98,6 +98,24 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
   };
 
   const handleCheckStory = async () => {
+    const hasCustom = [
+      storyGeneral,
+      storyTitle,
+      storyDescription,
+      storyAcceptanceCriteria,
+      storyNotes,
+    ].some((val) => val && val.trim() !== '');
+
+    if (!hasCustom) {
+      setStoryError(
+        'No customized prompt statements detected. Please customize at least one field before checking.',
+      );
+      setStoryResult(null);
+      setModalTab('story');
+      setShowModal(true);
+      return;
+    }
+
     setCheckingStory(true);
     setStoryResult(null);
     setStoryError(null);
@@ -123,6 +141,25 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
   };
 
   const handleCheckTestCase = async () => {
+    const hasCustom = [
+      testCaseGeneral,
+      testCaseId,
+      testCaseDescription,
+      testCasePreConditions,
+      testCaseSteps,
+      testCaseExpectedResult,
+    ].some((val) => val && val.trim() !== '');
+
+    if (!hasCustom) {
+      setTestCaseError(
+        'No customized prompt statements detected. Please customize at least one field before checking.',
+      );
+      setTestCaseResult(null);
+      setModalTab('testcase');
+      setShowModal(true);
+      return;
+    }
+
     setCheckingTestCase(true);
     setTestCaseResult(null);
     setTestCaseError(null);
