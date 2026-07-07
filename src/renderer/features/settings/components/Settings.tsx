@@ -18,6 +18,8 @@ const Settings: React.FC = () => {
   const [confluenceUser, setConfluenceUser] = useState('');
   const [confluenceToken, setConfluenceToken] = useState('');
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto');
+  const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
+  const [gitWorktreeBaseDir, setGitWorktreeBaseDir] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [authStatus, setAuthStatus] = useState<CopilotAuth | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(false);
@@ -59,6 +61,8 @@ const Settings: React.FC = () => {
           setConfluenceUser(settings.confluenceUser || '');
           setConfluenceToken(settings.confluenceToken || '');
           setTheme(settings.theme || 'auto');
+          setGitWorktreeEnabled(settings.gitWorktreeEnabled || false);
+          setGitWorktreeBaseDir(settings.gitWorktreeBaseDir || '');
 
           // Load custom prompts
           const prompts = settings.prompts || {};
@@ -101,6 +105,8 @@ const Settings: React.FC = () => {
         confluenceUser: confluenceUser,
         confluenceToken: confluenceToken,
         theme: theme,
+        gitWorktreeEnabled: gitWorktreeEnabled,
+        gitWorktreeBaseDir: gitWorktreeBaseDir,
         prompts: {
           storyWriter: {
             general: storyGeneral,
@@ -155,7 +161,16 @@ const Settings: React.FC = () => {
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'general':
-        return <GeneralSettings theme={theme} setTheme={setTheme} />;
+        return (
+          <GeneralSettings
+            theme={theme}
+            setTheme={setTheme}
+            gitWorktreeEnabled={gitWorktreeEnabled}
+            setGitWorktreeEnabled={setGitWorktreeEnabled}
+            gitWorktreeBaseDir={gitWorktreeBaseDir}
+            setGitWorktreeBaseDir={setGitWorktreeBaseDir}
+          />
+        );
       case 'azure':
         return (
           <AzureSettings

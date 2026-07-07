@@ -172,6 +172,10 @@ export function extractFileContextSync(
 
 export class PRReviewerService {
   private activeCheckouts = new Map<string, string>();
+  private activeWorktrees = new Map<
+    string,
+    { worktreePath: string; originalRef: string }
+  >();
 
   constructor(
     private gitService: GitService,
@@ -607,10 +611,31 @@ export class PRReviewerService {
     }
   }
 
+  getEffectiveRepoPath(repoPath: string): string {
+    const active = this.activeWorktrees.get(repoPath);
+    return active ? active.worktreePath : repoPath;
+  }
+
+  async cleanupWorktree(repoPath: string): Promise<void> {
+    const active = this.activeWorktrees.get(repoPath);
+    if (active) {
+      try {
+        await this.gitService.removeWorktree(repoPath, active.worktreePath);
+      } catch (err) {
+        console.error(
+          `Failed to clean up worktree at ${active.worktreePath}:`,
+          err,
+        );
+      }
+      this.activeWorktrees.delete(repoPath);
+    }
+  }
+
   async checkoutAndDiff(
     repoPath: string,
     prNumber: number,
     expectedRepoName?: string,
+    settings?: AppSettings,
   ): Promise<{ commitSha: string }> {
     const isRepo = await this.gitService.checkGitRepo(repoPath);
     if (!isRepo) {
@@ -632,14 +657,7 @@ export class PRReviewerService {
       }
     }
 
-    const isDirty = await this.gitService.hasUncommittedChanges(repoPath);
-    if (isDirty) {
-      throw new Error(
-        'The local git repository has uncommitted changes. Please commit, stash, or revert them first.',
-      );
-    }
-
-    // Restore any existing active checkout for this repo first to avoid leaks
+    // Restore any existing active checkout/worktree first to avoid leaks
     const existingRef = this.activeCheckouts.get(repoPath);
     if (existingRef) {
       try {
@@ -651,6 +669,40 @@ export class PRReviewerService {
         );
       }
       this.activeCheckouts.delete(repoPath);
+    }
+
+    if (settings?.gitWorktreeEnabled && settings?.gitWorktreeBaseDir) {
+      await this.cleanupWorktree(repoPath);
+
+      // Fetch the PR
+      const commitSha = await this.gitService.fetchPR(repoPath, prNumber);
+
+      // Create worktree
+      const sanitizeDirName = (name: string) =>
+        name.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const worktreeName = `${sanitizeDirName(expectedRepoName || 'repo')}_pr_${prNumber}`;
+      const worktreePath = path.join(settings.gitWorktreeBaseDir, worktreeName);
+
+      if (!fs.existsSync(settings.gitWorktreeBaseDir)) {
+        fs.mkdirSync(settings.gitWorktreeBaseDir, { recursive: true });
+      }
+
+      await this.gitService.addWorktree(repoPath, worktreePath, commitSha);
+
+      // Store in worktree mapping
+      this.activeWorktrees.set(repoPath, {
+        worktreePath,
+        originalRef: commitSha,
+      });
+
+      return { commitSha };
+    }
+
+    const isDirty = await this.gitService.hasUncommittedChanges(repoPath);
+    if (isDirty) {
+      throw new Error(
+        'The local git repository has uncommitted changes. Please commit, stash, or revert them first.',
+      );
     }
 
     // Capture the current (original) ref before performing the PR checkout
@@ -687,7 +739,11 @@ export class PRReviewerService {
     try {
       blockerId = powerSaveBlocker.start('prevent-app-suspension');
 
-      const files = await this.gitService.getDiffFiles(repoPath, targetBranch);
+      const effectiveRepoPath = this.getEffectiveRepoPath(repoPath);
+      const files = await this.gitService.getDiffFiles(
+        effectiveRepoPath,
+        targetBranch,
+      );
       const phases = await this.loadPhasesFromDisk();
 
       if (phases.length === 0) {
@@ -901,7 +957,7 @@ export class PRReviewerService {
 
         const sessionOpts = attachStory
           ? {
-              workingDirectory: repoPath,
+              workingDirectory: effectiveRepoPath,
               tools: [
                 createRequestDocumentationTool(
                   this.getDocProvider,
@@ -909,7 +965,7 @@ export class PRReviewerService {
                 ),
               ],
             }
-          : { workingDirectory: repoPath };
+          : { workingDirectory: effectiveRepoPath };
 
         const { client, session } =
           await this.copilotService.createClientAndSession(
@@ -951,7 +1007,7 @@ export class PRReviewerService {
                 const contextSize =
                   typeof obj.context === 'number' ? obj.context : 0;
                 const codeLines = extractFileContextSync(
-                  repoPath,
+                  effectiveRepoPath,
                   obj.file,
                   obj.line,
                   contextSize,
@@ -1030,17 +1086,21 @@ export class PRReviewerService {
         powerSaveBlocker.stop(blockerId);
       }
 
-      const originalRef = this.activeCheckouts.get(repoPath);
-      if (originalRef) {
-        try {
-          await this.gitService.restoreRef(repoPath, originalRef);
-        } catch (err) {
-          console.error(
-            `Failed to automatically restore repository at ${repoPath}:`,
-            err,
-          );
+      if (settings.gitWorktreeEnabled && settings.gitWorktreeBaseDir) {
+        await this.cleanupWorktree(repoPath);
+      } else {
+        const originalRef = this.activeCheckouts.get(repoPath);
+        if (originalRef) {
+          try {
+            await this.gitService.restoreRef(repoPath, originalRef);
+          } catch (err) {
+            console.error(
+              `Failed to automatically restore repository at ${repoPath}:`,
+              err,
+            );
+          }
+          this.activeCheckouts.delete(repoPath);
         }
-        this.activeCheckouts.delete(repoPath);
       }
     }
   }

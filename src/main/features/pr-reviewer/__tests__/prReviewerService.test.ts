@@ -67,6 +67,9 @@ describe('PRReviewerService', () => {
       getFileDiff: vi.fn(),
       getCurrentRef: vi.fn().mockResolvedValue('mock-original-ref'),
       restoreRef: vi.fn().mockResolvedValue(undefined),
+      fetchPR: vi.fn(),
+      addWorktree: vi.fn(),
+      removeWorktree: vi.fn(),
     };
     mockCopilotService = {
       createClientAndSession: vi.fn(),
@@ -261,6 +264,36 @@ describe('PRReviewerService', () => {
       await expect(
         prReviewerService.checkoutAndDiff('/mock/repo', 123, 'expected-repo'),
       ).rejects.toThrow('does not match the Pull Request repository');
+    });
+    it('should create a worktree if git worktree settings are enabled', async () => {
+      mockGitService.checkGitRepo.mockResolvedValue(true);
+      mockGitService.fetchPR.mockResolvedValue('worktree-sha');
+      mockGitService.addWorktree.mockResolvedValue(undefined);
+      mockGitService.removeWorktree.mockResolvedValue(undefined);
+      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+      const settings = {
+        gitWorktreeEnabled: true,
+        gitWorktreeBaseDir: '/mock/worktrees',
+      };
+
+      const result = await prReviewerService.checkoutAndDiff(
+        '/mock/repo',
+        123,
+        'repo-name',
+        settings,
+      );
+      expect(result).toEqual({ commitSha: 'worktree-sha' });
+
+      expect(mockGitService.fetchPR).toHaveBeenCalledWith('/mock/repo', 123);
+      expect(mockGitService.addWorktree).toHaveBeenCalledWith(
+        '/mock/repo',
+        expect.stringContaining('repo-name_pr_123'),
+        'worktree-sha',
+      );
+      expect(prReviewerService.getEffectiveRepoPath('/mock/repo')).toContain(
+        'repo-name_pr_123',
+      );
     });
   });
 
