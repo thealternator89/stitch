@@ -1876,4 +1876,85 @@ describe('PRReviewerService', () => {
       );
     });
   });
+
+  describe('checkWorktrees', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should return hasWorktrees false and count 0 if path does not exist', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+      const res = await prReviewerService.checkWorktrees('/nonexistent/base');
+      expect(res).toEqual({ hasWorktrees: false, worktreeCount: 0 });
+    });
+
+    it('should return count of directories found in base path', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'statSync').mockImplementation((p: any) => {
+        if (p === '/mock/base') {
+          return { isDirectory: () => true } as any;
+        }
+        if (p === '/mock/base/dir1' || p === '/mock/base/dir2') {
+          return { isDirectory: () => true } as any;
+        }
+        return { isDirectory: () => false } as any;
+      });
+      vi.spyOn(fs, 'readdirSync').mockReturnValue([
+        'dir1',
+        'dir2',
+        'file1',
+      ] as any);
+
+      const res = await prReviewerService.checkWorktrees('/mock/base');
+      expect(res).toEqual({ hasWorktrees: true, worktreeCount: 2 });
+    });
+  });
+
+  describe('cleanWorktrees', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should successfully clean up worktrees using git service where possible and fallback to force remove', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
+        if (p === '/mock/base') return true;
+        if (p === '/mock/base/wt1') return true;
+        if (p === '/mock/base/wt2') return true;
+        if (p === path.join('/mock/base/wt1', '.git')) return true;
+        if (p === path.join('/mock/base/wt2', '.git')) return false;
+        if (p === '/mock/main-repo') return true;
+        return false;
+      });
+      vi.spyOn(fs, 'statSync').mockImplementation((p: any) => {
+        if (p === '/mock/base') return { isDirectory: () => true } as any;
+        if (p === '/mock/base/wt1') return { isDirectory: () => true } as any;
+        if (p === '/mock/base/wt2') return { isDirectory: () => true } as any;
+        if (p === path.join('/mock/base/wt1', '.git'))
+          return { isFile: () => true } as any;
+        return { isDirectory: () => false } as any;
+      });
+      vi.spyOn(fs, 'readdirSync').mockReturnValue(['wt1', 'wt2'] as any);
+      vi.spyOn(fs, 'readFileSync').mockImplementation((p: any) => {
+        if (p === path.join('/mock/base/wt1', '.git')) {
+          return 'gitdir: /mock/main-repo/.git/worktrees/wt1';
+        }
+        throw new Error('Not found');
+      });
+      const rmSyncMock = vi
+        .spyOn(fs, 'rmSync')
+        .mockImplementation(() => undefined);
+
+      const res = await prReviewerService.cleanWorktrees('/mock/base');
+
+      expect(res).toEqual({ success: true, cleanedCount: 2, errors: [] });
+      expect(mockGitService.removeWorktree).toHaveBeenCalledWith(
+        '/mock/main-repo',
+        '/mock/base/wt1',
+      );
+      expect(rmSyncMock).toHaveBeenCalledWith('/mock/base/wt2', {
+        recursive: true,
+        force: true,
+      });
+    });
+  });
 });

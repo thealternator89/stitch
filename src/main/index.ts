@@ -373,6 +373,20 @@ ipcMain.handle('pr-reviewer:open-directory', async () => {
 });
 
 ipcMain.handle(
+  'pr-reviewer:check-worktrees',
+  async (event, baseDir: string) => {
+    return prReviewerService.checkWorktrees(baseDir);
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:clean-worktrees',
+  async (event, baseDir: string) => {
+    return prReviewerService.cleanWorktrees(baseDir);
+  },
+);
+
+ipcMain.handle(
   'pr-reviewer:review',
   async (
     event,

@@ -140,6 +140,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('pr-reviewer:get-phases'),
   openPRReviewerDirectory: (): Promise<boolean> =>
     ipcRenderer.invoke('pr-reviewer:open-directory'),
+  checkWorktrees: (baseDir: string) =>
+    ipcRenderer.invoke('pr-reviewer:check-worktrees', baseDir),
+  cleanWorktrees: (baseDir: string) =>
+    ipcRenderer.invoke('pr-reviewer:clean-worktrees', baseDir),
+
   reviewPR: (
     repoPath: string,
     targetBranch: string,

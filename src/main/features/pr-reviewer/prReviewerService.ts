@@ -631,6 +631,124 @@ export class PRReviewerService {
     }
   }
 
+  async checkWorktrees(
+    baseDir: string,
+  ): Promise<{ hasWorktrees: boolean; worktreeCount: number }> {
+    try {
+      if (!baseDir) {
+        return { hasWorktrees: false, worktreeCount: 0 };
+      }
+      const resolved = path.resolve(baseDir);
+      if (!fs.existsSync(resolved)) {
+        return { hasWorktrees: false, worktreeCount: 0 };
+      }
+      const stat = fs.statSync(resolved);
+      if (!stat.isDirectory()) {
+        return { hasWorktrees: false, worktreeCount: 0 };
+      }
+      const files = fs.readdirSync(resolved);
+      let worktreeCount = 0;
+      for (const file of files) {
+        const fullPath = path.join(resolved, file);
+        try {
+          const s = fs.statSync(fullPath);
+          if (s.isDirectory()) {
+            worktreeCount++;
+          }
+        } catch {
+          // Ignore files we cannot access
+        }
+      }
+      return {
+        hasWorktrees: worktreeCount > 0,
+        worktreeCount,
+      };
+    } catch (err) {
+      console.error(`Error in checkWorktrees for ${baseDir}:`, err);
+      return { hasWorktrees: false, worktreeCount: 0 };
+    }
+  }
+
+  async cleanWorktrees(
+    baseDir: string,
+  ): Promise<{ success: boolean; cleanedCount: number; errors: string[] }> {
+    const errors: string[] = [];
+    let cleanedCount = 0;
+    try {
+      if (!baseDir) {
+        return { success: true, cleanedCount: 0, errors: [] };
+      }
+      const resolved = path.resolve(baseDir);
+      if (!fs.existsSync(resolved)) {
+        return { success: true, cleanedCount: 0, errors: [] };
+      }
+      const files = fs.readdirSync(resolved);
+      for (const file of files) {
+        const worktreePath = path.join(resolved, file);
+        try {
+          const s = fs.statSync(worktreePath);
+          if (!s.isDirectory()) {
+            continue;
+          }
+
+          let removed = false;
+          const gitFilePath = path.join(worktreePath, '.git');
+          if (fs.existsSync(gitFilePath)) {
+            const gitFileStat = fs.statSync(gitFilePath);
+            if (gitFileStat.isFile()) {
+              const content = fs.readFileSync(gitFilePath, 'utf8');
+              const match = content.match(/gitdir:\s*(.+)/);
+              if (match) {
+                const gitDir = match[1].trim();
+                const normalizedGitDir = path.normalize(gitDir);
+                const marker = path.join('.git', 'worktrees');
+                const index = normalizedGitDir.indexOf(marker);
+                if (index !== -1) {
+                  const mainRepoPath = path.resolve(
+                    normalizedGitDir.substring(0, index),
+                  );
+                  if (fs.existsSync(mainRepoPath)) {
+                    await this.gitService.removeWorktree(
+                      mainRepoPath,
+                      worktreePath,
+                    );
+                    removed = true;
+                  }
+                }
+              }
+            }
+          }
+
+          if (!removed) {
+            if (fs.existsSync(worktreePath)) {
+              fs.rmSync(worktreePath, { recursive: true, force: true });
+            }
+          }
+          cleanedCount++;
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          errors.push(`Failed to clean up ${file}: ${errMsg}`);
+          console.error(`Error cleaning up worktree at ${worktreePath}:`, err);
+        }
+      }
+
+      this.activeWorktrees.clear();
+
+      return {
+        success: errors.length === 0,
+        cleanedCount,
+        errors,
+      };
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        cleanedCount,
+        errors: [errMsg],
+      };
+    }
+  }
+
   async checkoutAndDiff(
     repoPath: string,
     prNumber: number,
