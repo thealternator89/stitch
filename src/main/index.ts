@@ -323,10 +323,13 @@ ipcMain.handle(
 ipcMain.handle(
   'pr-reviewer:checkout',
   async (event, repoPath, prNumber, expectedRepoName) => {
+    const s = await initStore();
+    const settings = (s.get('settings') ?? {}) as AppSettings;
     return prReviewerService.checkoutAndDiff(
       repoPath,
       prNumber,
       expectedRepoName,
+      settings,
     );
   },
 );
@@ -334,14 +337,16 @@ ipcMain.handle(
 ipcMain.handle(
   'pr-reviewer:get-diff-files',
   async (event, repoPath, targetBranch) => {
-    return gitService.getDiffFiles(repoPath, targetBranch);
+    const effectivePath = prReviewerService.getEffectiveRepoPath(repoPath);
+    return gitService.getDiffFiles(effectivePath, targetBranch);
   },
 );
 
 ipcMain.handle(
   'pr-reviewer:get-file-diff',
   async (event, repoPath, targetBranch, filePath) => {
-    return gitService.getFileDiff(repoPath, targetBranch, filePath);
+    const effectivePath = prReviewerService.getEffectiveRepoPath(repoPath);
+    return gitService.getFileDiff(effectivePath, targetBranch, filePath);
   },
 );
 
@@ -366,6 +371,20 @@ ipcMain.handle('pr-reviewer:open-directory', async () => {
     return false;
   }
 });
+
+ipcMain.handle(
+  'pr-reviewer:check-worktrees',
+  async (event, baseDir: string) => {
+    return prReviewerService.checkWorktrees(baseDir);
+  },
+);
+
+ipcMain.handle(
+  'pr-reviewer:clean-worktrees',
+  async (event, baseDir: string) => {
+    return prReviewerService.cleanWorktrees(baseDir);
+  },
+);
 
 ipcMain.handle(
   'pr-reviewer:review',

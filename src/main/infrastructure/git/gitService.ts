@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import fs from 'fs';
 import { PRDiffFile } from '../../../types';
 
 const execPromise = promisify(exec);
@@ -190,5 +191,65 @@ export class GitService {
       );
     }
     await this.runCommand(repoPath, `git checkout ${ref}`);
+  }
+
+  async fetchPR(repoPath: string, prNumber: number): Promise<string> {
+    try {
+      await this.runCommand(
+        repoPath,
+        `git fetch origin refs/pull/${prNumber}/merge`,
+      );
+      return await this.runCommand(repoPath, 'git rev-parse FETCH_HEAD');
+    } catch (error: unknown) {
+      try {
+        await this.runCommand(
+          repoPath,
+          `git fetch origin refs/pull/${prNumber}/head`,
+        );
+        return await this.runCommand(repoPath, 'git rev-parse FETCH_HEAD');
+      } catch (_fallbackError: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to fetch PR #${prNumber}: ${errMsg}`);
+      }
+    }
+  }
+
+  async addWorktree(
+    repoPath: string,
+    worktreePath: string,
+    commitSha: string,
+  ): Promise<void> {
+    // Clean up any stale directory/worktree metadata at that location first
+    await this.removeWorktree(repoPath, worktreePath);
+    await this.runCommand(
+      repoPath,
+      `git worktree add --detach "${worktreePath}" ${commitSha}`,
+    );
+  }
+
+  async removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
+    try {
+      await this.runCommand(
+        repoPath,
+        `git worktree remove --force "${worktreePath}"`,
+      );
+    } catch (_error: unknown) {
+      // Fallback: manually delete directory and run prune
+      try {
+        if (fs.existsSync(worktreePath)) {
+          fs.rmSync(worktreePath, { recursive: true, force: true });
+        }
+      } catch (rmErr) {
+        console.error(
+          `Failed to manually remove worktree directory at ${worktreePath}:`,
+          rmErr,
+        );
+      }
+      try {
+        await this.runCommand(repoPath, 'git worktree prune');
+      } catch (pruneErr) {
+        console.error(`Failed to prune worktree metadata:`, pruneErr);
+      }
+    }
   }
 }

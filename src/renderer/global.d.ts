@@ -85,6 +85,13 @@ export interface IElectronAPI {
   }>;
   getPhases: () => Promise<ReviewPhase[]>;
   openPRReviewerDirectory: () => Promise<boolean>;
+  checkWorktrees: (
+    baseDir: string,
+  ) => Promise<{ hasWorktrees: boolean; worktreeCount: number }>;
+  cleanWorktrees: (
+    baseDir: string,
+  ) => Promise<{ success: boolean; cleanedCount: number; errors: string[] }>;
+
   reviewPR: (
     repoPath: string,
     targetBranch: string,

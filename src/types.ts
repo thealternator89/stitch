@@ -8,6 +8,8 @@ export type AppSettings = {
   confluenceUser?: string;
   confluenceToken?: string;
   theme?: 'auto' | 'light' | 'dark';
+  gitWorktreeEnabled?: boolean;
+  gitWorktreeBaseDir?: string;
   prompts?: {
     storyWriter?: {
       general?: string;

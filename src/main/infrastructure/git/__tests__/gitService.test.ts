@@ -301,4 +301,72 @@ describe('GitService', () => {
       expect(calls).toEqual(['git status --porcelain', 'git checkout master']);
     });
   });
+
+  describe('fetchPR', () => {
+    it('should fetch merge branch and return commit SHA', async () => {
+      const commandsRun: string[] = [];
+      mockExec = (cmd: string, options: any, cb: any) => {
+        commandsRun.push(cmd);
+        if (cmd === 'git rev-parse FETCH_HEAD') {
+          cb(null, { stdout: 'sha123\n' });
+        } else {
+          cb(null, { stdout: '' });
+        }
+      };
+      const sha = await gitService.fetchPR(repoPath, 123);
+      expect(sha).toBe('sha123');
+      expect(commandsRun).toEqual([
+        'git fetch origin refs/pull/123/merge',
+        'git rev-parse FETCH_HEAD',
+      ]);
+    });
+
+    it('should fallback to head branch if merge branch fetch fails', async () => {
+      const commandsRun: string[] = [];
+      mockExec = (cmd: string, options: any, cb: any) => {
+        commandsRun.push(cmd);
+        if (cmd.includes('refs/pull/123/merge')) {
+          cb(new Error('failed merge'), { stdout: '' });
+        } else if (cmd === 'git rev-parse FETCH_HEAD') {
+          cb(null, { stdout: 'sha456\n' });
+        } else {
+          cb(null, { stdout: '' });
+        }
+      };
+      const sha = await gitService.fetchPR(repoPath, 123);
+      expect(sha).toBe('sha456');
+      expect(commandsRun).toEqual([
+        'git fetch origin refs/pull/123/merge',
+        'git fetch origin refs/pull/123/head',
+        'git rev-parse FETCH_HEAD',
+      ]);
+    });
+  });
+
+  describe('addWorktree', () => {
+    it('should run worktree remove then add command', async () => {
+      const commandsRun: string[] = [];
+      mockExec = (cmd: string, options: any, cb: any) => {
+        commandsRun.push(cmd);
+        cb(null, { stdout: '' });
+      };
+      await gitService.addWorktree(repoPath, '/wt/path', 'sha123');
+      expect(commandsRun).toEqual([
+        'git worktree remove --force "/wt/path"',
+        'git worktree add --detach "/wt/path" sha123',
+      ]);
+    });
+  });
+
+  describe('removeWorktree', () => {
+    it('should run git worktree remove command', async () => {
+      const commandsRun: string[] = [];
+      mockExec = (cmd: string, options: any, cb: any) => {
+        commandsRun.push(cmd);
+        cb(null, { stdout: '' });
+      };
+      await gitService.removeWorktree(repoPath, '/wt/path');
+      expect(commandsRun).toEqual(['git worktree remove --force "/wt/path"']);
+    });
+  });
 });
