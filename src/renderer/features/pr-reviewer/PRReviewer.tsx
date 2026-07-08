@@ -114,6 +114,7 @@ const PRReviewer: React.FC = () => {
     title: string;
     status: 'pending' | 'in-progress' | 'completed' | 'skipped';
     reason?: string;
+    statusText?: string;
   }
   const [phaseProgress, setPhaseProgress] = useState<PhaseProgress[]>([]);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
@@ -301,11 +302,7 @@ const PRReviewer: React.FC = () => {
         if (commentObj && commentObj.type === 'phase-start') {
           setPhaseProgress((prev) =>
             prev.map((p) =>
-              p.id === commentObj.phaseId
-                ? { ...p, status: 'in-progress' }
-                : p.status === 'in-progress'
-                  ? { ...p, status: 'completed' }
-                  : p,
+              p.id === commentObj.phaseId ? { ...p, status: 'in-progress' } : p,
             ),
           );
           setCurrentPhase(commentObj.phaseTitle);
@@ -326,6 +323,15 @@ const PRReviewer: React.FC = () => {
             ),
           );
         } else if (commentObj && commentObj.type === 'status') {
+          if (commentObj.phaseId) {
+            setPhaseProgress((prev) =>
+              prev.map((p) =>
+                p.id === commentObj.phaseId
+                  ? { ...p, statusText: commentObj.status }
+                  : p,
+              ),
+            );
+          }
           setCurrentStatus(commentObj.status);
           setLastStatusTime(new Date());
         } else if (
@@ -872,7 +878,7 @@ const PRReviewer: React.FC = () => {
                           {phaseProgress.map((p) => (
                             <div
                               key={p.id}
-                              className="list-group-item d-flex align-items-center justify-content-between p-3"
+                              className="list-group-item p-3"
                               style={{
                                 backgroundColor:
                                   p.status === 'in-progress'
@@ -880,52 +886,62 @@ const PRReviewer: React.FC = () => {
                                     : 'transparent',
                               }}
                             >
-                              <div
-                                className="d-flex align-items-center gap-2 text-truncate"
-                                style={{ maxWidth: '75%' }}
-                              >
-                                {p.status === 'pending' && (
-                                  <i className="far fa-circle text-muted"></i>
+                              <div className="d-flex align-items-center justify-content-between">
+                                <div
+                                  className="d-flex align-items-center gap-2 text-truncate"
+                                  style={{ maxWidth: '75%' }}
+                                >
+                                  {p.status === 'pending' && (
+                                    <i className="far fa-circle text-muted"></i>
+                                  )}
+                                  {p.status === 'in-progress' && (
+                                    <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                  )}
+                                  {p.status === 'completed' && (
+                                    <i className="fas fa-check-circle text-success"></i>
+                                  )}
+                                  {p.status === 'skipped' && (
+                                    <i
+                                      className="fas fa-forward text-warning"
+                                      title={p.reason || 'Skipped'}
+                                    ></i>
+                                  )}
+                                  <span
+                                    className={`small text-truncate ${
+                                      p.status === 'completed'
+                                        ? 'text-decoration-line-through text-muted'
+                                        : p.status === 'skipped'
+                                          ? 'text-muted'
+                                          : 'fw-semibold text-body'
+                                    }`}
+                                    title={p.title}
+                                  >
+                                    {p.title}
+                                  </span>
+                                </div>
+                                {p.status === 'skipped' && (
+                                  <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
+                                    Skipped
+                                  </span>
                                 )}
                                 {p.status === 'in-progress' && (
-                                  <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                  <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
+                                    Running
+                                  </span>
                                 )}
                                 {p.status === 'completed' && (
-                                  <i className="fas fa-check-circle text-success"></i>
+                                  <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
+                                    Done
+                                  </span>
                                 )}
-                                {p.status === 'skipped' && (
-                                  <i
-                                    className="fas fa-forward text-warning"
-                                    title={p.reason || 'Skipped'}
-                                  ></i>
-                                )}
-                                <span
-                                  className={`small text-truncate ${
-                                    p.status === 'completed'
-                                      ? 'text-decoration-line-through text-muted'
-                                      : p.status === 'skipped'
-                                        ? 'text-muted'
-                                        : 'fw-semibold text-body'
-                                  }`}
-                                  title={p.title}
-                                >
-                                  {p.title}
-                                </span>
                               </div>
-                              {p.status === 'skipped' && (
-                                <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
-                                  Skipped
-                                </span>
-                              )}
-                              {p.status === 'in-progress' && (
-                                <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
-                                  Running
-                                </span>
-                              )}
-                              {p.status === 'completed' && (
-                                <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
-                                  Done
-                                </span>
+                              {p.status === 'in-progress' && p.statusText && (
+                                <div
+                                  className="ps-4 mt-1 text-muted small text-truncate"
+                                  title={p.statusText}
+                                >
+                                  {p.statusText}
+                                </div>
                               )}
                             </div>
                           ))}

@@ -1009,194 +1009,250 @@ export class PRReviewerService {
         }
       }
 
-      let accumulatedResult = '';
+      const results: string[] = new Array(enabledPhases.length).fill('');
+      let firstError: Error | null = null;
+      let queueIndex = 0;
 
-      for (const phase of enabledPhases) {
-        let eligibleFiles = [...files];
+      const getNextPhase = () => {
+        if (queueIndex < enabledPhases.length) {
+          const index = queueIndex++;
+          return { phase: enabledPhases[index], phaseIdx: index };
+        }
+        return null;
+      };
 
-        if (phase.include) {
-          try {
-            const isMatch = getGlobMatcher(phase.include);
-            eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
-          } catch (err) {
-            console.error(`Invalid include glob: ${phase.include}`, err);
+      const numCPUs = os.cpus().length;
+      const maxWorkers = Math.max(1, Math.floor(numCPUs / 2));
+      const workerCount = Math.min(maxWorkers, enabledPhases.length);
+
+      const runWorker = async () => {
+        while (true) {
+          if (firstError) {
+            break;
           }
-        }
-
-        if (phase.exclude) {
-          try {
-            const isMatch = getGlobMatcher(phase.exclude);
-            eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
-          } catch (err) {
-            console.error(`Invalid exclude glob: ${phase.exclude}`, err);
+          const task = getNextPhase();
+          if (!task) {
+            break;
           }
-        }
+          const { phase, phaseIdx } = task;
 
-        if (eligibleFiles.length === 0) {
-          if (options.onLine) {
-            options.onLine(
-              JSON.stringify({
-                type: 'phase-skip',
-                phaseId: phase.id,
-                phaseTitle: phase.title,
-                reason: 'No matching files found',
-              }),
-            );
-          }
-          continue;
-        }
+          let eligibleFiles = [...files];
 
-        const attachStory =
-          phase.attach && phase.attach.toLowerCase().includes('story');
-
-        if (attachStory && !linkedStoriesContent) {
-          if (options.onLine) {
-            options.onLine(
-              JSON.stringify({
-                type: 'phase-skip',
-                phaseId: phase.id,
-                phaseTitle: phase.title,
-                reason: 'No linked stories found for this Pull Request',
-              }),
-            );
-          }
-          continue;
-        }
-
-        if (options.onLine) {
-          options.onLine(
-            JSON.stringify({
-              type: 'phase-start',
-              phaseId: phase.id,
-              phaseTitle: phase.title,
-            }),
-          );
-        }
-
-        const sessionOpts = attachStory
-          ? {
-              workingDirectory: effectiveRepoPath,
-              tools: [
-                createRequestDocumentationTool(
-                  this.getDocProvider,
-                  () => options.onLine,
-                ),
-              ],
+          if (phase.include) {
+            try {
+              const isMatch = getGlobMatcher(phase.include);
+              eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
+            } catch (err) {
+              console.error(`Invalid include glob: ${phase.include}`, err);
             }
-          : { workingDirectory: effectiveRepoPath };
+          }
 
-        const { client, session } =
-          await this.copilotService.createClientAndSession(
-            settings.copilotToken,
-            options.modelOverride,
-            sessionOpts,
-          );
+          if (phase.exclude) {
+            try {
+              const isMatch = getGlobMatcher(phase.exclude);
+              eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
+            } catch (err) {
+              console.error(`Invalid exclude glob: ${phase.exclude}`, err);
+            }
+          }
 
-        const attachDescription =
-          phase.attach && phase.attach.toLowerCase().includes('description');
+          if (eligibleFiles.length === 0) {
+            if (options.onLine) {
+              options.onLine(
+                JSON.stringify({
+                  type: 'phase-skip',
+                  phaseId: phase.id,
+                  phaseTitle: phase.title,
+                  reason: 'No matching files found',
+                }),
+              );
+            }
+            continue;
+          }
 
-        let fullDescription = options.prDescription;
-        if (attachDescription && prDetails && prDetails.description) {
-          fullDescription = prDetails.description;
-        }
+          const attachStory =
+            phase.attach && phase.attach.toLowerCase().includes('story');
 
-        const prompt = buildPhaseReviewPrompt(
-          eligibleFiles,
-          phase.title,
-          phase.body,
-          options.customInstructions,
-          attachDescription ? fullDescription : undefined,
-          attachStory ? linkedStoriesContent : undefined,
-          attachStory ? knownDocs : undefined,
-        );
+          if (attachStory && !linkedStoriesContent) {
+            if (options.onLine) {
+              options.onLine(
+                JSON.stringify({
+                  type: 'phase-skip',
+                  phaseId: phase.id,
+                  phaseTitle: phase.title,
+                  reason: 'No linked stories found for this Pull Request',
+                }),
+              );
+            }
+            continue;
+          }
 
-        const wrappedOnLine = (line: string) => {
-          if (!options.onLine) return;
-          try {
-            const obj = JSON.parse(line);
-            if (obj && (obj.type === 'general' || obj.type === 'line')) {
-              obj.phase = phase.title;
+          if (options.onLine) {
+            options.onLine(
+              JSON.stringify({
+                type: 'phase-start',
+                phaseId: phase.id,
+                phaseTitle: phase.title,
+              }),
+            );
+          }
 
-              if (
-                obj.type === 'line' &&
-                typeof obj.file === 'string' &&
-                typeof obj.line === 'number'
-              ) {
-                const contextSize =
-                  typeof obj.context === 'number' ? obj.context : 0;
-                const codeLines = extractFileContextSync(
-                  effectiveRepoPath,
-                  obj.file,
-                  obj.line,
-                  contextSize,
-                );
-                if (codeLines) {
-                  obj.codeLines = codeLines;
+          const wrappedOnLine = (line: string) => {
+            if (!options.onLine) return;
+            try {
+              const obj = JSON.parse(line);
+              if (obj) {
+                obj.phase = phase.title;
+                obj.phaseId = phase.id;
+
+                if (obj.type === 'status' && obj.text && !obj.status) {
+                  obj.status = obj.text;
+                }
+
+                if (
+                  obj.type === 'line' &&
+                  typeof obj.file === 'string' &&
+                  typeof obj.line === 'number'
+                ) {
+                  const contextSize =
+                    typeof obj.context === 'number' ? obj.context : 0;
+                  const codeLines = extractFileContextSync(
+                    effectiveRepoPath,
+                    obj.file,
+                    obj.line,
+                    contextSize,
+                  );
+                  if (codeLines) {
+                    obj.codeLines = codeLines;
+                  }
                 }
               }
+              options.onLine(JSON.stringify(obj));
+            } catch {
+              options.onLine(line);
             }
-            options.onLine(JSON.stringify(obj));
-          } catch {
-            options.onLine(line);
-          }
-        };
+          };
 
-        const onToolCallback = (
-          type: 'start' | 'end',
-          tool: string,
-          success?: boolean,
-          error?: string,
+          const sessionOpts = attachStory
+            ? {
+                workingDirectory: effectiveRepoPath,
+                tools: [
+                  createRequestDocumentationTool(this.getDocProvider, () =>
+                    options.onLine ? wrappedOnLine : undefined,
+                  ),
+                ],
+              }
+            : { workingDirectory: effectiveRepoPath };
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          args?: any,
-        ) => {
-          if (options.onLine) {
-            options.onLine(
-              JSON.stringify({
-                type: 'tool',
-                status: type,
-                name: tool,
-                success,
-                error,
-                arguments: args,
-              }),
+          let clientAndSession: { client: any; session: any } | null = null;
+          try {
+            clientAndSession = await this.copilotService.createClientAndSession(
+              settings.copilotToken,
+              options.modelOverride,
+              sessionOpts,
             );
+          } catch (err) {
+            console.error(
+              `Error creating client/session for phase ${phase.title}:`,
+              err,
+            );
+            if (!firstError) {
+              firstError = err as Error;
+            }
+            break;
           }
-        };
 
-        try {
-          const res = await this.copilotService.sendAndCollectStream(
-            session,
-            prompt,
-            options.onLine ? wrappedOnLine : undefined,
-            ...(attachStory ? [onToolCallback] : []),
+          const { client, session } = clientAndSession;
+
+          const attachDescription =
+            phase.attach && phase.attach.toLowerCase().includes('description');
+
+          let fullDescription = options.prDescription;
+          if (attachDescription && prDetails && prDetails.description) {
+            fullDescription = prDetails.description;
+          }
+
+          const prompt = buildPhaseReviewPrompt(
+            eligibleFiles,
+            phase.title,
+            phase.body,
+            options.customInstructions,
+            attachDescription ? fullDescription : undefined,
+            attachStory ? linkedStoriesContent : undefined,
+            attachStory ? knownDocs : undefined,
           );
-          accumulatedResult += `\n--- Phase ${phase.title} Result ---\n${res}`;
-        } catch (err) {
-          console.error(`Error executing phase ${phase.title}:`, err);
-          throw err;
-        } finally {
-          try {
-            await session.disconnect();
-          } catch (e) {
-            console.error('Error destroying session in reviewPR phase:', e);
-          }
-          try {
-            await client.stop();
-          } catch (e) {
-            console.error('Error stopping client in reviewPR phase:', e);
-          }
 
-          if (options.onLine) {
-            options.onLine(
-              JSON.stringify({
-                type: 'phase-end',
-                phaseId: phase.id,
-                phaseTitle: phase.title,
-              }),
+          const onToolCallback = (
+            type: 'start' | 'end',
+            tool: string,
+            success?: boolean,
+            error?: string,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            args?: any,
+          ) => {
+            if (options.onLine) {
+              options.onLine(
+                JSON.stringify({
+                  type: 'tool',
+                  status: type,
+                  name: tool,
+                  success,
+                  error,
+                  arguments: args,
+                  phaseId: phase.id,
+                  phaseTitle: phase.title,
+                }),
+              );
+            }
+          };
+
+          try {
+            const res = await this.copilotService.sendAndCollectStream(
+              session,
+              prompt,
+              options.onLine ? wrappedOnLine : undefined,
+              ...(attachStory ? [onToolCallback] : []),
             );
+            results[phaseIdx] = `\n--- Phase ${phase.title} Result ---\n${res}`;
+          } catch (err) {
+            console.error(`Error executing phase ${phase.title}:`, err);
+            if (!firstError) {
+              firstError = err as Error;
+            }
+          } finally {
+            try {
+              await session.disconnect();
+            } catch (e) {
+              console.error('Error destroying session in reviewPR phase:', e);
+            }
+            try {
+              await client.stop();
+            } catch (e) {
+              console.error('Error stopping client in reviewPR phase:', e);
+            }
+
+            if (options.onLine) {
+              options.onLine(
+                JSON.stringify({
+                  type: 'phase-end',
+                  phaseId: phase.id,
+                  phaseTitle: phase.title,
+                }),
+              );
+            }
           }
         }
+      };
+
+      const workers = Array.from({ length: workerCount }, () => runWorker());
+      await Promise.all(workers);
+
+      if (firstError) {
+        throw firstError;
       }
+
+      const accumulatedResult = results.filter((r) => r !== '').join('');
 
       return accumulatedResult;
     } finally {
