@@ -845,6 +845,7 @@ export class PRReviewerService {
       prDescription?: string;
       prId?: string;
       onLine?: (line: string) => void;
+      maxParallelism?: number;
     } = {},
   ): Promise<string> {
     if (!options.enabledPhaseIds || options.enabledPhaseIds.length === 0) {
@@ -1022,7 +1023,22 @@ export class PRReviewerService {
       };
 
       const numCPUs = os.cpus().length;
-      const maxWorkers = Math.max(1, Math.floor(numCPUs / 2));
+      let maxWorkers: number;
+      if (numCPUs < 4) {
+        maxWorkers = 1;
+      } else {
+        const preferredLimit =
+          options.maxParallelism ?? settings.maxParallelism;
+        if (
+          preferredLimit !== undefined &&
+          preferredLimit >= 1 &&
+          preferredLimit <= numCPUs - 2
+        ) {
+          maxWorkers = preferredLimit;
+        } else {
+          maxWorkers = Math.max(1, Math.floor(numCPUs / 2));
+        }
+      }
       const workerCount = Math.min(maxWorkers, enabledPhases.length);
 
       const runWorker = async () => {

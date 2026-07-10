@@ -386,6 +386,10 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle('get-cpu-count', () => {
+  return os.cpus().length;
+});
+
 ipcMain.handle(
   'pr-reviewer:review',
   async (
@@ -397,6 +401,7 @@ ipcMain.handle(
     enabledPhaseIds,
     prDescription,
     prId,
+    maxParallelism,
   ) => {
     const s = await initStore();
     const settings = (s.get('settings') ?? {}) as AppSettings;
@@ -406,6 +411,7 @@ ipcMain.handle(
       enabledPhaseIds,
       prDescription,
       prId,
+      maxParallelism,
       onLine: (line: string) => {
         event.sender.send('pr-reviewer:review-line', line);
       },

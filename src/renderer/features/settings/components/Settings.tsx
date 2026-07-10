@@ -20,6 +20,8 @@ const Settings: React.FC = () => {
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto');
   const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
   const [gitWorktreeBaseDir, setGitWorktreeBaseDir] = useState('');
+  const [maxParallelism, setMaxParallelism] = useState<number>(2);
+  const [cpuCount, setCpuCount] = useState<number>(4);
   const [statusMessage, setStatusMessage] = useState('');
   const [authStatus, setAuthStatus] = useState<CopilotAuth | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(false);
@@ -51,6 +53,9 @@ const Settings: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        const cpus = await window.electronAPI.getCpuCount();
+        setCpuCount(cpus);
+
         const settings = await window.electronAPI.getSettings();
         if (settings) {
           setAzureOrg(settings.azureOrg || '');
@@ -63,6 +68,16 @@ const Settings: React.FC = () => {
           setTheme(settings.theme || 'auto');
           setGitWorktreeEnabled(settings.gitWorktreeEnabled || false);
           setGitWorktreeBaseDir(settings.gitWorktreeBaseDir || '');
+
+          if (settings.maxParallelism !== undefined) {
+            setMaxParallelism(settings.maxParallelism);
+          } else {
+            if (cpus < 4) {
+              setMaxParallelism(1);
+            } else {
+              setMaxParallelism(Math.max(1, Math.floor(cpus / 2)));
+            }
+          }
 
           // Load custom prompts
           const prompts = settings.prompts || {};
@@ -107,6 +122,7 @@ const Settings: React.FC = () => {
         theme: theme,
         gitWorktreeEnabled: gitWorktreeEnabled,
         gitWorktreeBaseDir: gitWorktreeBaseDir,
+        maxParallelism: maxParallelism,
         prompts: {
           storyWriter: {
             general: storyGeneral,
@@ -169,6 +185,9 @@ const Settings: React.FC = () => {
             setGitWorktreeEnabled={setGitWorktreeEnabled}
             gitWorktreeBaseDir={gitWorktreeBaseDir}
             setGitWorktreeBaseDir={setGitWorktreeBaseDir}
+            maxParallelism={maxParallelism}
+            setMaxParallelism={setMaxParallelism}
+            cpuCount={cpuCount}
           />
         );
       case 'azure':

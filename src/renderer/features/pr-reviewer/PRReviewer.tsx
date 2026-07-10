@@ -118,10 +118,33 @@ const PRReviewer: React.FC = () => {
   }
   const [phaseProgress, setPhaseProgress] = useState<PhaseProgress[]>([]);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+  const [maxParallelism, setMaxParallelism] = useState<number>(2);
+  const [cpuCount, setCpuCount] = useState<number>(4);
 
   useEffect(() => {
     loadPhases();
+    loadParallelismSettings();
   }, []);
+
+  const loadParallelismSettings = async () => {
+    try {
+      const cpus = await window.electronAPI.getCpuCount();
+      setCpuCount(cpus);
+
+      const settings = await window.electronAPI.getSettings();
+      if (settings && settings.maxParallelism !== undefined) {
+        setMaxParallelism(settings.maxParallelism);
+      } else {
+        if (cpus < 4) {
+          setMaxParallelism(1);
+        } else {
+          setMaxParallelism(Math.max(1, Math.floor(cpus / 2)));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load parallelism settings:', err);
+    }
+  };
 
   const loadPhases = async () => {
     setIsLoadingPhases(true);
@@ -356,6 +379,7 @@ const PRReviewer: React.FC = () => {
         enabledPhaseIds,
         selectedPR.description,
         selectedPR.id,
+        maxParallelism,
       );
       setHasReviewed(true);
     } catch (err: unknown) {
@@ -983,6 +1007,45 @@ const PRReviewer: React.FC = () => {
                             onSelect={setSelectedModel}
                             loading={loadingModels}
                           />
+                        </div>
+
+                        {/* Max Parallelism */}
+                        <div className="mb-3">
+                          <label className="form-label text-muted small fw-semibold d-block mb-1">
+                            Review Agent Parallelism
+                          </label>
+                          {cpuCount < 4 ? (
+                            <div className="text-muted small">
+                              Parallelism fixed at 1 (fewer than 4 CPU cores).
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="d-flex align-items-center gap-2">
+                                <input
+                                  type="range"
+                                  className="form-range"
+                                  min="1"
+                                  max={cpuCount - 2}
+                                  value={maxParallelism}
+                                  onChange={(e) =>
+                                    setMaxParallelism(parseInt(e.target.value))
+                                  }
+                                  disabled={isReviewing}
+                                  style={{ flexGrow: 1 }}
+                                />
+                                <span className="badge bg-secondary font-monospace">
+                                  {maxParallelism}x
+                                </span>
+                              </div>
+                              <span
+                                className="text-muted tiny"
+                                style={{ fontSize: '0.75rem' }}
+                              >
+                                Range: 1 to {cpuCount - 2} workers (CPUs:{' '}
+                                {cpuCount})
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Custom Review Instructions */}

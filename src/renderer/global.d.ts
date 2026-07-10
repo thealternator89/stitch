@@ -91,6 +91,7 @@ export interface IElectronAPI {
   cleanWorktrees: (
     baseDir: string,
   ) => Promise<{ success: boolean; cleanedCount: number; errors: string[] }>;
+  getCpuCount: () => Promise<number>;
 
   reviewPR: (
     repoPath: string,
@@ -100,6 +101,7 @@ export interface IElectronAPI {
     enabledPhaseIds?: string[],
     prDescription?: string,
     prId?: string,
+    maxParallelism?: number,
   ) => Promise<string>;
   onPRReviewLine: (callback: (line: string) => void) => () => void;
   postPRComment: (

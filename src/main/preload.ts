@@ -144,6 +144,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('pr-reviewer:check-worktrees', baseDir),
   cleanWorktrees: (baseDir: string) =>
     ipcRenderer.invoke('pr-reviewer:clean-worktrees', baseDir),
+  getCpuCount: (): Promise<number> => ipcRenderer.invoke('get-cpu-count'),
 
   reviewPR: (
     repoPath: string,
@@ -153,6 +154,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     enabledPhaseIds?: string[],
     prDescription?: string,
     prId?: string,
+    maxParallelism?: number,
   ): Promise<string> =>
     ipcRenderer.invoke(
       'pr-reviewer:review',
@@ -163,6 +165,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       enabledPhaseIds,
       prDescription,
       prId,
+      maxParallelism,
     ),
   onPRReviewLine: (callback: (line: string) => void) => {
     const listener = (_event: unknown, line: string) => callback(line);
