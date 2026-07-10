@@ -24,6 +24,8 @@ const StoryElaborator: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [repoPath, setRepoPath] = useState('');
   const [context, setContext] = useState('');
+  const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
+  const [branch, setBranch] = useState('develop');
 
   // Session States
   // 'idle' | 'elaborating' | 'plan_completed'
@@ -88,6 +90,19 @@ const StoryElaborator: React.FC = () => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Load settings on mount to check if git worktree is enabled
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const settings = await window.electronAPI.getSettings();
+        setGitWorktreeEnabled(settings.gitWorktreeEnabled || false);
+      } catch (err) {
+        console.error('Failed to load settings in StoryElaborator:', err);
+      }
+    };
+    loadSettings();
   }, []);
 
   // Scroll to bottom of chat
@@ -198,6 +213,7 @@ const StoryElaborator: React.FC = () => {
         repoPath.trim() ? repoPath : null,
         context,
         selectedModel,
+        gitWorktreeEnabled ? branch.trim() || 'develop' : undefined,
       );
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
@@ -489,6 +505,27 @@ const StoryElaborator: React.FC = () => {
                   changes.
                 </div>
               </div>
+
+              {/* Git Branch */}
+              {gitWorktreeEnabled && (
+                <div className="mb-3 animate__animated animate__fadeIn">
+                  <label className="form-label fw-medium text-secondary">
+                    Git Branch
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control border-2"
+                    placeholder="develop"
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    disabled={stage !== 'idle'}
+                  />
+                  <div className="form-text text-muted small">
+                    The branch to checkout in the worktree. Defaults to{' '}
+                    <code>develop</code>.
+                  </div>
+                </div>
+              )}
 
               {/* Additional Context */}
               <div className="mb-3">

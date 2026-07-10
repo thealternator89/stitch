@@ -4,6 +4,9 @@ import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
 import { buildStoryElaboratorPrompt } from './storyElaboratorPrompts';
 import { createRequestDocumentationTool } from '../../infrastructure/copilot/tools/documentationTool';
+import { GitService } from '../../infrastructure/git/gitService';
+import fs from 'fs';
+import path from 'path';
 
 export class StoryElaboratorService {
   private activeElaborations = new Map<
@@ -12,11 +15,16 @@ export class StoryElaboratorService {
       client: any;
       session: any;
       onLine?: (line: string) => void;
+      worktreeInfo?: {
+        repoRoot: string;
+        worktreePath: string;
+      };
     }
   >();
 
   constructor(
     private copilotService: CopilotService,
+    private gitService: GitService,
     private getDocProvider: () => Promise<DocumentationProvider | null>,
   ) {}
 
@@ -26,10 +34,14 @@ export class StoryElaboratorService {
     additionalContext: string,
     modelOverride: string,
     settings: AppSettings,
+    branch?: string,
     onLine?: (line: string) => void,
   ): Promise<string> {
     // Stop any existing session for this ticket
     await this.stopStoryElaboration(ticketData.id || '');
+
+    let effectiveRepoPath = repoPath;
+    let worktreeInfo: { repoRoot: string; worktreePath: string } | undefined;
 
     try {
       const requestDocumentationTool = createRequestDocumentationTool(
@@ -37,13 +49,49 @@ export class StoryElaboratorService {
         () => this.activeElaborations.get(ticketData.id || '')?.onLine,
       );
 
+      if (
+        repoPath &&
+        settings.gitWorktreeEnabled &&
+        settings.gitWorktreeBaseDir
+      ) {
+        const isGit = await this.gitService.checkGitRepo(repoPath);
+        if (isGit) {
+          const repoRoot = await this.gitService.getRepoRoot(repoPath);
+          if (repoRoot) {
+            const relativeSubdir = path.relative(repoRoot, repoPath);
+            const repoDirName = path.basename(repoRoot);
+            const sanitizeDirName = (name: string) =>
+              name.replace(/[^a-zA-Z0-9-_]/g, '_');
+            const worktreeName = `${sanitizeDirName(repoDirName)}_ticket_${ticketData.id || 'unknown'}`;
+            const worktreePath = path.join(
+              settings.gitWorktreeBaseDir,
+              worktreeName,
+            );
+
+            if (!fs.existsSync(settings.gitWorktreeBaseDir)) {
+              fs.mkdirSync(settings.gitWorktreeBaseDir, { recursive: true });
+            }
+
+            const targetBranch = branch || 'develop';
+            await this.gitService.addWorktree(
+              repoRoot,
+              worktreePath,
+              targetBranch,
+            );
+
+            worktreeInfo = { repoRoot, worktreePath };
+            effectiveRepoPath = path.join(worktreePath, relativeSubdir);
+          }
+        }
+      }
+
       const { client, session } =
         await this.copilotService.createClientAndSession(
           settings.copilotToken,
           modelOverride,
-          repoPath
+          effectiveRepoPath
             ? {
-                workingDirectory: repoPath,
+                workingDirectory: effectiveRepoPath,
                 tools: [requestDocumentationTool],
               }
             : {
@@ -57,6 +105,7 @@ export class StoryElaboratorService {
         client,
         session,
         onLine,
+        worktreeInfo,
       });
 
       // Find links and fetch titles for knownDocs
@@ -102,6 +151,16 @@ export class StoryElaboratorService {
     } catch (error) {
       console.error('Error starting story elaboration:', error);
       // Clean up if it failed
+      if (worktreeInfo) {
+        try {
+          await this.gitService.removeWorktree(
+            worktreeInfo.repoRoot,
+            worktreeInfo.worktreePath,
+          );
+        } catch (e) {
+          console.error('Failed to clean up worktree after error:', e);
+        }
+      }
       await this.stopStoryElaboration(ticketData.id || '');
       throw error;
     }
@@ -183,7 +242,7 @@ export class StoryElaboratorService {
     if (!data) return;
 
     this.activeElaborations.delete(ticketId);
-    const { client, session } = data;
+    const { client, session, worktreeInfo } = data;
     try {
       await session.disconnect();
     } catch (e) {
@@ -193,6 +252,16 @@ export class StoryElaboratorService {
       await client.stop();
     } catch (e) {
       console.error('Error stopping client in stopStoryElaboration:', e);
+    }
+    if (worktreeInfo) {
+      try {
+        await this.gitService.removeWorktree(
+          worktreeInfo.repoRoot,
+          worktreeInfo.worktreePath,
+        );
+      } catch (e) {
+        console.error('Error removing worktree in stopStoryElaboration:', e);
+      }
     }
   }
 
@@ -206,6 +275,19 @@ export class StoryElaboratorService {
           `Error cleaning up active elaboration session for ticket ${ticketId}:`,
           e,
         );
+      }
+      if (data.worktreeInfo) {
+        try {
+          await this.gitService.removeWorktree(
+            data.worktreeInfo.repoRoot,
+            data.worktreeInfo.worktreePath,
+          );
+        } catch (e) {
+          console.error(
+            `Error removing worktree during cleanup for ticket ${ticketId}:`,
+            e,
+          );
+        }
       }
     }
     this.activeElaborations.clear();

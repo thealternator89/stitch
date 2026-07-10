@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     repoPath: string | null,
     additionalContext: string,
     modelOverride: string,
+    branch?: string,
   ) =>
     ipcRenderer.invoke(
       'start-story-elaboration',
@@ -75,6 +76,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       repoPath,
       additionalContext,
       modelOverride,
+      branch,
     ),
   sendElaborationAnswer: (ticketId: string, answer: string) =>
     ipcRenderer.invoke('send-elaboration-answer', ticketId, answer),

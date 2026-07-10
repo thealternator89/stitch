@@ -53,6 +53,7 @@ export interface IElectronAPI {
     repoPath: string | null,
     additionalContext: string,
     modelOverride: string,
+    branch?: string,
   ) => Promise<string>;
   sendElaborationAnswer: (ticketId: string, answer: string) => Promise<string>;
   stopStoryElaboration: (ticketId: string) => Promise<void>;
