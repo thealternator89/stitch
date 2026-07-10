@@ -45,7 +45,6 @@ const PRReviewer: React.FC = () => {
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [isReviewing, setIsReviewing] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
   const [lastStatusTime, setLastStatusTime] = useState<Date | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
   const { models, selectedModel, setSelectedModel, loadingModels } =
@@ -117,9 +116,36 @@ const PRReviewer: React.FC = () => {
     statusText?: string;
   }
   const [phaseProgress, setPhaseProgress] = useState<PhaseProgress[]>([]);
-  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
   const [maxParallelism, setMaxParallelism] = useState<number>(2);
   const [cpuCount, setCpuCount] = useState<number>(4);
+
+  const getGeneralStatusText = () => {
+    const inProgressCount = phaseProgress.filter(
+      (p) => p.status === 'in-progress',
+    ).length;
+    const completedCount = phaseProgress.filter(
+      (p) => p.status === 'completed',
+    ).length;
+    const skippedCount = phaseProgress.filter(
+      (p) => p.status === 'skipped',
+    ).length;
+    const pendingCount = phaseProgress.filter(
+      (p) => p.status === 'pending',
+    ).length;
+
+    const parts: string[] = [];
+    if (inProgressCount > 0) parts.push(`${inProgressCount} In Progress`);
+    if (completedCount > 0) parts.push(`${completedCount} Complete`);
+    if (skippedCount > 0) parts.push(`${skippedCount} Skipped`);
+    if (pendingCount > 0 && parts.length === 0)
+      parts.push(`${pendingCount} Pending`);
+
+    let statusText = parts.length > 0 ? parts.join(', ') : 'Initializing';
+    if (isReviewing) {
+      statusText += '...';
+    }
+    return statusText;
+  };
 
   useEffect(() => {
     loadPhases();
@@ -307,8 +333,6 @@ const PRReviewer: React.FC = () => {
     setComments([]);
     setCollapsedComments({});
     setIsPostingComment({});
-    setCurrentPhase(null);
-    setCurrentStatus(null);
     setLastStatusTime(null);
 
     setPhaseProgress(
@@ -328,8 +352,6 @@ const PRReviewer: React.FC = () => {
               p.id === commentObj.phaseId ? { ...p, status: 'in-progress' } : p,
             ),
           );
-          setCurrentPhase(commentObj.phaseTitle);
-          setCurrentStatus(`Starting review phase: ${commentObj.phaseTitle}`);
           setLastStatusTime(new Date());
         } else if (commentObj && commentObj.type === 'phase-skip') {
           setPhaseProgress((prev) =>
@@ -339,12 +361,14 @@ const PRReviewer: React.FC = () => {
                 : p,
             ),
           );
+          setLastStatusTime(new Date());
         } else if (commentObj && commentObj.type === 'phase-end') {
           setPhaseProgress((prev) =>
             prev.map((p) =>
               p.id === commentObj.phaseId ? { ...p, status: 'completed' } : p,
             ),
           );
+          setLastStatusTime(new Date());
         } else if (commentObj && commentObj.type === 'status') {
           if (commentObj.phaseId) {
             setPhaseProgress((prev) =>
@@ -355,7 +379,6 @@ const PRReviewer: React.FC = () => {
               ),
             );
           }
-          setCurrentStatus(commentObj.status);
           setLastStatusTime(new Date());
         } else if (
           commentObj &&
@@ -974,9 +997,7 @@ const PRReviewer: React.FC = () => {
                         {isReviewing && (
                           <div className="mt-auto text-center text-muted small py-2 bg-body-secondary rounded">
                             <span className="spinner-border spinner-border-sm me-2 text-primary"></span>
-                            {currentPhase
-                              ? `Reviewing: ${currentPhase}`
-                              : 'Analyzing PR changes...'}
+                            {getGeneralStatusText()}
                           </div>
                         )}
 
@@ -985,7 +1006,6 @@ const PRReviewer: React.FC = () => {
                             className="btn btn-outline-primary btn-sm w-100 mt-auto fw-semibold"
                             onClick={() => {
                               setPhaseProgress([]);
-                              setCurrentPhase(null);
                             }}
                           >
                             <i className="fas fa-arrow-left me-2"></i>
@@ -1107,7 +1127,7 @@ const PRReviewer: React.FC = () => {
                       Review Comments ({comments.length})
                     </h5>
 
-                    {isReviewing && currentStatus && comments.length > 0 && (
+                    {isReviewing && comments.length > 0 && (
                       <div className="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-info-subtle text-info-emphasis small">
                         <div className="d-flex align-items-center gap-2">
                           <span
@@ -1115,7 +1135,7 @@ const PRReviewer: React.FC = () => {
                             style={{ width: '1rem', height: '1rem' }}
                           ></span>
                           <span>
-                            <strong>Status:</strong> {currentStatus}
+                            <strong>Status:</strong> {getGeneralStatusText()}
                           </span>
                         </div>
                         {lastStatusTime && (
@@ -1155,7 +1175,7 @@ const PRReviewer: React.FC = () => {
                                 style={{ width: '3rem', height: '3rem' }}
                               ></span>
                               <p className="fw-semibold text-body mb-1">
-                                {currentStatus || 'Running Code Review...'}
+                                {getGeneralStatusText()}
                               </p>
                               {lastStatusTime && (
                                 <p className="text-muted small mb-2">
