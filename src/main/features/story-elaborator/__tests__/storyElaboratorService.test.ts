@@ -4,6 +4,7 @@ import { StoryElaboratorService } from '../storyElaboratorService';
 import { buildStoryElaboratorPrompt } from '../storyElaboratorPrompts';
 import { AppSettings, TicketData } from '../../../../types';
 import fs from 'fs';
+import path from 'path';
 
 describe('StoryElaborator feature', () => {
   const defaultSettings: AppSettings = {
@@ -403,13 +404,17 @@ describe('StoryElaborator feature', () => {
         expect.stringContaining('repo-root_ticket_US-500'),
         'feature-branch',
       );
+      const expectedPath = path.join(
+        '/mock/worktrees',
+        'repo-root_ticket_US-500',
+        'src',
+        'subdir',
+      );
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         undefined,
         'gpt-4',
         expect.objectContaining({
-          workingDirectory: expect.stringContaining(
-            '/mock/worktrees/repo-root_ticket_US-500/src/subdir',
-          ),
+          workingDirectory: expectedPath,
         }),
       );
 
