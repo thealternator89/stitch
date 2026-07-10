@@ -101,6 +101,12 @@ export class StoryElaboratorService {
 
             worktreeInfo = { repoRoot, worktreePath };
             effectiveRepoPath = path.join(worktreePath, relativeSubdir);
+
+            if (!fs.existsSync(effectiveRepoPath)) {
+              throw new Error(
+                'The selected directory does not exist in the checked out branch. Your local repository might be outdated. Please pull the branch and try again.',
+              );
+            }
           }
         }
       }

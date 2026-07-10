@@ -13,6 +13,22 @@ interface FeedItem {
   text: string;
 }
 
+const sanitizeErrorMessage = (err: unknown, defaultMsg: string): string => {
+  if (!(err instanceof Error)) {
+    return defaultMsg;
+  }
+  let message = err.message;
+  if (message.includes('Error invoking remote method')) {
+    const match = message.match(
+      /Error invoking remote method '[^']+':\s*([\s\S]*)/,
+    );
+    if (match && match[1]) {
+      message = match[1];
+    }
+  }
+  return message;
+};
+
 const StoryElaborator: React.FC = () => {
   const { showTimeout } = useTimeoutModal();
   const isMountedRef = useRef(true);
@@ -218,10 +234,10 @@ const StoryElaborator: React.FC = () => {
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
-      const errMsg =
-        err instanceof Error
-          ? err.message
-          : 'An error occurred during elaboration.';
+      const errMsg = sanitizeErrorMessage(
+        err,
+        'An error occurred during elaboration.',
+      );
       if (isTimeoutError(err)) {
         showTimeout(err);
       } else {
@@ -256,10 +272,10 @@ const StoryElaborator: React.FC = () => {
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
-      const errMsg =
-        err instanceof Error
-          ? err.message
-          : 'An error occurred sending response.';
+      const errMsg = sanitizeErrorMessage(
+        err,
+        'An error occurred sending response.',
+      );
       if (isTimeoutError(err)) {
         showTimeout(err);
       } else {
@@ -283,10 +299,10 @@ const StoryElaborator: React.FC = () => {
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
-      const errMsg =
-        err instanceof Error
-          ? err.message
-          : 'An error occurred sending response.';
+      const errMsg = sanitizeErrorMessage(
+        err,
+        'An error occurred sending response.',
+      );
       if (isTimeoutError(err)) {
         showTimeout(err);
       } else {

@@ -471,6 +471,43 @@ describe('StoryElaborator feature', () => {
       );
     });
 
+    it('should throw an error and clean up if the selected subdirectory does not exist in the worktree', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
+        if (p.includes('repo-root_ticket_US-504')) {
+          return false;
+        }
+        return true;
+      });
+
+      const ticket: TicketData = {
+        id: 'US-504',
+        title: 'Story 504',
+      } as any;
+
+      const settings: AppSettings = {
+        gitWorktreeEnabled: true,
+        gitWorktreeBaseDir: '/mock/worktrees',
+      };
+
+      await expect(
+        service.startStoryElaboration(
+          ticket,
+          '/mock/repo-root/src/non-existent-subdir',
+          '',
+          'gpt-4',
+          settings,
+        ),
+      ).rejects.toThrow(
+        'The selected directory does not exist in the checked out branch. Your local repository might be outdated. Please pull the branch and try again.',
+      );
+
+      expect(mockGitService.addWorktree).toHaveBeenCalled();
+      expect(mockGitService.removeWorktree).toHaveBeenCalledWith(
+        '/mock/repo-root',
+        expect.stringContaining('repo-root_ticket_US-504'),
+      );
+    });
+
     it('should bypass worktree if path is not a git repo', async () => {
       mockGitService.checkGitRepo.mockResolvedValue(false);
 
