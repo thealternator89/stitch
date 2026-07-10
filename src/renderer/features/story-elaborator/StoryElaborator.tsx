@@ -13,6 +13,22 @@ interface FeedItem {
   text: string;
 }
 
+const sanitizeErrorMessage = (err: unknown, defaultMsg: string): string => {
+  if (!(err instanceof Error)) {
+    return defaultMsg;
+  }
+  let message = err.message;
+  if (message.includes('Error invoking remote method')) {
+    const match = message.match(
+      /Error invoking remote method '[^']+':\s*([\s\S]*)/,
+    );
+    if (match && match[1]) {
+      message = match[1];
+    }
+  }
+  return message;
+};
+
 const StoryElaborator: React.FC = () => {
   const { showTimeout } = useTimeoutModal();
   const isMountedRef = useRef(true);
@@ -24,6 +40,8 @@ const StoryElaborator: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [repoPath, setRepoPath] = useState('');
   const [context, setContext] = useState('');
+  const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
+  const [branch, setBranch] = useState('develop');
 
   // Session States
   // 'idle' | 'elaborating' | 'plan_completed'
@@ -88,6 +106,19 @@ const StoryElaborator: React.FC = () => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Load settings on mount to check if git worktree is enabled
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const settings = await window.electronAPI.getSettings();
+        setGitWorktreeEnabled(settings.gitWorktreeEnabled || false);
+      } catch (err) {
+        console.error('Failed to load settings in StoryElaborator:', err);
+      }
+    };
+    loadSettings();
   }, []);
 
   // Scroll to bottom of chat
@@ -198,14 +229,15 @@ const StoryElaborator: React.FC = () => {
         repoPath.trim() ? repoPath : null,
         context,
         selectedModel,
+        gitWorktreeEnabled ? branch.trim() || 'develop' : undefined,
       );
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
-      const errMsg =
-        err instanceof Error
-          ? err.message
-          : 'An error occurred during elaboration.';
+      const errMsg = sanitizeErrorMessage(
+        err,
+        'An error occurred during elaboration.',
+      );
       if (isTimeoutError(err)) {
         showTimeout(err);
       } else {
@@ -240,10 +272,10 @@ const StoryElaborator: React.FC = () => {
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
-      const errMsg =
-        err instanceof Error
-          ? err.message
-          : 'An error occurred sending response.';
+      const errMsg = sanitizeErrorMessage(
+        err,
+        'An error occurred sending response.',
+      );
       if (isTimeoutError(err)) {
         showTimeout(err);
       } else {
@@ -267,10 +299,10 @@ const StoryElaborator: React.FC = () => {
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
-      const errMsg =
-        err instanceof Error
-          ? err.message
-          : 'An error occurred sending response.';
+      const errMsg = sanitizeErrorMessage(
+        err,
+        'An error occurred sending response.',
+      );
       if (isTimeoutError(err)) {
         showTimeout(err);
       } else {
@@ -489,6 +521,27 @@ const StoryElaborator: React.FC = () => {
                   changes.
                 </div>
               </div>
+
+              {/* Git Branch */}
+              {gitWorktreeEnabled && (
+                <div className="mb-3 animate__animated animate__fadeIn">
+                  <label className="form-label fw-medium text-secondary">
+                    Git Branch
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control border-2"
+                    placeholder="develop"
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    disabled={stage !== 'idle'}
+                  />
+                  <div className="form-text text-muted small">
+                    The branch to checkout in the worktree. Defaults to{' '}
+                    <code>develop</code>.
+                  </div>
+                </div>
+              )}
 
               {/* Additional Context */}
               <div className="mb-3">

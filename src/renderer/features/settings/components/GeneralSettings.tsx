@@ -158,13 +158,14 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 className="form-check-label fw-semibold"
                 htmlFor="gitWorktreeEnabled"
               >
-                Enable Git Worktree for PR Reviews
+                Enable Git Worktree Support
               </label>
             </div>
             <p className="text-muted small mb-3">
               When enabled, Stitch will create a separate git worktree for
-              checking out the PR. This avoids dirtying or modifying your local
-              working directory during review.
+              repository tasks (such as checking out pull requests or
+              elaborating stories). This avoids dirtying or modifying your
+              primary working directory.
             </p>
           </div>
 
@@ -203,7 +204,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
               </div>
               <p className="text-muted small mt-2 mb-3">
                 Stitch will create temporary directories under this base
-                directory for each PR review.
+                directory for each worktree task.
               </p>
 
               <div className="d-flex align-items-center gap-3">

@@ -49,10 +49,12 @@ async function initStore() {
 let azureService: IssueTrackerProvider | null = null;
 let confluenceService: DocumentationProvider | null = null;
 const copilotService = new CopilotService();
+const gitService = new GitService();
 const storyWriterService = new StoryWriterService(copilotService);
 const testCaseWriterService = new TestCaseWriterService(copilotService);
 const storyElaboratorService = new StoryElaboratorService(
   copilotService,
+  gitService,
   async () => {
     try {
       return await getConfluenceService();
@@ -62,7 +64,6 @@ const storyElaboratorService = new StoryElaboratorService(
   },
 );
 const promptComplexityService = new PromptComplexityService(copilotService);
-const gitService = new GitService();
 const prReviewerService = new PRReviewerService(
   gitService,
   copilotService,
@@ -281,7 +282,14 @@ ipcMain.handle('select-directory', async () => {
 
 ipcMain.handle(
   'start-story-elaboration',
-  async (event, ticketData, repoPath, additionalContext, modelOverride) => {
+  async (
+    event,
+    ticketData,
+    repoPath,
+    additionalContext,
+    modelOverride,
+    branch,
+  ) => {
     const s = await initStore();
     const settings = (s.get('settings') ?? {}) as AppSettings;
     return storyElaboratorService.startStoryElaboration(
@@ -290,6 +298,7 @@ ipcMain.handle(
       additionalContext,
       modelOverride,
       settings,
+      branch,
       (line: string) => {
         event.sender.send('elaboration-line', line);
       },

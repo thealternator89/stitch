@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { StoryElaboratorService } from '../storyElaboratorService';
 import { buildStoryElaboratorPrompt } from '../storyElaboratorPrompts';
 import { AppSettings, TicketData } from '../../../../types';
+import fs from 'fs';
+import path from 'path';
 
 describe('StoryElaborator feature', () => {
   const defaultSettings: AppSettings = {
@@ -77,6 +79,7 @@ describe('StoryElaborator feature', () => {
     const mockClient = { stop: vi.fn() };
     const mockSession = { disconnect: vi.fn() };
 
+    let mockGitService: any;
     beforeEach(() => {
       mockCopilotService = {
         createClientAndSession: vi
@@ -85,8 +88,16 @@ describe('StoryElaborator feature', () => {
         sendAndCollectStream: vi.fn().mockResolvedValue('Mocked response'),
         getModel: vi.fn().mockReturnValue('auto'),
       };
+      mockGitService = {
+        checkGitRepo: vi.fn().mockResolvedValue(false),
+        getRepoRoot: vi.fn().mockResolvedValue(null),
+        addWorktree: vi.fn().mockResolvedValue(undefined),
+        removeWorktree: vi.fn().mockResolvedValue(undefined),
+        runCommand: vi.fn().mockResolvedValue(''),
+      };
       service = new StoryElaboratorService(
         mockCopilotService,
+        mockGitService,
         async () => null,
       );
     });
@@ -148,6 +159,7 @@ describe('StoryElaborator feature', () => {
   describe('StoryElaboratorService with Documentation Retrieval', () => {
     let mockCopilotService: any;
     let mockDocProvider: any;
+    let mockGitService: any;
     let service: StoryElaboratorService;
     const mockClient = { stop: vi.fn() };
     const mockSession = { disconnect: vi.fn() };
@@ -175,8 +187,17 @@ describe('StoryElaborator feature', () => {
         sendAndCollectStream: vi.fn(),
       };
 
+      mockGitService = {
+        checkGitRepo: vi.fn().mockResolvedValue(false),
+        getRepoRoot: vi.fn().mockResolvedValue(null),
+        addWorktree: vi.fn().mockResolvedValue(undefined),
+        removeWorktree: vi.fn().mockResolvedValue(undefined),
+        runCommand: vi.fn().mockResolvedValue(''),
+      };
+
       service = new StoryElaboratorService(
         mockCopilotService,
+        mockGitService,
         async () => mockDocProvider,
       );
     });
@@ -282,6 +303,7 @@ describe('StoryElaborator feature', () => {
         '',
         'gpt-4',
         defaultSettings,
+        undefined,
         onLineSpy,
       );
 
@@ -314,6 +336,267 @@ describe('StoryElaborator feature', () => {
         expect.stringContaining(
           '"type":"status","text":"Agent requested duplicate document ID: 999 (declined)"',
         ),
+      );
+    });
+  });
+
+  describe('StoryElaboratorService with Git Worktrees', () => {
+    let mockCopilotService: any;
+    let mockGitService: any;
+    let service: StoryElaboratorService;
+    const mockClient = { stop: vi.fn() };
+    const mockSession = { disconnect: vi.fn() };
+
+    beforeEach(() => {
+      mockCopilotService = {
+        createClientAndSession: vi
+          .fn()
+          .mockResolvedValue({ client: mockClient, session: mockSession }),
+        sendAndCollectStream: vi.fn().mockResolvedValue('Mocked response'),
+      };
+      mockGitService = {
+        checkGitRepo: vi.fn().mockResolvedValue(true),
+        getRepoRoot: vi.fn().mockResolvedValue('/mock/repo-root'),
+        addWorktree: vi.fn().mockResolvedValue(undefined),
+        removeWorktree: vi.fn().mockResolvedValue(undefined),
+        runCommand: vi.fn().mockImplementation((path, cmd) => {
+          if (cmd.includes('git rev-parse FETCH_HEAD')) {
+            return Promise.resolve('mocked-fetched-sha');
+          }
+          return Promise.resolve('');
+        }),
+      };
+      service = new StoryElaboratorService(
+        mockCopilotService,
+        mockGitService,
+        async () => null,
+      );
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should create worktree and resolve subdirectory path when enabled', async () => {
+      const ticket: TicketData = {
+        id: 'US-500',
+        title: 'Story 500',
+        description: 'desc 500',
+      };
+
+      const settings: AppSettings = {
+        gitWorktreeEnabled: true,
+        gitWorktreeBaseDir: '/mock/worktrees',
+      };
+
+      const result = await service.startStoryElaboration(
+        ticket,
+        '/mock/repo-root/src/subdir',
+        'Context',
+        'gpt-4',
+        settings,
+        'feature-branch',
+      );
+
+      expect(result).toBe('Mocked response');
+      expect(mockGitService.checkGitRepo).toHaveBeenCalledWith(
+        '/mock/repo-root/src/subdir',
+      );
+      expect(mockGitService.getRepoRoot).toHaveBeenCalledWith(
+        '/mock/repo-root/src/subdir',
+      );
+      expect(mockGitService.addWorktree).toHaveBeenCalledWith(
+        '/mock/repo-root',
+        expect.stringContaining('repo-root_ticket_US-500'),
+        'mocked-fetched-sha',
+      );
+      const expectedPath = path.join(
+        '/mock/worktrees',
+        'repo-root_ticket_US-500',
+        'src',
+        'subdir',
+      );
+      expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
+        undefined,
+        'gpt-4',
+        expect.objectContaining({
+          workingDirectory: expectedPath,
+        }),
+      );
+
+      // Verify worktree is removed on stop
+      await service.stopStoryElaboration('US-500');
+      expect(mockGitService.removeWorktree).toHaveBeenCalledWith(
+        '/mock/repo-root',
+        expect.stringContaining('repo-root_ticket_US-500'),
+      );
+    });
+
+    it('should fallback to local branch if fetch from origin fails', async () => {
+      mockGitService.runCommand.mockImplementation(
+        (path: string, cmd: string) => {
+          if (cmd.includes('git fetch origin')) {
+            return Promise.reject(new Error('Fetch failed'));
+          }
+          return Promise.resolve('');
+        },
+      );
+
+      const ticket: TicketData = {
+        id: 'US-500',
+        title: 'Story 500',
+        description: 'desc 500',
+      };
+
+      const settings: AppSettings = {
+        gitWorktreeEnabled: true,
+        gitWorktreeBaseDir: '/mock/worktrees',
+      };
+
+      await service.startStoryElaboration(
+        ticket,
+        '/mock/repo-root/src/subdir',
+        'Context',
+        'gpt-4',
+        settings,
+        'feature-branch',
+      );
+
+      expect(mockGitService.addWorktree).toHaveBeenCalledWith(
+        '/mock/repo-root',
+        expect.stringContaining('repo-root_ticket_US-500'),
+        'feature-branch',
+      );
+    });
+
+    it('should throw an error and clean up if the selected subdirectory does not exist in the worktree', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
+        if (p.includes('repo-root_ticket_US-504')) {
+          return false;
+        }
+        return true;
+      });
+
+      const ticket: TicketData = {
+        id: 'US-504',
+        title: 'Story 504',
+      } as any;
+
+      const settings: AppSettings = {
+        gitWorktreeEnabled: true,
+        gitWorktreeBaseDir: '/mock/worktrees',
+      };
+
+      await expect(
+        service.startStoryElaboration(
+          ticket,
+          '/mock/repo-root/src/non-existent-subdir',
+          '',
+          'gpt-4',
+          settings,
+        ),
+      ).rejects.toThrow(
+        'The selected directory does not exist in the checked out branch. Your local repository might be outdated. Please pull the branch and try again.',
+      );
+
+      expect(mockGitService.addWorktree).toHaveBeenCalled();
+      expect(mockGitService.removeWorktree).toHaveBeenCalledWith(
+        '/mock/repo-root',
+        expect.stringContaining('repo-root_ticket_US-504'),
+      );
+    });
+
+    it('should bypass worktree if path is not a git repo', async () => {
+      mockGitService.checkGitRepo.mockResolvedValue(false);
+
+      const ticket: TicketData = {
+        id: 'US-501',
+        title: 'Story 501',
+      } as any;
+
+      const settings: AppSettings = {
+        gitWorktreeEnabled: true,
+        gitWorktreeBaseDir: '/mock/worktrees',
+      };
+
+      await service.startStoryElaboration(
+        ticket,
+        '/mock/non-git-dir',
+        '',
+        'gpt-4',
+        settings,
+      );
+
+      expect(mockGitService.addWorktree).not.toHaveBeenCalled();
+      expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
+        undefined,
+        'gpt-4',
+        expect.objectContaining({
+          workingDirectory: '/mock/non-git-dir',
+        }),
+      );
+    });
+
+    it('should bypass worktree if worktrees are disabled in settings', async () => {
+      const ticket: TicketData = {
+        id: 'US-502',
+        title: 'Story 502',
+      } as any;
+
+      const settings: AppSettings = {
+        gitWorktreeEnabled: false,
+      };
+
+      await service.startStoryElaboration(
+        ticket,
+        '/mock/repo-root/src/subdir',
+        '',
+        'gpt-4',
+        settings,
+      );
+
+      expect(mockGitService.checkGitRepo).not.toHaveBeenCalled();
+      expect(mockGitService.addWorktree).not.toHaveBeenCalled();
+      expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
+        undefined,
+        'gpt-4',
+        expect.objectContaining({
+          workingDirectory: '/mock/repo-root/src/subdir',
+        }),
+      );
+    });
+
+    it('should clean up worktree if starting session throws an error', async () => {
+      mockCopilotService.createClientAndSession.mockRejectedValue(
+        new Error('Copilot Error'),
+      );
+
+      const ticket: TicketData = {
+        id: 'US-503',
+        title: 'Story 503',
+      } as any;
+
+      const settings: AppSettings = {
+        gitWorktreeEnabled: true,
+        gitWorktreeBaseDir: '/mock/worktrees',
+      };
+
+      await expect(
+        service.startStoryElaboration(
+          ticket,
+          '/mock/repo-root/src/subdir',
+          '',
+          'gpt-4',
+          settings,
+        ),
+      ).rejects.toThrow('Copilot Error');
+
+      expect(mockGitService.addWorktree).toHaveBeenCalled();
+      expect(mockGitService.removeWorktree).toHaveBeenCalledWith(
+        '/mock/repo-root',
+        expect.stringContaining('repo-root_ticket_US-503'),
       );
     });
   });
