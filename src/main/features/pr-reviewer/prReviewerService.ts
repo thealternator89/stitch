@@ -845,6 +845,7 @@ export class PRReviewerService {
       prDescription?: string;
       prId?: string;
       onLine?: (line: string) => void;
+      maxParallelism?: number;
     } = {},
   ): Promise<string> {
     if (!options.enabledPhaseIds || options.enabledPhaseIds.length === 0) {
@@ -1009,194 +1010,265 @@ export class PRReviewerService {
         }
       }
 
-      let accumulatedResult = '';
+      const results: string[] = new Array(enabledPhases.length).fill('');
+      let firstError: Error | null = null;
+      let queueIndex = 0;
 
-      for (const phase of enabledPhases) {
-        let eligibleFiles = [...files];
-
-        if (phase.include) {
-          try {
-            const isMatch = getGlobMatcher(phase.include);
-            eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
-          } catch (err) {
-            console.error(`Invalid include glob: ${phase.include}`, err);
-          }
+      const getNextPhase = () => {
+        if (queueIndex < enabledPhases.length) {
+          const index = queueIndex++;
+          return { phase: enabledPhases[index], phaseIdx: index };
         }
+        return null;
+      };
 
-        if (phase.exclude) {
-          try {
-            const isMatch = getGlobMatcher(phase.exclude);
-            eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
-          } catch (err) {
-            console.error(`Invalid exclude glob: ${phase.exclude}`, err);
-          }
-        }
-
-        if (eligibleFiles.length === 0) {
-          if (options.onLine) {
-            options.onLine(
-              JSON.stringify({
-                type: 'phase-skip',
-                phaseId: phase.id,
-                phaseTitle: phase.title,
-                reason: 'No matching files found',
-              }),
-            );
-          }
-          continue;
-        }
-
-        const attachStory =
-          phase.attach && phase.attach.toLowerCase().includes('story');
-
-        if (attachStory && !linkedStoriesContent) {
-          if (options.onLine) {
-            options.onLine(
-              JSON.stringify({
-                type: 'phase-skip',
-                phaseId: phase.id,
-                phaseTitle: phase.title,
-                reason: 'No linked stories found for this Pull Request',
-              }),
-            );
-          }
-          continue;
-        }
-
-        if (options.onLine) {
-          options.onLine(
-            JSON.stringify({
-              type: 'phase-start',
-              phaseId: phase.id,
-              phaseTitle: phase.title,
-            }),
-          );
-        }
-
-        const sessionOpts = attachStory
-          ? {
-              workingDirectory: effectiveRepoPath,
-              tools: [
-                createRequestDocumentationTool(
-                  this.getDocProvider,
-                  () => options.onLine,
-                ),
-              ],
-            }
-          : { workingDirectory: effectiveRepoPath };
-
-        const { client, session } =
-          await this.copilotService.createClientAndSession(
-            settings.copilotToken,
-            options.modelOverride,
-            sessionOpts,
-          );
-
-        const attachDescription =
-          phase.attach && phase.attach.toLowerCase().includes('description');
-
-        let fullDescription = options.prDescription;
-        if (attachDescription && prDetails && prDetails.description) {
-          fullDescription = prDetails.description;
-        }
-
-        const prompt = buildPhaseReviewPrompt(
-          eligibleFiles,
-          phase.title,
-          phase.body,
-          options.customInstructions,
-          attachDescription ? fullDescription : undefined,
-          attachStory ? linkedStoriesContent : undefined,
-          attachStory ? knownDocs : undefined,
-        );
-
-        const wrappedOnLine = (line: string) => {
-          if (!options.onLine) return;
-          try {
-            const obj = JSON.parse(line);
-            if (obj && (obj.type === 'general' || obj.type === 'line')) {
-              obj.phase = phase.title;
-
-              if (
-                obj.type === 'line' &&
-                typeof obj.file === 'string' &&
-                typeof obj.line === 'number'
-              ) {
-                const contextSize =
-                  typeof obj.context === 'number' ? obj.context : 0;
-                const codeLines = extractFileContextSync(
-                  effectiveRepoPath,
-                  obj.file,
-                  obj.line,
-                  contextSize,
-                );
-                if (codeLines) {
-                  obj.codeLines = codeLines;
-                }
-              }
-            }
-            options.onLine(JSON.stringify(obj));
-          } catch {
-            options.onLine(line);
-          }
-        };
-
-        const onToolCallback = (
-          type: 'start' | 'end',
-          tool: string,
-          success?: boolean,
-          error?: string,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          args?: any,
-        ) => {
-          if (options.onLine) {
-            options.onLine(
-              JSON.stringify({
-                type: 'tool',
-                status: type,
-                name: tool,
-                success,
-                error,
-                arguments: args,
-              }),
-            );
-          }
-        };
-
-        try {
-          const res = await this.copilotService.sendAndCollectStream(
-            session,
-            prompt,
-            options.onLine ? wrappedOnLine : undefined,
-            ...(attachStory ? [onToolCallback] : []),
-          );
-          accumulatedResult += `\n--- Phase ${phase.title} Result ---\n${res}`;
-        } catch (err) {
-          console.error(`Error executing phase ${phase.title}:`, err);
-          throw err;
-        } finally {
-          try {
-            await session.disconnect();
-          } catch (e) {
-            console.error('Error destroying session in reviewPR phase:', e);
-          }
-          try {
-            await client.stop();
-          } catch (e) {
-            console.error('Error stopping client in reviewPR phase:', e);
-          }
-
-          if (options.onLine) {
-            options.onLine(
-              JSON.stringify({
-                type: 'phase-end',
-                phaseId: phase.id,
-                phaseTitle: phase.title,
-              }),
-            );
-          }
+      const numCPUs = os.cpus().length;
+      let maxWorkers: number;
+      if (numCPUs < 4) {
+        maxWorkers = 1;
+      } else {
+        const preferredLimit =
+          options.maxParallelism ?? settings.maxParallelism;
+        if (
+          preferredLimit !== undefined &&
+          preferredLimit >= 1 &&
+          preferredLimit <= numCPUs - 2
+        ) {
+          maxWorkers = preferredLimit;
+        } else {
+          maxWorkers = Math.max(1, Math.floor(numCPUs / 2));
         }
       }
+      const workerCount = Math.min(maxWorkers, enabledPhases.length);
+
+      const runWorker = async () => {
+        while (true) {
+          if (firstError) {
+            break;
+          }
+          const task = getNextPhase();
+          if (!task) {
+            break;
+          }
+          const { phase, phaseIdx } = task;
+
+          let eligibleFiles = [...files];
+
+          if (phase.include) {
+            try {
+              const isMatch = getGlobMatcher(phase.include);
+              eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
+            } catch (err) {
+              console.error(`Invalid include glob: ${phase.include}`, err);
+            }
+          }
+
+          if (phase.exclude) {
+            try {
+              const isMatch = getGlobMatcher(phase.exclude);
+              eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
+            } catch (err) {
+              console.error(`Invalid exclude glob: ${phase.exclude}`, err);
+            }
+          }
+
+          if (eligibleFiles.length === 0) {
+            if (options.onLine) {
+              options.onLine(
+                JSON.stringify({
+                  type: 'phase-skip',
+                  phaseId: phase.id,
+                  phaseTitle: phase.title,
+                  reason: 'No matching files found',
+                }),
+              );
+            }
+            continue;
+          }
+
+          const attachStory =
+            phase.attach && phase.attach.toLowerCase().includes('story');
+
+          if (attachStory && !linkedStoriesContent) {
+            if (options.onLine) {
+              options.onLine(
+                JSON.stringify({
+                  type: 'phase-skip',
+                  phaseId: phase.id,
+                  phaseTitle: phase.title,
+                  reason: 'No linked stories found for this Pull Request',
+                }),
+              );
+            }
+            continue;
+          }
+
+          if (options.onLine) {
+            options.onLine(
+              JSON.stringify({
+                type: 'phase-start',
+                phaseId: phase.id,
+                phaseTitle: phase.title,
+              }),
+            );
+          }
+
+          const wrappedOnLine = (line: string) => {
+            if (!options.onLine) return;
+            try {
+              const obj = JSON.parse(line);
+              if (obj) {
+                obj.phase = phase.title;
+                obj.phaseId = phase.id;
+
+                if (obj.type === 'status' && obj.text && !obj.status) {
+                  obj.status = obj.text;
+                }
+
+                if (
+                  obj.type === 'line' &&
+                  typeof obj.file === 'string' &&
+                  typeof obj.line === 'number'
+                ) {
+                  const contextSize =
+                    typeof obj.context === 'number' ? obj.context : 0;
+                  const codeLines = extractFileContextSync(
+                    effectiveRepoPath,
+                    obj.file,
+                    obj.line,
+                    contextSize,
+                  );
+                  if (codeLines) {
+                    obj.codeLines = codeLines;
+                  }
+                }
+              }
+              options.onLine(JSON.stringify(obj));
+            } catch {
+              options.onLine(line);
+            }
+          };
+
+          const sessionOpts = attachStory
+            ? {
+                workingDirectory: effectiveRepoPath,
+                tools: [
+                  createRequestDocumentationTool(this.getDocProvider, () =>
+                    options.onLine ? wrappedOnLine : undefined,
+                  ),
+                ],
+              }
+            : { workingDirectory: effectiveRepoPath };
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let clientAndSession: { client: any; session: any } | null = null;
+          try {
+            clientAndSession = await this.copilotService.createClientAndSession(
+              settings.copilotToken,
+              options.modelOverride,
+              sessionOpts,
+            );
+          } catch (err) {
+            console.error(
+              `Error creating client/session for phase ${phase.title}:`,
+              err,
+            );
+            if (!firstError) {
+              firstError = err as Error;
+            }
+            break;
+          }
+
+          const { client, session } = clientAndSession;
+
+          const attachDescription =
+            phase.attach && phase.attach.toLowerCase().includes('description');
+
+          let fullDescription = options.prDescription;
+          if (attachDescription && prDetails && prDetails.description) {
+            fullDescription = prDetails.description;
+          }
+
+          const prompt = buildPhaseReviewPrompt(
+            eligibleFiles,
+            phase.title,
+            phase.body,
+            options.customInstructions,
+            attachDescription ? fullDescription : undefined,
+            attachStory ? linkedStoriesContent : undefined,
+            attachStory ? knownDocs : undefined,
+          );
+
+          const onToolCallback = (
+            type: 'start' | 'end',
+            tool: string,
+            success?: boolean,
+            error?: string,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            args?: any,
+          ) => {
+            if (options.onLine) {
+              options.onLine(
+                JSON.stringify({
+                  type: 'tool',
+                  status: type,
+                  name: tool,
+                  success,
+                  error,
+                  arguments: args,
+                  phaseId: phase.id,
+                  phaseTitle: phase.title,
+                }),
+              );
+            }
+          };
+
+          try {
+            const res = await this.copilotService.sendAndCollectStream(
+              session,
+              prompt,
+              options.onLine ? wrappedOnLine : undefined,
+              ...(attachStory ? [onToolCallback] : []),
+            );
+            results[phaseIdx] = `\n--- Phase ${phase.title} Result ---\n${res}`;
+          } catch (err) {
+            console.error(`Error executing phase ${phase.title}:`, err);
+            if (!firstError) {
+              firstError = err as Error;
+            }
+          } finally {
+            try {
+              await session.disconnect();
+            } catch (e) {
+              console.error('Error destroying session in reviewPR phase:', e);
+            }
+            try {
+              await client.stop();
+            } catch (e) {
+              console.error('Error stopping client in reviewPR phase:', e);
+            }
+
+            if (options.onLine) {
+              options.onLine(
+                JSON.stringify({
+                  type: 'phase-end',
+                  phaseId: phase.id,
+                  phaseTitle: phase.title,
+                }),
+              );
+            }
+          }
+        }
+      };
+
+      const workers = Array.from({ length: workerCount }, () => runWorker());
+      await Promise.all(workers);
+
+      if (firstError) {
+        throw firstError;
+      }
+
+      const accumulatedResult = results.filter((r) => r !== '').join('');
 
       return accumulatedResult;
     } finally {

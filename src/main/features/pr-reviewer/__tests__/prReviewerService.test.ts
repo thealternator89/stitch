@@ -595,6 +595,7 @@ describe('PRReviewerService', () => {
           context: 1,
           comment: 'Review',
           phase: 'Definition of Done',
+          phaseId: '010-definition-of-done.md',
           codeLines: [
             { line: 1, text: 'const a = 1;', isTarget: false },
             { line: 2, text: 'const b = 2;', isTarget: true },
@@ -607,7 +608,7 @@ describe('PRReviewerService', () => {
       mockReadFileSync.mockRestore();
     });
 
-    it('should wrap onLine callback and pass status message untouched when type is status', async () => {
+    it('should wrap onLine callback and tag status message when type is status', async () => {
       mockGitService.getDiffFiles.mockResolvedValue([
         { path: 'src/index.ts', status: 'modified' },
       ]);
@@ -650,6 +651,8 @@ describe('PRReviewerService', () => {
         JSON.stringify({
           type: 'status',
           status: 'Checking index.ts',
+          phase: 'Definition of Done',
+          phaseId: '010-definition-of-done.md',
         }),
       );
     });

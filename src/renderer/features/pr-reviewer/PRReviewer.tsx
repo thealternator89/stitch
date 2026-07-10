@@ -45,7 +45,6 @@ const PRReviewer: React.FC = () => {
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [isReviewing, setIsReviewing] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
   const [lastStatusTime, setLastStatusTime] = useState<Date | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
   const { models, selectedModel, setSelectedModel, loadingModels } =
@@ -114,13 +113,64 @@ const PRReviewer: React.FC = () => {
     title: string;
     status: 'pending' | 'in-progress' | 'completed' | 'skipped';
     reason?: string;
+    statusText?: string;
   }
   const [phaseProgress, setPhaseProgress] = useState<PhaseProgress[]>([]);
-  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+  const [maxParallelism, setMaxParallelism] = useState<number>(2);
+  const [cpuCount, setCpuCount] = useState<number>(4);
+
+  const getGeneralStatusText = () => {
+    const inProgressCount = phaseProgress.filter(
+      (p) => p.status === 'in-progress',
+    ).length;
+    const completedCount = phaseProgress.filter(
+      (p) => p.status === 'completed',
+    ).length;
+    const skippedCount = phaseProgress.filter(
+      (p) => p.status === 'skipped',
+    ).length;
+    const pendingCount = phaseProgress.filter(
+      (p) => p.status === 'pending',
+    ).length;
+
+    const parts: string[] = [];
+    if (inProgressCount > 0) parts.push(`${inProgressCount} In Progress`);
+    if (completedCount > 0) parts.push(`${completedCount} Complete`);
+    if (skippedCount > 0) parts.push(`${skippedCount} Skipped`);
+    if (pendingCount > 0 && parts.length === 0)
+      parts.push(`${pendingCount} Pending`);
+
+    let statusText = parts.length > 0 ? parts.join(', ') : 'Initializing';
+    if (isReviewing) {
+      statusText += '...';
+    }
+    return statusText;
+  };
 
   useEffect(() => {
     loadPhases();
+    loadParallelismSettings();
   }, []);
+
+  const loadParallelismSettings = async () => {
+    try {
+      const cpus = await window.electronAPI.getCpuCount();
+      setCpuCount(cpus);
+
+      const settings = await window.electronAPI.getSettings();
+      if (settings && settings.maxParallelism !== undefined) {
+        setMaxParallelism(settings.maxParallelism);
+      } else {
+        if (cpus < 4) {
+          setMaxParallelism(1);
+        } else {
+          setMaxParallelism(Math.max(1, Math.floor(cpus / 2)));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load parallelism settings:', err);
+    }
+  };
 
   const loadPhases = async () => {
     setIsLoadingPhases(true);
@@ -283,8 +333,6 @@ const PRReviewer: React.FC = () => {
     setComments([]);
     setCollapsedComments({});
     setIsPostingComment({});
-    setCurrentPhase(null);
-    setCurrentStatus(null);
     setLastStatusTime(null);
 
     setPhaseProgress(
@@ -301,15 +349,9 @@ const PRReviewer: React.FC = () => {
         if (commentObj && commentObj.type === 'phase-start') {
           setPhaseProgress((prev) =>
             prev.map((p) =>
-              p.id === commentObj.phaseId
-                ? { ...p, status: 'in-progress' }
-                : p.status === 'in-progress'
-                  ? { ...p, status: 'completed' }
-                  : p,
+              p.id === commentObj.phaseId ? { ...p, status: 'in-progress' } : p,
             ),
           );
-          setCurrentPhase(commentObj.phaseTitle);
-          setCurrentStatus(`Starting review phase: ${commentObj.phaseTitle}`);
           setLastStatusTime(new Date());
         } else if (commentObj && commentObj.type === 'phase-skip') {
           setPhaseProgress((prev) =>
@@ -319,14 +361,24 @@ const PRReviewer: React.FC = () => {
                 : p,
             ),
           );
+          setLastStatusTime(new Date());
         } else if (commentObj && commentObj.type === 'phase-end') {
           setPhaseProgress((prev) =>
             prev.map((p) =>
               p.id === commentObj.phaseId ? { ...p, status: 'completed' } : p,
             ),
           );
+          setLastStatusTime(new Date());
         } else if (commentObj && commentObj.type === 'status') {
-          setCurrentStatus(commentObj.status);
+          if (commentObj.phaseId) {
+            setPhaseProgress((prev) =>
+              prev.map((p) =>
+                p.id === commentObj.phaseId
+                  ? { ...p, statusText: commentObj.status }
+                  : p,
+              ),
+            );
+          }
           setLastStatusTime(new Date());
         } else if (
           commentObj &&
@@ -350,6 +402,7 @@ const PRReviewer: React.FC = () => {
         enabledPhaseIds,
         selectedPR.description,
         selectedPR.id,
+        maxParallelism,
       );
       setHasReviewed(true);
     } catch (err: unknown) {
@@ -872,7 +925,7 @@ const PRReviewer: React.FC = () => {
                           {phaseProgress.map((p) => (
                             <div
                               key={p.id}
-                              className="list-group-item d-flex align-items-center justify-content-between p-3"
+                              className="list-group-item p-3"
                               style={{
                                 backgroundColor:
                                   p.status === 'in-progress'
@@ -880,52 +933,62 @@ const PRReviewer: React.FC = () => {
                                     : 'transparent',
                               }}
                             >
-                              <div
-                                className="d-flex align-items-center gap-2 text-truncate"
-                                style={{ maxWidth: '75%' }}
-                              >
-                                {p.status === 'pending' && (
-                                  <i className="far fa-circle text-muted"></i>
+                              <div className="d-flex align-items-center justify-content-between">
+                                <div
+                                  className="d-flex align-items-center gap-2 text-truncate"
+                                  style={{ maxWidth: '75%' }}
+                                >
+                                  {p.status === 'pending' && (
+                                    <i className="far fa-circle text-muted"></i>
+                                  )}
+                                  {p.status === 'in-progress' && (
+                                    <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                  )}
+                                  {p.status === 'completed' && (
+                                    <i className="fas fa-check-circle text-success"></i>
+                                  )}
+                                  {p.status === 'skipped' && (
+                                    <i
+                                      className="fas fa-forward text-warning"
+                                      title={p.reason || 'Skipped'}
+                                    ></i>
+                                  )}
+                                  <span
+                                    className={`small text-truncate ${
+                                      p.status === 'completed'
+                                        ? 'text-decoration-line-through text-muted'
+                                        : p.status === 'skipped'
+                                          ? 'text-muted'
+                                          : 'fw-semibold text-body'
+                                    }`}
+                                    title={p.title}
+                                  >
+                                    {p.title}
+                                  </span>
+                                </div>
+                                {p.status === 'skipped' && (
+                                  <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
+                                    Skipped
+                                  </span>
                                 )}
                                 {p.status === 'in-progress' && (
-                                  <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                  <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
+                                    Running
+                                  </span>
                                 )}
                                 {p.status === 'completed' && (
-                                  <i className="fas fa-check-circle text-success"></i>
+                                  <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
+                                    Done
+                                  </span>
                                 )}
-                                {p.status === 'skipped' && (
-                                  <i
-                                    className="fas fa-forward text-warning"
-                                    title={p.reason || 'Skipped'}
-                                  ></i>
-                                )}
-                                <span
-                                  className={`small text-truncate ${
-                                    p.status === 'completed'
-                                      ? 'text-decoration-line-through text-muted'
-                                      : p.status === 'skipped'
-                                        ? 'text-muted'
-                                        : 'fw-semibold text-body'
-                                  }`}
-                                  title={p.title}
-                                >
-                                  {p.title}
-                                </span>
                               </div>
-                              {p.status === 'skipped' && (
-                                <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
-                                  Skipped
-                                </span>
-                              )}
-                              {p.status === 'in-progress' && (
-                                <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
-                                  Running
-                                </span>
-                              )}
-                              {p.status === 'completed' && (
-                                <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
-                                  Done
-                                </span>
+                              {p.status === 'in-progress' && p.statusText && (
+                                <div
+                                  className="ps-4 mt-1 text-muted small text-truncate"
+                                  title={p.statusText}
+                                >
+                                  {p.statusText}
+                                </div>
                               )}
                             </div>
                           ))}
@@ -934,9 +997,7 @@ const PRReviewer: React.FC = () => {
                         {isReviewing && (
                           <div className="mt-auto text-center text-muted small py-2 bg-body-secondary rounded">
                             <span className="spinner-border spinner-border-sm me-2 text-primary"></span>
-                            {currentPhase
-                              ? `Reviewing: ${currentPhase}`
-                              : 'Analyzing PR changes...'}
+                            {getGeneralStatusText()}
                           </div>
                         )}
 
@@ -945,7 +1006,6 @@ const PRReviewer: React.FC = () => {
                             className="btn btn-outline-primary btn-sm w-100 mt-auto fw-semibold"
                             onClick={() => {
                               setPhaseProgress([]);
-                              setCurrentPhase(null);
                             }}
                           >
                             <i className="fas fa-arrow-left me-2"></i>
@@ -967,6 +1027,45 @@ const PRReviewer: React.FC = () => {
                             onSelect={setSelectedModel}
                             loading={loadingModels}
                           />
+                        </div>
+
+                        {/* Max Parallelism */}
+                        <div className="mb-3">
+                          <label className="form-label text-muted small fw-semibold d-block mb-1">
+                            Review Agent Parallelism
+                          </label>
+                          {cpuCount < 4 ? (
+                            <div className="text-muted small">
+                              Parallelism fixed at 1 (fewer than 4 CPU cores).
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="d-flex align-items-center gap-2">
+                                <input
+                                  type="range"
+                                  className="form-range"
+                                  min="1"
+                                  max={cpuCount - 2}
+                                  value={maxParallelism}
+                                  onChange={(e) =>
+                                    setMaxParallelism(parseInt(e.target.value))
+                                  }
+                                  disabled={isReviewing}
+                                  style={{ flexGrow: 1 }}
+                                />
+                                <span className="badge bg-secondary font-monospace">
+                                  {maxParallelism}x
+                                </span>
+                              </div>
+                              <span
+                                className="text-muted tiny"
+                                style={{ fontSize: '0.75rem' }}
+                              >
+                                Range: 1 to {cpuCount - 2} workers (CPUs:{' '}
+                                {cpuCount})
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Custom Review Instructions */}
@@ -1028,7 +1127,7 @@ const PRReviewer: React.FC = () => {
                       Review Comments ({comments.length})
                     </h5>
 
-                    {isReviewing && currentStatus && comments.length > 0 && (
+                    {isReviewing && comments.length > 0 && (
                       <div className="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-info-subtle text-info-emphasis small">
                         <div className="d-flex align-items-center gap-2">
                           <span
@@ -1036,7 +1135,7 @@ const PRReviewer: React.FC = () => {
                             style={{ width: '1rem', height: '1rem' }}
                           ></span>
                           <span>
-                            <strong>Status:</strong> {currentStatus}
+                            <strong>Status:</strong> {getGeneralStatusText()}
                           </span>
                         </div>
                         {lastStatusTime && (
@@ -1076,7 +1175,7 @@ const PRReviewer: React.FC = () => {
                                 style={{ width: '3rem', height: '3rem' }}
                               ></span>
                               <p className="fw-semibold text-body mb-1">
-                                {currentStatus || 'Running Code Review...'}
+                                {getGeneralStatusText()}
                               </p>
                               {lastStatusTime && (
                                 <p className="text-muted small mb-2">

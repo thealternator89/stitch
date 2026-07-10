@@ -10,6 +10,7 @@ export type AppSettings = {
   theme?: 'auto' | 'light' | 'dark';
   gitWorktreeEnabled?: boolean;
   gitWorktreeBaseDir?: string;
+  maxParallelism?: number;
   prompts?: {
     storyWriter?: {
       general?: string;
