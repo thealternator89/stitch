@@ -73,10 +73,30 @@ export class StoryElaboratorService {
             }
 
             const targetBranch = branch || 'develop';
+            let checkoutRef = targetBranch;
+            try {
+              await this.gitService.runCommand(
+                repoRoot,
+                `git fetch origin ${targetBranch}`,
+              );
+              const fetchedSha = await this.gitService.runCommand(
+                repoRoot,
+                'git rev-parse FETCH_HEAD',
+              );
+              if (fetchedSha) {
+                checkoutRef = fetchedSha;
+              }
+            } catch (err) {
+              console.warn(
+                `Failed to fetch branch ${targetBranch} from origin, falling back to local branch:`,
+                err,
+              );
+            }
+
             await this.gitService.addWorktree(
               repoRoot,
               worktreePath,
-              targetBranch,
+              checkoutRef,
             );
 
             worktreeInfo = { repoRoot, worktreePath };

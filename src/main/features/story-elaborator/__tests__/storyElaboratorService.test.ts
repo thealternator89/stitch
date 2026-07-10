@@ -93,6 +93,7 @@ describe('StoryElaborator feature', () => {
         getRepoRoot: vi.fn().mockResolvedValue(null),
         addWorktree: vi.fn().mockResolvedValue(undefined),
         removeWorktree: vi.fn().mockResolvedValue(undefined),
+        runCommand: vi.fn().mockResolvedValue(''),
       };
       service = new StoryElaboratorService(
         mockCopilotService,
@@ -191,6 +192,7 @@ describe('StoryElaborator feature', () => {
         getRepoRoot: vi.fn().mockResolvedValue(null),
         addWorktree: vi.fn().mockResolvedValue(undefined),
         removeWorktree: vi.fn().mockResolvedValue(undefined),
+        runCommand: vi.fn().mockResolvedValue(''),
       };
 
       service = new StoryElaboratorService(
@@ -357,6 +359,12 @@ describe('StoryElaborator feature', () => {
         getRepoRoot: vi.fn().mockResolvedValue('/mock/repo-root'),
         addWorktree: vi.fn().mockResolvedValue(undefined),
         removeWorktree: vi.fn().mockResolvedValue(undefined),
+        runCommand: vi.fn().mockImplementation((path, cmd) => {
+          if (cmd.includes('git rev-parse FETCH_HEAD')) {
+            return Promise.resolve('mocked-fetched-sha');
+          }
+          return Promise.resolve('');
+        }),
       };
       service = new StoryElaboratorService(
         mockCopilotService,
@@ -402,7 +410,7 @@ describe('StoryElaborator feature', () => {
       expect(mockGitService.addWorktree).toHaveBeenCalledWith(
         '/mock/repo-root',
         expect.stringContaining('repo-root_ticket_US-500'),
-        'feature-branch',
+        'mocked-fetched-sha',
       );
       const expectedPath = path.join(
         '/mock/worktrees',
@@ -423,6 +431,43 @@ describe('StoryElaborator feature', () => {
       expect(mockGitService.removeWorktree).toHaveBeenCalledWith(
         '/mock/repo-root',
         expect.stringContaining('repo-root_ticket_US-500'),
+      );
+    });
+
+    it('should fallback to local branch if fetch from origin fails', async () => {
+      mockGitService.runCommand.mockImplementation(
+        (path: string, cmd: string) => {
+          if (cmd.includes('git fetch origin')) {
+            return Promise.reject(new Error('Fetch failed'));
+          }
+          return Promise.resolve('');
+        },
+      );
+
+      const ticket: TicketData = {
+        id: 'US-500',
+        title: 'Story 500',
+        description: 'desc 500',
+      };
+
+      const settings: AppSettings = {
+        gitWorktreeEnabled: true,
+        gitWorktreeBaseDir: '/mock/worktrees',
+      };
+
+      await service.startStoryElaboration(
+        ticket,
+        '/mock/repo-root/src/subdir',
+        'Context',
+        'gpt-4',
+        settings,
+        'feature-branch',
+      );
+
+      expect(mockGitService.addWorktree).toHaveBeenCalledWith(
+        '/mock/repo-root',
+        expect.stringContaining('repo-root_ticket_US-500'),
+        'feature-branch',
       );
     });
 
