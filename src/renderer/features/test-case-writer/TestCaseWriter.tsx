@@ -184,11 +184,14 @@ const TestCaseWriter: React.FC = () => {
         const testCase: TestCase = JSON.parse(trimmed);
         if (testCase && typeof testCase === 'object') {
           setTestCasesList((prev) => {
-            const exists = prev.some((tc) => tc.id === testCase.id);
+            const generatedId = `TC-${prev.length + 1}`;
+            const exists = prev.some((tc) => tc.id === generatedId);
             if (exists) {
-              return prev.map((tc) => (tc.id === testCase.id ? testCase : tc));
+              return prev.map((tc) =>
+                tc.id === generatedId ? { ...testCase, id: generatedId } : tc,
+              );
             }
-            return [...prev, testCase];
+            return [...prev, { ...testCase, id: generatedId }];
           });
         }
       } catch (err) {
