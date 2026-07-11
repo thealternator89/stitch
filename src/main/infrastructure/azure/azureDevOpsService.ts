@@ -113,7 +113,7 @@ export class AzureDevOpsService implements IssueTrackerProvider {
     await witApi.createWorkItem(undefined, document, project, type);
   }
 
-  async searchTickets(query: string): Promise<TicketData[]> {
+  async searchTickets(query: string, type?: string): Promise<TicketData[]> {
     const witApi = await this.getApi();
     const cleanQuery = query.trim();
     const isNumber = /^\d+$/.test(cleanQuery);
@@ -123,13 +123,19 @@ export class AzureDevOpsService implements IssueTrackerProvider {
       try {
         const item = await witApi.getWorkItem(parseInt(cleanQuery));
         if (item && item.id !== undefined && item.fields) {
-          exactMatch = {
-            id: item.id.toString(),
-            title: item.fields['System.Title'] || '',
-            description: item.fields['System.Description'] || '',
-            acceptanceCriteria:
-              item.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || '',
-          };
+          const itemType = item.fields['System.WorkItemType'];
+          if (
+            !type ||
+            (itemType && itemType.toLowerCase() === type.toLowerCase())
+          ) {
+            exactMatch = {
+              id: item.id.toString(),
+              title: item.fields['System.Title'] || '',
+              description: item.fields['System.Description'] || '',
+              acceptanceCriteria:
+                item.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || '',
+            };
+          }
         }
       } catch (error) {
         // Suppress error if work item is not found or fails
@@ -142,6 +148,10 @@ export class AzureDevOpsService implements IssueTrackerProvider {
 
     const escapedQuery = cleanQuery.replace(/'/g, "''");
     let wiqlQuery = `Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains '${escapedQuery}'`;
+    if (type) {
+      const escapedType = type.replace(/'/g, "''");
+      wiqlQuery += ` And [System.WorkItemType] = '${escapedType}'`;
+    }
     wiqlQuery += ' Order By [System.Id] Desc';
 
     try {

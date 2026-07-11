@@ -175,9 +175,9 @@ ipcMain.handle('fetch-ticket', async (event, ticketId) => {
   return service.fetchTicket(ticketId);
 });
 
-ipcMain.handle('search-tickets', async (event, query) => {
+ipcMain.handle('search-tickets', async (event, query, type) => {
   const service = await getAzureService();
-  return service.searchTickets(query);
+  return service.searchTickets(query, type);
 });
 
 ipcMain.handle(

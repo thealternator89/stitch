@@ -8,5 +8,5 @@ export interface IssueTrackerProvider {
     parentTicketId: string,
     data: TicketData,
   ): Promise<void>;
-  searchTickets(query: string): Promise<TicketData[]>;
+  searchTickets(query: string, type?: string): Promise<TicketData[]>;
 }

@@ -295,5 +295,64 @@ describe('AzureDevOpsService', () => {
       expect(result).toEqual([]);
       expect(mockWitApi.getWorkItems).not.toHaveBeenCalled();
     });
+
+    it('should query using WIQL with type filter when type is passed', async () => {
+      mockWitApi.queryByWiql.mockResolvedValueOnce({
+        workItems: [{ id: 111 }],
+      });
+      mockWitApi.getWorkItems.mockResolvedValueOnce([
+        {
+          id: 111,
+          fields: {
+            'System.Title': 'Some Feature',
+            'System.Description': 'Desc',
+            'Microsoft.VSTS.Common.AcceptanceCriteria': 'Criteria',
+          },
+        },
+      ]);
+
+      const result = await service.searchTickets('some', 'Feature');
+
+      expect(mockWitApi.queryByWiql).toHaveBeenCalledWith({
+        query:
+          "Select [System.Id], [System.Title] From WorkItems Where [System.Title] Contains 'some' And [System.WorkItemType] = 'Feature' Order By [System.Id] Desc",
+      });
+      expect(result[0].id).toBe('111');
+    });
+
+    it('should filter exact match by work item type when type is passed', async () => {
+      // 1. When type matches
+      mockWitApi.getWorkItem.mockResolvedValueOnce({
+        id: 456,
+        fields: {
+          'System.Title': 'Fix login bug 456',
+          'System.Description': 'Description 456',
+          'System.WorkItemType': 'Feature',
+        },
+      });
+      mockWitApi.queryByWiql.mockResolvedValueOnce({
+        workItems: [],
+      });
+
+      const resultWithMatch = await service.searchTickets('456', 'Feature');
+      expect(resultWithMatch.length).toBe(1);
+      expect(resultWithMatch[0].id).toBe('456');
+
+      // 2. When type does not match
+      mockWitApi.getWorkItem.mockResolvedValueOnce({
+        id: 456,
+        fields: {
+          'System.Title': 'Fix login bug 456',
+          'System.Description': 'Description 456',
+          'System.WorkItemType': 'Bug',
+        },
+      });
+      mockWitApi.queryByWiql.mockResolvedValueOnce({
+        workItems: [],
+      });
+
+      const resultWithoutMatch = await service.searchTickets('456', 'Feature');
+      expect(resultWithoutMatch.length).toBe(0);
+    });
   });
 });

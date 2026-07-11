@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
 import ModelDropdown from '../../components/ModelDropdown';
 import PageLayout from '../../components/PageLayout';
-import { DocPageData } from '../../../types';
+import { DocPageData, TicketData } from '../../../types';
 import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
 
 interface Story {
@@ -12,7 +12,6 @@ interface Story {
   description: string;
   acceptanceCriteria: string;
   notes?: string;
-  checked?: boolean;
 }
 
 const StoryWriter: React.FC = () => {
@@ -30,11 +29,31 @@ const StoryWriter: React.FC = () => {
   const [stories, setStories] = useState<Story[]>([]);
   const [error, setError] = useState<string>('');
   const [featureId, setFeatureId] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
+
+  const [featureSearchQuery, setFeatureSearchQuery] = useState('');
+  const [featureSearchResults, setFeatureSearchResults] = useState<
+    TicketData[]
+  >([]);
+  const [isSearchingFeatures, setIsSearchingFeatures] = useState(false);
+  const [isFeatureDropdownOpen, setIsFeatureDropdownOpen] = useState(false);
+
+  const [collapsedStories, setCollapsedStories] = useState<
+    Record<number, boolean>
+  >({});
+  const [createdStories, setCreatedStories] = useState<Record<number, boolean>>(
+    {},
+  );
+  const [discardedStories, setDiscardedStories] = useState<
+    Record<number, boolean>
+  >({});
+  const [creatingStories, setCreatingStories] = useState<
+    Record<number, boolean>
+  >({});
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const featureSearchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Debounced search effect
+  // Debounced Confluence search effect
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -62,7 +81,37 @@ const StoryWriter: React.FC = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, pageId]);
 
-  // Click outside to dismiss dropdown
+  // Debounced Feature search effect
+  useEffect(() => {
+    if (!featureSearchQuery.trim()) {
+      setFeatureSearchResults([]);
+      return;
+    }
+
+    // If query matches current feature (meaning it was just selected), don't trigger search again
+    if (featureId && featureSearchQuery.startsWith(`#${featureId} -`)) {
+      return;
+    }
+
+    setIsSearchingFeatures(true);
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const results = await window.electronAPI.searchTickets(
+          featureSearchQuery,
+          'Feature',
+        );
+        setFeatureSearchResults(results);
+      } catch (err) {
+        console.error('Error searching features:', err);
+      } finally {
+        setIsSearchingFeatures(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [featureSearchQuery, featureId]);
+
+  // Click outside to dismiss dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -70,6 +119,12 @@ const StoryWriter: React.FC = () => {
         !searchContainerRef.current.contains(event.target as Node)
       ) {
         setIsDropdownOpen(false);
+      }
+      if (
+        featureSearchContainerRef.current &&
+        !featureSearchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsFeatureDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -91,12 +146,20 @@ const StoryWriter: React.FC = () => {
       setError('Please enter a Confluence Page ID.');
       return;
     }
+    if (!featureId) {
+      setError('Please enter a Feature ID.');
+      return;
+    }
 
     setError('');
     setIsGenerating(true);
     setGenerationStarted(true);
     setStories([]);
     setPageData(null);
+    setCollapsedStories({});
+    setCreatedStories({});
+    setDiscardedStories({});
+    setCreatingStories({});
 
     // Set up real-time listener for incoming lines
     const unsubscribe = window.electronAPI.onStoryLine((line: string) => {
@@ -108,14 +171,11 @@ const StoryWriter: React.FC = () => {
         const story: Story = JSON.parse(trimmed);
         if (story && typeof story === 'object') {
           setStories((prev) => {
-            const storyWithCheck = { ...story, checked: true };
             const exists = prev.some((s) => s.title === story.title);
             if (exists) {
-              return prev.map((s) =>
-                s.title === story.title ? storyWithCheck : s,
-              );
+              return prev.map((s) => (s.title === story.title ? story : s));
             }
-            return [...prev, storyWithCheck];
+            return [...prev, story];
           });
         }
       } catch (err) {
@@ -155,50 +215,45 @@ const StoryWriter: React.FC = () => {
     }
   };
 
-  const toggleStoryCheck = (index: number) => {
-    const newStories = [...stories];
-    newStories[index].checked = !newStories[index].checked;
-    setStories(newStories);
+  const handleToggleCollapse = (index: number) => {
+    setCollapsedStories((prev) => ({ ...prev, [index]: !prev[index] }));
   };
 
-  const handleCreateStories = async () => {
+  const handleDiscardStory = (index: number) => {
+    setDiscardedStories((prev) => ({ ...prev, [index]: true }));
+    setCollapsedStories((prev) => ({ ...prev, [index]: true }));
+  };
+
+  const handleCreateStory = async (story: Story, index: number) => {
     if (!featureId) {
       alert('Please enter a Feature ID.');
       return;
     }
 
-    const storiesToCreate = stories.filter((s) => s.checked);
-    if (storiesToCreate.length === 0) {
-      alert('Please check at least one story to create.');
-      return;
-    }
-
-    setIsCreating(true);
+    setCreatingStories((prev) => ({ ...prev, [index]: true }));
     try {
-      for (const story of storiesToCreate) {
-        const descriptionWithDisclaimer = [
-          story.description,
-          '',
-          '> Generated with Stitch and GitHub Copilot.',
-          '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-        ].join('\n');
+      const descriptionWithDisclaimer = [
+        story.description,
+        '',
+        '> Generated with Stitch and GitHub Copilot.',
+        '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
+      ].join('\n');
 
-        await window.electronAPI.createTicket(
-          'Product Backlog Item',
-          featureId,
-          {
-            title: story.title,
-            description: descriptionWithDisclaimer,
-            acceptanceCriteria: story.acceptanceCriteria,
-          },
-        );
-      }
-      alert(`Successfully created ${storiesToCreate.length} PBIs!`);
-    } catch (err) {
+      await window.electronAPI.createTicket('Product Backlog Item', featureId, {
+        title: story.title,
+        description: descriptionWithDisclaimer,
+        acceptanceCriteria: story.acceptanceCriteria,
+      });
+
+      setCreatedStories((prev) => ({ ...prev, [index]: true }));
+      setCollapsedStories((prev) => ({ ...prev, [index]: true }));
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Failed to create stories.');
+      const errMsg =
+        err instanceof Error ? err.message : 'Failed to create story.';
+      alert(errMsg);
     } finally {
-      setIsCreating(false);
+      setCreatingStories((prev) => ({ ...prev, [index]: false }));
     }
   };
 
@@ -335,6 +390,130 @@ const StoryWriter: React.FC = () => {
                   )}
               </div>
 
+              <div
+                className="mb-3 position-relative"
+                ref={featureSearchContainerRef}
+              >
+                <label className="form-label fw-medium text-secondary">
+                  Feature ID / Search (Azure DevOps)
+                </label>
+                <div className="input-group">
+                  <span className="input-group-text bg-body-secondary border-2 border-end-0">
+                    {isSearchingFeatures ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-success"
+                        role="status"
+                      ></span>
+                    ) : (
+                      <i className="fas fa-search text-muted"></i>
+                    )}
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control form-control-lg border-2 border-start-0 ps-1"
+                    placeholder="Search features or type ID..."
+                    value={featureSearchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFeatureSearchQuery(val);
+                      setIsFeatureDropdownOpen(val.trim().length > 0);
+
+                      // Support direct numeric typing
+                      if (/^\d+$/.test(val.trim())) {
+                        setFeatureId(val.trim());
+                      } else {
+                        setFeatureId('');
+                      }
+                    }}
+                    onFocus={() => {
+                      if (featureSearchQuery.trim().length > 0) {
+                        setIsFeatureDropdownOpen(true);
+                      }
+                    }}
+                    disabled={isGenerating}
+                  />
+                  {featureSearchQuery && (
+                    <button
+                      className="btn btn-outline-secondary border-2 border-start-0"
+                      type="button"
+                      onClick={() => {
+                        setFeatureSearchQuery('');
+                        setFeatureId('');
+                        setFeatureSearchResults([]);
+                        setIsFeatureDropdownOpen(false);
+                      }}
+                      disabled={isGenerating}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  )}
+                </div>
+
+                {isFeatureDropdownOpen &&
+                  (featureSearchResults.length > 0 || isSearchingFeatures) && (
+                    <div
+                      className="dropdown-menu show w-100 shadow-lg border rounded-3 mt-1 overflow-y-auto"
+                      style={{
+                        position: 'absolute',
+                        zIndex: 1050,
+                        maxHeight: '300px',
+                        backgroundColor: 'var(--bs-body-bg)',
+                        borderColor: 'var(--bs-border-color)',
+                      }}
+                    >
+                      {isSearchingFeatures ? (
+                        <div className="dropdown-item text-muted py-3 text-center">
+                          <span
+                            className="spinner-border spinner-border-sm me-2 text-success"
+                            role="status"
+                          ></span>
+                          Searching features...
+                        </div>
+                      ) : (
+                        featureSearchResults.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="dropdown-item py-2 border-bottom border-light text-start d-flex flex-column gap-1"
+                            onClick={() => {
+                              setFeatureId(item.id || '');
+                              setFeatureSearchQuery(
+                                `#${item.id} - ${item.title}`,
+                              );
+                              setIsFeatureDropdownOpen(false);
+                            }}
+                            style={{ whiteSpace: 'normal', cursor: 'pointer' }}
+                          >
+                            <span className="fw-bold text-success small">
+                              #{item.id}
+                            </span>
+                            <span className="text-body small fw-medium">
+                              {item.title}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                {isFeatureDropdownOpen &&
+                  !isSearchingFeatures &&
+                  featureSearchQuery.trim().length > 0 &&
+                  featureSearchResults.length === 0 && (
+                    <div
+                      className="dropdown-menu show w-100 shadow-lg border rounded-3 mt-1 py-3 text-center text-muted small"
+                      style={{
+                        position: 'absolute',
+                        zIndex: 1050,
+                        backgroundColor: 'var(--bs-body-bg)',
+                        borderColor: 'var(--bs-border-color)',
+                      }}
+                    >
+                      No features found.
+                    </div>
+                  )}
+              </div>
+
               <div className="mb-4">
                 <label className="form-label fw-medium text-secondary">
                   Additional Context (Optional)
@@ -415,78 +594,165 @@ const StoryWriter: React.FC = () => {
                     className="w-auto border-0 shadow-sm"
                   />
                 )}
-                {stories.length > 0 && (
-                  <button
-                    className="btn btn-sm btn-outline-light px-3 py-2 fw-medium"
-                    onClick={() =>
-                      navigator.clipboard.writeText(
-                        JSON.stringify(stories, null, 2),
-                      )
-                    }
-                    disabled={isGenerating}
-                  >
-                    <i className="fas fa-copy me-2"></i>
-                    Copy JSON
-                  </button>
-                )}
               </div>
             </div>
             <div className="card-body p-4 overflow-auto flex-grow-1">
               {stories.length > 0 ? (
                 <div className="stories-list">
-                  {stories.map((story, index) => (
-                    <div
-                      key={index}
-                      className="card shadow-sm border-0 border-start border-success border-4 mb-3 animate__animated animate__fadeInUp"
-                      style={{ animationDuration: '0.4s' }}
-                    >
-                      <div className="card-header d-flex justify-content-between align-items-center bg-body-secondary border-bottom py-3">
-                        <h6 className="mb-0 text-success fw-bold">
-                          <i className="fas fa-book me-2"></i>
-                          {story.title}
-                        </h6>
-                        <div className="form-check m-0">
-                          <input
-                            className="form-check-input border-2"
-                            type="checkbox"
-                            checked={story.checked}
-                            onChange={() => toggleStoryCheck(index)}
-                            id={`check-${index}`}
-                          />
-                        </div>
-                      </div>
-                      <div className="card-body p-4">
-                        <div className="mb-3">
-                          <strong className="text-secondary small d-block mb-1">
-                            Description
-                          </strong>
-                          <p className="mb-0 text-body small">
-                            {story.description}
-                          </p>
-                        </div>
-                        <div className="mb-3">
-                          <strong className="text-secondary small d-block mb-2">
-                            Acceptance Criteria
-                          </strong>
-                          <div className="markdown-content p-3 rounded-3 border bg-body-tertiary small">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {story.acceptanceCriteria}
-                            </ReactMarkdown>
+                  {stories.map((story, index) => {
+                    if (collapsedStories[index]) {
+                      return (
+                        <div
+                          key={index}
+                          className="card shadow-sm border-0 mb-2 bg-body-secondary opacity-75 animate__animated animate__fadeInUp"
+                          style={{ animationDuration: '0.4s' }}
+                        >
+                          <div className="card-body p-2 d-flex align-items-center justify-content-between">
+                            <div className="d-flex align-items-center gap-2">
+                              <span
+                                className="fw-bold text-secondary small text-truncate"
+                                style={{ maxWidth: '300px' }}
+                                title={story.title}
+                              >
+                                <i className="fas fa-book me-2"></i>
+                                {story.title}
+                              </span>
+                              {createdStories[index] ? (
+                                <span className="text-success small fw-semibold">
+                                  <i className="fas fa-check-circle me-1"></i>
+                                  Created
+                                </span>
+                              ) : (
+                                <span className="text-muted small fw-semibold">
+                                  <i className="fas fa-times-circle me-1"></i>
+                                  Discarded
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              className="btn btn-sm btn-link text-decoration-none p-0 px-2 fw-semibold text-success"
+                              onClick={() => handleToggleCollapse(index)}
+                            >
+                              <i className="fas fa-chevron-down me-1"></i>{' '}
+                              Expand
+                            </button>
                           </div>
                         </div>
-                        {story.notes && (
-                          <div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={index}
+                        className={`card shadow-sm border-0 border-start border-4 mb-3 animate__animated animate__fadeInUp ${
+                          createdStories[index]
+                            ? 'border-success'
+                            : discardedStories[index]
+                              ? 'border-secondary opacity-75'
+                              : 'border-success'
+                        }`}
+                        style={{ animationDuration: '0.4s' }}
+                      >
+                        <div className="card-header d-flex justify-content-between align-items-center bg-body-secondary border-bottom py-3">
+                          <h6
+                            className={`mb-0 fw-bold ${createdStories[index] ? 'text-success' : discardedStories[index] ? 'text-secondary' : 'text-success'}`}
+                          >
+                            <i className="fas fa-book me-2"></i>
+                            {story.title}
+                          </h6>
+                          <div className="d-flex align-items-center gap-2">
+                            {createdStories[index] && (
+                              <span className="badge bg-success-subtle text-success-emphasis me-2">
+                                <i className="fas fa-check-circle me-1"></i>
+                                Created
+                              </span>
+                            )}
+                            {discardedStories[index] && (
+                              <span className="badge bg-secondary-subtle text-secondary-emphasis me-2">
+                                <i className="fas fa-times-circle me-1"></i>
+                                Discarded
+                              </span>
+                            )}
+                            <button
+                              className="btn btn-sm btn-link text-decoration-none p-0 text-secondary"
+                              onClick={() => handleToggleCollapse(index)}
+                              title="Collapse card"
+                            >
+                              <i className="fas fa-chevron-up"></i>
+                            </button>
+                          </div>
+                        </div>
+                        <div className="card-body p-4">
+                          <div className="mb-3">
                             <strong className="text-secondary small d-block mb-1">
-                              Notes
+                              Description
                             </strong>
-                            <p className="text-muted small mb-0 bg-body-tertiary p-2 rounded-3 border-start border-3 border-secondary">
-                              {story.notes}
+                            <p className="mb-0 text-body small">
+                              {story.description}
                             </p>
                           </div>
-                        )}
+                          <div className="mb-3">
+                            <strong className="text-secondary small d-block mb-2">
+                              Acceptance Criteria
+                            </strong>
+                            <div className="markdown-content p-3 rounded-3 border bg-body-tertiary small">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {story.acceptanceCriteria}
+                              </ReactMarkdown>
+                            </div>
+                          </div>
+                          {story.notes && (
+                            <div className="mb-3">
+                              <strong className="text-secondary small d-block mb-1">
+                                Notes
+                              </strong>
+                              <p className="text-muted small mb-0 bg-body-tertiary p-2 rounded-3 border-start border-3 border-secondary">
+                                {story.notes}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Card Actions */}
+                          <div className="d-flex justify-content-end gap-2 mt-3 pt-2 border-top border-secondary-subtle">
+                            <button
+                              className="btn btn-sm btn-outline-secondary"
+                              onClick={() => handleDiscardStory(index)}
+                              disabled={
+                                creatingStories[index] || createdStories[index]
+                              }
+                            >
+                              <i className="fas fa-trash-alt me-1"></i>
+                              Discard
+                            </button>
+                            <button
+                              className={`btn btn-sm ${createdStories[index] ? 'btn-success' : 'btn-primary'}`}
+                              onClick={() => handleCreateStory(story, index)}
+                              disabled={
+                                creatingStories[index] || createdStories[index]
+                              }
+                            >
+                              {creatingStories[index] ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-1"></span>
+                                  Creating...
+                                </>
+                              ) : createdStories[index] ? (
+                                <>
+                                  <i className="fas fa-check me-1"></i>
+                                  Created
+                                </>
+                              ) : (
+                                <>
+                                  <i className="fas fa-plus me-1"></i>
+                                  Create PBI
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {isGenerating && (
                     <div
                       className="card shadow-sm border-0 border-start border-success border-4 mb-3 animate__animated animate__fadeIn opacity-75"
@@ -552,46 +818,6 @@ const StoryWriter: React.FC = () => {
                 </div>
               )}
             </div>
-            {stories.length > 0 && (
-              <div className="card-footer bg-body-tertiary py-3 d-flex justify-content-end gap-3 border-top align-items-center flex-shrink-0">
-                <div className="d-flex justify-content-between align-items-center w-100">
-                  <div className="input-group" style={{ maxWidth: '320px' }}>
-                    <span className="input-group-text border-2 bg-success text-white fw-medium">
-                      Feature ID
-                    </span>
-                    <input
-                      type="text"
-                      className="form-control border-2"
-                      placeholder="e.g. 12345"
-                      value={featureId}
-                      onChange={(e) => setFeatureId(e.target.value)}
-                      disabled={isCreating || isGenerating}
-                    />
-                  </div>
-                  <button
-                    className="btn btn-success px-4 py-2 fw-semibold shadow-sm hover-grow"
-                    onClick={handleCreateStories}
-                    disabled={isCreating || isGenerating}
-                  >
-                    {isCreating ? (
-                      <>
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                          aria-hidden="true"
-                        ></span>
-                        Creating PBIs...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-plus me-2"></i>
-                        Create PBIs
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
