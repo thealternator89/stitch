@@ -543,17 +543,14 @@ const TestCaseWriter: React.FC = () => {
                                 </td>
                                 <td className="text-center">
                                   <button
-                                    className="btn btn-link text-primary p-0 border-0 fw-semibold small"
+                                    className="btn btn-link text-primary p-0 border-0"
                                     onClick={() => handleRestore(index)}
-                                    disabled={isGenerating}
                                     title="Restore test case"
                                     style={{
                                       boxShadow: 'none',
-                                      textDecoration: 'none',
                                     }}
                                   >
-                                    <i className="fas fa-undo me-1"></i>
-                                    Restore
+                                    <i className="fas fa-undo"></i>
                                   </button>
                                 </td>
                               </tr>
@@ -650,7 +647,6 @@ const TestCaseWriter: React.FC = () => {
                                   <button
                                     className="btn btn-link text-danger p-0 border-0"
                                     onClick={() => handleDelete(index)}
-                                    disabled={isGenerating}
                                     title="Delete test case"
                                     style={{ boxShadow: 'none' }}
                                   >
