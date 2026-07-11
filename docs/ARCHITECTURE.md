@@ -72,6 +72,7 @@ locally on the machine.
   - To prevent cross-platform execution issues in packaged environments (e.g., on Windows where system Node spawned as a child process cannot access files inside Electron's read-only `app.asar` package), Stitch manages `@github/copilot` (Copilot CLI) locally in a dedicated directory inside the application's user data path (`<userData>/copilot-cli`).
   - On launch, Stitch verifies that Node.js v22+ is installed, checks for the existence of `@github/copilot` in the managed directory, and matches the installed version against the required version range declared by `@github/copilot-sdk`.
   - If the CLI dependency is missing or outdated, an automated setup wizard displays in the UI to perform the installation seamlessly in the background via NPM.
+  - To minimize bundle size and prevent ASAR packaging/execution conflicts, the Electron Forge packaging process is configured (via `forge.config.ts`) to strip all Copilot CLI executables and platform-specific packages (`@github/copilot` and `@github/copilot-*` except `@github/copilot-sdk`) from `node_modules` before generating the final application archive.
 - **Model Selection:** Supports listing available models (e.g., GPT-4o, Claude
   3.5 Sonnet) and allowing users to choose a model for each generation session.
 - **Generation & Multi-turn Sessions:**
