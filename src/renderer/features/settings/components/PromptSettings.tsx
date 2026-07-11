@@ -17,8 +17,6 @@ interface PromptSettingsProps {
 
   testCaseGeneral: string;
   setTestCaseGeneral: (val: string) => void;
-  testCaseId: string;
-  setTestCaseId: (val: string) => void;
   testCaseDescription: string;
   setTestCaseDescription: (val: string) => void;
   testCasePreConditions: string;
@@ -46,8 +44,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
 
   testCaseGeneral,
   setTestCaseGeneral,
-  testCaseId,
-  setTestCaseId,
   testCaseDescription,
   setTestCaseDescription,
   testCasePreConditions,
@@ -91,7 +87,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
 
   const handleResetTestCaseDefaults = () => {
     setTestCaseGeneral('');
-    setTestCaseId('');
     setTestCaseDescription('');
     setTestCasePreConditions('');
     setTestCaseSteps('');
@@ -165,7 +160,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
   const handleCheckTestCase = async () => {
     const hasCustom = [
       testCaseGeneral,
-      testCaseId,
       testCaseDescription,
       testCasePreConditions,
       testCaseSteps,
@@ -185,7 +179,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
 
     const currentKey = JSON.stringify({
       general: testCaseGeneral,
-      id: testCaseId,
       description: testCaseDescription,
       preConditions: testCasePreConditions,
       steps: testCaseSteps,
@@ -211,7 +204,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
         'testcase',
         {
           general: testCaseGeneral,
-          id: testCaseId,
           description: testCaseDescription,
           preConditions: testCasePreConditions,
           steps: testCaseSteps,
@@ -464,20 +456,6 @@ const PromptSettings: React.FC<PromptSettingsProps> = ({
             <h6 className="mb-3 border-bottom pb-2 fw-semibold text-primary mt-4">
               Field Customization
             </h6>
-
-            <div className="mb-3">
-              <label className="form-label fw-semibold">Test Case ID</label>
-              <textarea
-                className="form-control"
-                rows={2}
-                value={testCaseId}
-                onChange={(e) => setTestCaseId(e.target.value)}
-                placeholder='Test Case ID (e.g., "TC01")'
-              />
-              <div className="form-text">
-                Define ID naming conventions or serial formats.
-              </div>
-            </div>
 
             <div className="mb-3">
               <label className="form-label fw-semibold">Description</label>

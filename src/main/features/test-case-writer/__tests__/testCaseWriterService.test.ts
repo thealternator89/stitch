@@ -25,7 +25,7 @@ describe('TestCaseWriter feature', () => {
       expect(prompt).toContain('My Ticket Description');
       expect(prompt).toContain('AC 1, AC 2');
       expect(prompt).toContain('Extra Context');
-      expect(prompt).toContain('Test Case ID (e.g., "TC01")');
+      expect(prompt).not.toContain('Test Case ID');
     });
 
     it('should generate test case prompt with custom overrides', () => {
@@ -33,7 +33,6 @@ describe('TestCaseWriter feature', () => {
         prompts: {
           testCaseWriter: {
             general: 'Custom General Test Rules',
-            id: 'Custom TC ID',
             description: 'Custom TC Description',
             preConditions: 'Custom TC Preconditions',
             steps: 'Custom TC Steps',
@@ -52,7 +51,6 @@ describe('TestCaseWriter feature', () => {
       );
 
       expect(prompt).toContain('Custom General Test Rules');
-      expect(prompt).toContain('Custom TC ID');
       expect(prompt).toContain('Custom TC Description');
       expect(prompt).toContain('Custom TC Preconditions');
       expect(prompt).toContain('Custom TC Steps');

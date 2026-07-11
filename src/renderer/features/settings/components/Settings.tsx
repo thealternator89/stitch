@@ -241,8 +241,6 @@ const Settings: React.FC = () => {
             setStoryNotes={setStoryNotes}
             testCaseGeneral={testCaseGeneral}
             setTestCaseGeneral={setTestCaseGeneral}
-            testCaseId={testCaseId}
-            setTestCaseId={setTestCaseId}
             testCaseDescription={testCaseDescription}
             setTestCaseDescription={setTestCaseDescription}
             testCasePreConditions={testCasePreConditions}

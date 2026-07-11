@@ -11,7 +11,6 @@ export function buildTestCasePrompt(
   const testCaseWriter = settings.prompts?.testCaseWriter || {};
   const generalPrompt = testCaseWriter.general || '';
 
-  const idPrompt = testCaseWriter.id || 'Test Case ID (e.g., "TC01")';
   const descriptionPrompt =
     testCaseWriter.description || 'Brief description of the test scenario';
   const preConditionsPrompt =
@@ -39,15 +38,16 @@ export function buildTestCasePrompt(
         Do NOT use markdown code blocks, fences, or any formatting other than plain JSON objects. All newlines within string values must be represented as \`\\n\` (double backslash-n), not as actual newlines.
         
         Each JSON object must have exactly the following keys:
-        - "id": (string) ${idPrompt}
         - "description": (string) ${descriptionPrompt}
         - "preConditions": (string) ${preConditionsPrompt}
         - "steps": (string) ${stepsPrompt}
         - "expectedResult": (string) ${expectedResultPrompt}
         - "priority": (string) Priority of the test (e.g., "High", "Medium", "Low")
 
+        DO NOT include an "id" key in the JSON object.
+
         For example:
-        {"id": "", "description": "It works", "preConditions": "* One\\\\n* Two\\\\n* Three", "steps": "1. Step 1\\\\n2. Step 2\\\\n3. Step 3", "expectedResult": "Nothing", "priority": "High"}
+        {"description": "It works", "preConditions": "* One\\\\n* Two\\\\n* Three", "steps": "1. Step 1\\\\n2. Step 2\\\\n3. Step 3", "expectedResult": "Nothing", "priority": "High"}
 
         All double quotes inside string values must be escaped as \\".
         Do not use markdown formatting or syntax; only plain text is allowed.
