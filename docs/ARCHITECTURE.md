@@ -63,9 +63,11 @@ locally on the machine.
 ### GitHub Copilot
 
 - **Library:** `@github/copilot-sdk`
-- **Authentication:** Relies on the machine's local GitHub CLI authentication
-  (`gh auth login`). The application checks the active connection and auth
-  status via the SDK.
+- **Authentication:** Relies on the machine's local GitHub CLI authentication.
+  The application checks the connection and authentication status via the SDK. On launch, if
+  no active authentication is detected, Stitch displays a startup overlay warning modal with
+  instructions to run `copilot auth signin` or `gh auth login`. Additionally, a clickable status
+  indicator is present in the application footer to dynamically re-check and display the auth state.
 - **Self-Managed Copilot CLI Installer:**
   - To prevent cross-platform execution issues in packaged environments (e.g., on Windows where system Node spawned as a child process cannot access files inside Electron's read-only `app.asar` package), Stitch manages `@github/copilot` (Copilot CLI) locally in a dedicated directory inside the application's user data path (`<userData>/copilot-cli`).
   - On launch, Stitch verifies that Node.js v22+ is installed, checks for the existence of `@github/copilot` in the managed directory, and matches the installed version against the required version range declared by `@github/copilot-sdk`.
@@ -74,7 +76,7 @@ locally on the machine.
   3.5 Sonnet) and allowing users to choose a model for each generation session.
 - **Generation & Multi-turn Sessions:**
   - For single-shot operations (Test Case Writer, Story Writer), it uses a transient session.
-  - For the **PR Reviewer**, it starts a new transient session per active review phase, executing them sequentially to enforce phase isolation.
+  - For the **PR Reviewer**, it starts a new transient session per active review phase, executing them in parallel using an asynchronous worker pool (rather than sequentially) to enforce phase isolation.
   - For the **Story Elaborator**, `StoryElaboratorService` maintains a stateful in-memory registry (`activeElaborations = new Map<string, { client: any, session: any }>()`) that keeps the same session alive across multiple user turns/answers.
 - **Real-time Streaming & JSONL Protocol:**
   - Does not use a blocking request-response model. Instead, the main process streams generated data progressively to the renderer.
@@ -89,7 +91,15 @@ locally on the machine.
 - **Workspace Tool Integration (Local Repositories & Git Safety)**:
   - If a repository directory path is provided to the Story Elaborator, the Copilot session is created with `workingDirectory` set to that directory, giving the model first-party tool capability (e.g., browsing files, reading code, searching with grep). The model is instructed to write the plan to a file in the workspace (e.g. `implementation_plan.md`) using its tools.
   - If no repository directory is provided, the session is created with `availableTools: []` (empty array) and without workspace bounds, confining the model's operation to the ticket's text context only.
-  - **PR Reviewer Git Lifecycle & Session Safety:**
+  - **PR Reviewer Parallelism & Worker Pool**:
+    - Review phases run in parallel using an asynchronous worker pool. The `maxWorkers` count is configured by a slider in the General Settings (bounded by the CPU count) or defaults to `Math.max(1, Math.floor(numCPUs / 2))`.
+    - **Crucial Dependency**: Parallel review execution requires Git Worktree Support to be enabled. Without worktree isolation, concurrent checkouts and file operations in a single repository would create race conditions and git conflicts. Parallelism is automatically locked to 1 if Git Worktree is disabled.
+  - **Git Worktree Isolation**:
+    - When Git Worktree Support is enabled, Stitch creates separate, temporary git worktree checkouts under a user-configured base directory (`gitWorktreeBaseDir`).
+    - For the **PR Reviewer**, it creates an isolated worktree formatted as `<repo_name>_pr_<prNumber>` checkout at the target commit SHA, performing diffs and reviews there without touching the user's active workspace.
+    - For the **Story Elaborator**, it fetches the remote target branch from origin, parses its `FETCH_HEAD` SHA, and creates an isolated worktree formatted as `<repo_name>_ticket_<ticketId>` checkout at that commit. This lets the elaborator analyze code and write its implementation plan safely.
+    - **Cleanup and Pruning**: Active worktrees are removed (`git worktree remove --force`) and pruned (`git worktree prune`) on completion, cancellation, or error. Settings also exposes a manual worktree scanner and cleanup button to safely purge orphaned worktree folders.
+  - **PR Reviewer Git Lifecycle & Session Safety (when Worktrees are Disabled):**
     - To prevent systems from sleeping during multi-phase reviews, Stitch starts an Electron `powerSaveBlocker` during execution.
     - To prevent loss of work, the PR Reviewer throws an error if there are uncommitted changes in the repository.
     - It captures the current branch ref and stores it in an active checkouts map (`activeCheckouts = new Map<string, string>()`) to guarantee that the repository is restored back to the user's original checkout state when the review completes, is cancelled, or fails.
@@ -126,7 +136,7 @@ support modern ESM-only libraries like `electron-store` and
 - `open-external`: Opens a URL in the default browser.
 - `fetch-ticket`: Retrieves work item data from Azure DevOps.
 - `fetch-confluence-page`: Retrieves documentation content from Confluence.
-- `search-tickets`: Queries work items on Azure DevOps by ID or title text.
+- `search-tickets`: Queries work items on Azure DevOps by ID or title text. Supports DevOps type filtering (e.g. searching specifically for parent features).
 - `search-confluence-pages`: Queries pages on Confluence by ID or title text using CQL.
 - `generate-test-cases`: Interfaces with Copilot to produce Markdown test
   plans. Streams output line-by-line via `test-case-line` IPC events and resolves once concluded. Supports `modelOverride`.
@@ -140,17 +150,20 @@ support modern ESM-only libraries like `electron-store` and
 - `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
 - `create-ticket`: Creates a new work item (PBI or Task) in Azure DevOps linked to a parent.
 - `select-directory`: Triggers Electron's native `dialog.showOpenDialog` to allow user directory selection.
-- `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, set with the ticket info and workspace path context. Streams lines to the renderer via `elaboration-line`.
+- `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, configured with ticket details, branch selection, and workspace context. Streams lines via `elaboration-line`.
 - `send-elaboration-answer`: Sends subsequent replies/responses to the ongoing story elaboration session.
 - `stop-story-elaboration`: Cleans up and destroys an active story elaboration session.
 - `pr-reviewer:get-details`: Fetches Azure DevOps PR metadata, target/source branch references, and linked work item references.
-- `pr-reviewer:checkout`: Sanitizes repository state, checkout the PR branch, and returns comparison details.
+- `pr-reviewer:checkout`: Sanitizes repository state, checks out the PR branch (with worktree support if configured), and returns comparison details.
 - `pr-reviewer:get-diff-files`: Lists all modified files in the repository between HEAD and the target branch.
 - `pr-reviewer:get-file-diff`: Retrieves the git diff for a specific file compared to the target branch.
 - `pr-reviewer:search-prs`: Queries Azure DevOps for active PRs matching user search criteria.
 - `pr-reviewer:get-phases`: Reads, parses, and sorts frontmatter metadata from review phase files in `~/.stitch/pr-reviewer/phases/`.
 - `pr-reviewer:open-directory`: Opens the local `~/.stitch/pr-reviewer/` configuration folder using the OS shell.
-- `pr-reviewer:review`: Triggers a sequential multi-phase PR review, streaming real-time status and line-anchored code feedback to the UI.
+- `pr-reviewer:check-worktrees`: Scans the configured base directory for active/orphaned git worktrees and returns their status and count.
+- `pr-reviewer:clean-worktrees`: Force-cleans and prunes worktrees and directories in the configured base directory.
+- `get-cpu-count`: Retrieves the CPU cores count from the operating system to establish worker pool boundaries.
+- `pr-reviewer:review`: Triggers a sequential or parallel multi-phase PR review, streaming real-time status and line-anchored code feedback to the UI.
 - `pr-reviewer:post-comment`: Submits a code review comment (general or line-anchored code block thread) back to the Azure DevOps PR.
 - `pr-reviewer:get-repo-path-history` / `pr-reviewer:save-repo-path-history`: Stores the last used local filesystem clone path mapping for a given repository.
 - `pr-reviewer:verify-repo-path`: Asserts if a path represents a git repository, resolving its root directory if necessary.

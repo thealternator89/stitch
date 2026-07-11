@@ -9,3 +9,5 @@
 
 - **Committing changes**: Always commit changes using conventional commits after any change (e.g., `feat: ...`, `fix: ...`, `docs: ...`, `refactor: ...`, `chore: ...`).
   - Write a clear, concise commit message following the conventional commits format.
+
+- **Documentation Updates**: After making any functional or structural change to the codebase, always check if relevant documentation (such as `README.md`, `docs/ARCHITECTURE.md`, or other guidelines in the `docs/` folder) needs to be updated to keep it accurate and synchronized with the code.
