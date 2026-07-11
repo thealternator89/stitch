@@ -323,25 +323,10 @@ const PRReviewer: React.FC = () => {
     if (!selectedPR || !commitSha) return;
 
     const triggerNotification = (title: string, body: string) => {
-      if (!document.hasFocus() && window.Notification) {
-        const show = () => {
-          const notification = new window.Notification(title, { body });
-          notification.onclick = () => {
-            window.electronAPI.focusWindow().catch((err) => {
-              console.error('Failed to focus window:', err);
-            });
-          };
-        };
-
-        if (window.Notification.permission === 'granted') {
-          show();
-        } else if (window.Notification.permission !== 'denied') {
-          window.Notification.requestPermission().then((permission) => {
-            if (permission === 'granted') {
-              show();
-            }
-          });
-        }
+      if (!document.hasFocus()) {
+        window.electronAPI.showNotification(title, body).catch((err) => {
+          console.error('Failed to show notification:', err);
+        });
       }
     };
 

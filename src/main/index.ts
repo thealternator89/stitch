@@ -7,6 +7,7 @@ import {
   shell,
   nativeTheme,
   dialog,
+  Notification,
 } from 'electron';
 import { AzureDevOpsService } from './infrastructure/azure/azureDevOpsService';
 import { CopilotService } from './infrastructure/copilot/copilotService';
@@ -515,15 +516,32 @@ ipcMain.handle('create-ticket', async (event, type, parentTicketId, data) => {
   return service.createTicket(type, parentTicketId, data);
 });
 
-ipcMain.handle('focus-window', (event) => {
+ipcMain.handle('show-notification', (event, title: string, body: string) => {
   const webContents = event.sender;
   const win = BrowserWindow.fromWebContents(webContents);
-  if (win) {
-    if (win.isMinimized()) {
-      win.restore();
+  if (Notification.isSupported()) {
+    try {
+      const notification = new Notification({
+        title,
+        body,
+      });
+
+      notification.on('click', () => {
+        if (win) {
+          if (win.isMinimized()) {
+            win.restore();
+          }
+          win.show();
+          win.focus();
+        }
+      });
+
+      notification.show();
+    } catch (err) {
+      console.error('Failed to show notification:', err);
     }
-    win.show();
-    win.focus();
+  } else {
+    console.warn('Native notifications are not supported on this platform.');
   }
 });
 
@@ -558,6 +576,10 @@ const createWindow = (): void => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.squirrel.stitch.Stitch');
+  }
+
   const s = await initStore();
 
   // Migrate any existing plain text credentials to secure storage
