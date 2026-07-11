@@ -12,6 +12,7 @@ interface TestCase {
   steps: string;
   expectedResult: string;
   priority: string;
+  deleted?: boolean;
 }
 
 const generateTicketOrCommentText = (testCases: string) =>
@@ -25,13 +26,14 @@ const generateTicketOrCommentText = (testCases: string) =>
   ].join('\n');
 
 const convertToMarkdownTable = (tcList: TestCase[]): string => {
-  if (tcList.length === 0) return '';
+  const activeList = tcList.filter((tc) => !tc.deleted);
+  if (activeList.length === 0) return '';
   const headers = [
     '| Test Case ID | Description | Pre-conditions | Steps | Expected Result | Priority |',
     '| --- | --- | --- | --- | --- | --- |',
   ];
-  const rows = tcList.map((tc) => {
-    const id = (tc.id || '').replace(/\|/g, '\\|').trim();
+  const rows = activeList.map((tc, idx) => {
+    const id = `TC-${idx + 1}`;
     const desc = (tc.description || '')
       .replace(/\|/g, '\\|')
       .replace(/\n/g, ' ')
@@ -73,6 +75,18 @@ const TestCaseWriter: React.FC = () => {
   // Reordering states
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleDelete = (index: number) => {
+    setTestCasesList((prev) =>
+      prev.map((tc, idx) => (idx === index ? { ...tc, deleted: true } : tc)),
+    );
+  };
+
+  const handleRestore = (index: number) => {
+    setTestCasesList((prev) =>
+      prev.map((tc, idx) => (idx === index ? { ...tc, deleted: false } : tc)),
+    );
+  };
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -480,7 +494,7 @@ const TestCaseWriter: React.FC = () => {
                         <th style={{ width: '18%', minWidth: '130px' }}>
                           Pre-conditions
                         </th>
-                        <th style={{ width: '23%', minWidth: '180px' }}>
+                        <th style={{ width: '22%', minWidth: '180px' }}>
                           Steps
                         </th>
                         <th style={{ width: '12%', minWidth: '100px' }}>
@@ -491,125 +505,192 @@ const TestCaseWriter: React.FC = () => {
                         </th>
                         <th
                           style={{
-                            width: '7%',
-                            minWidth: '50px',
+                            width: '8%',
+                            minWidth: '70px',
                             textAlign: 'center',
                           }}
                         ></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {testCasesList.map((tc, index) => (
-                        <tr
-                          key={tc.id || index}
-                          className={`animate__animated animate__fadeInUp ${
-                            draggedIndex === index ? 'is-dragging' : ''
-                          } ${
-                            dragOverIndex === index
-                              ? draggedIndex !== null && draggedIndex < index
-                                ? 'drag-over-target-bottom'
-                                : 'drag-over-target-top'
-                              : ''
-                          }`}
-                          style={{ animationDuration: '0.4s' }}
-                          onDragOver={(e) => {
-                            if (draggedIndex === null) return;
-                            e.preventDefault();
-                            if (dragOverIndex !== index) {
-                              setDragOverIndex(index);
-                            }
-                          }}
-                          onDragLeave={() => {
-                            setDragOverIndex(null);
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            if (
-                              draggedIndex === null ||
-                              draggedIndex === index
-                            ) {
-                              setDragOverIndex(null);
-                              return;
-                            }
+                      {(() => {
+                        let activeCount = 0;
+                        return testCasesList.map((tc, index) => {
+                          const isDeleted = tc.deleted;
+                          if (!isDeleted) {
+                            activeCount++;
+                          }
+                          const displayId = isDeleted
+                            ? ''
+                            : `TC-${activeCount}`;
 
-                            const listCopy = [...testCasesList];
-                            const [draggedItem] = listCopy.splice(
-                              draggedIndex,
-                              1,
+                          if (isDeleted) {
+                            return (
+                              <tr
+                                key={tc.id || index}
+                                className="table-light align-middle text-muted animate__animated animate__fadeIn"
+                                style={{ height: '45px', opacity: 0.8 }}
+                              >
+                                <td className="text-center text-muted small fst-italic">
+                                  -
+                                </td>
+                                <td
+                                  colSpan={5}
+                                  className="small fst-italic py-2"
+                                >
+                                  <i className="fas fa-trash-alt me-2 text-secondary"></i>
+                                  Test scenario deleted.
+                                </td>
+                                <td className="text-center">
+                                  <button
+                                    className="btn btn-link text-primary p-0 border-0 fw-semibold small"
+                                    onClick={() => handleRestore(index)}
+                                    disabled={isGenerating}
+                                    title="Restore test case"
+                                    style={{
+                                      boxShadow: 'none',
+                                      textDecoration: 'none',
+                                    }}
+                                  >
+                                    <i className="fas fa-undo me-1"></i>
+                                    Restore
+                                  </button>
+                                </td>
+                              </tr>
                             );
-                            listCopy.splice(index, 0, draggedItem);
+                          }
 
-                            // Re-map IDs sequentially to keep them in order (TC-1, TC-2, etc.)
-                            const reorderedList = listCopy.map((item, idx) => ({
-                              ...item,
-                              id: `TC-${idx + 1}`,
-                            }));
-
-                            setTestCasesList(reorderedList);
-                            setDraggedIndex(null);
-                            setDragOverIndex(null);
-                          }}
-                        >
-                          <td className="fw-bold text-primary">{tc.id}</td>
-                          <td className="text-secondary small">
-                            {tc.description}
-                          </td>
-                          <td className="text-secondary small whitespace-pre-wrap">
-                            {tc.preConditions}
-                          </td>
-                          <td
-                            className="text-secondary small whitespace-pre-wrap"
-                            style={{ whiteSpace: 'pre-wrap' }}
-                          >
-                            {tc.steps}
-                          </td>
-                          <td className="text-secondary small whitespace-pre-wrap">
-                            {tc.expectedResult}
-                          </td>
-                          <td>
-                            <span
-                              className={`badge rounded-pill px-3 py-2 fw-semibold ${
-                                tc.priority?.toLowerCase() === 'high'
-                                  ? 'bg-danger text-white'
-                                  : tc.priority?.toLowerCase() === 'medium'
-                                    ? 'bg-warning text-dark'
-                                    : 'bg-secondary text-white'
+                          return (
+                            <tr
+                              key={tc.id || index}
+                              className={`animate__animated animate__fadeInUp ${
+                                draggedIndex === index ? 'is-dragging' : ''
+                              } ${
+                                dragOverIndex === index
+                                  ? draggedIndex !== null &&
+                                    draggedIndex < index
+                                    ? 'drag-over-target-bottom'
+                                    : 'drag-over-target-top'
+                                  : ''
                               }`}
-                            >
-                              {tc.priority || 'Medium'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <div
-                              className={`drag-handle py-1 ${isGenerating ? 'drag-disabled' : ''}`}
-                              draggable={!isGenerating}
-                              onDragStart={(e) => {
-                                if (isGenerating) {
-                                  e.preventDefault();
+                              style={{ animationDuration: '0.4s' }}
+                              onDragOver={(e) => {
+                                if (draggedIndex === null) return;
+                                e.preventDefault();
+                                if (dragOverIndex !== index) {
+                                  setDragOverIndex(index);
+                                }
+                              }}
+                              onDragLeave={() => {
+                                setDragOverIndex(null);
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (
+                                  draggedIndex === null ||
+                                  draggedIndex === index
+                                ) {
+                                  setDragOverIndex(null);
                                   return;
                                 }
-                                e.dataTransfer.effectAllowed = 'move';
-                                e.dataTransfer.setData(
-                                  'text/plain',
-                                  index.toString(),
+
+                                const listCopy = [...testCasesList];
+                                const [draggedItem] = listCopy.splice(
+                                  draggedIndex,
+                                  1,
                                 );
-                                setDraggedIndex(index);
-                              }}
-                              onDragEnd={() => {
+                                listCopy.splice(index, 0, draggedItem);
+
+                                // Re-map IDs sequentially to keep them in order (TC-1, TC-2, etc.)
+                                const reorderedList = listCopy.map(
+                                  (item, idx) => ({
+                                    ...item,
+                                    id: `TC-${idx + 1}`,
+                                  }),
+                                );
+
+                                setTestCasesList(reorderedList);
                                 setDraggedIndex(null);
                                 setDragOverIndex(null);
                               }}
-                              title={
-                                isGenerating
-                                  ? 'Cannot reorder while generating'
-                                  : 'Drag to reorder'
-                              }
                             >
-                              <i className="fas fa-grip-lines"></i>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                              <td className="fw-bold text-primary">
+                                {displayId}
+                              </td>
+                              <td className="text-secondary small">
+                                {tc.description}
+                              </td>
+                              <td className="text-secondary small whitespace-pre-wrap">
+                                {tc.preConditions}
+                              </td>
+                              <td
+                                className="text-secondary small whitespace-pre-wrap"
+                                style={{ whiteSpace: 'pre-wrap' }}
+                              >
+                                {tc.steps}
+                              </td>
+                              <td className="text-secondary small whitespace-pre-wrap">
+                                {tc.expectedResult}
+                              </td>
+                              <td>
+                                <span
+                                  className={`badge rounded-pill px-3 py-2 fw-semibold ${
+                                    tc.priority?.toLowerCase() === 'high'
+                                      ? 'bg-danger text-white'
+                                      : tc.priority?.toLowerCase() === 'medium'
+                                        ? 'bg-warning text-dark'
+                                        : 'bg-secondary text-white'
+                                  }`}
+                                >
+                                  {tc.priority || 'Medium'}
+                                </span>
+                              </td>
+                              <td className="text-center">
+                                <div className="d-flex align-items-center justify-content-center gap-2">
+                                  <button
+                                    className="btn btn-link text-danger p-0 border-0"
+                                    onClick={() => handleDelete(index)}
+                                    disabled={isGenerating}
+                                    title="Delete test case"
+                                    style={{ boxShadow: 'none' }}
+                                  >
+                                    <i className="fas fa-trash-alt"></i>
+                                  </button>
+                                  <div
+                                    className={`drag-handle py-1 ${
+                                      isGenerating ? 'drag-disabled' : ''
+                                    }`}
+                                    draggable={!isGenerating}
+                                    onDragStart={(e) => {
+                                      if (isGenerating) {
+                                        e.preventDefault();
+                                        return;
+                                      }
+                                      e.dataTransfer.effectAllowed = 'move';
+                                      e.dataTransfer.setData(
+                                        'text/plain',
+                                        index.toString(),
+                                      );
+                                      setDraggedIndex(index);
+                                    }}
+                                    onDragEnd={() => {
+                                      setDraggedIndex(null);
+                                      setDragOverIndex(null);
+                                    }}
+                                    title={
+                                      isGenerating
+                                        ? 'Cannot reorder while generating'
+                                        : 'Drag to reorder'
+                                    }
+                                  >
+                                    <i className="fas fa-grip-lines"></i>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
                       {isGenerating && (
                         <tr className="animate__animated animate__fadeIn opacity-75">
                           <td className="py-3">
