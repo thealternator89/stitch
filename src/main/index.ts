@@ -515,6 +515,18 @@ ipcMain.handle('create-ticket', async (event, type, parentTicketId, data) => {
   return service.createTicket(type, parentTicketId, data);
 });
 
+ipcMain.handle('focus-window', (event) => {
+  const webContents = event.sender;
+  const win = BrowserWindow.fromWebContents(webContents);
+  if (win) {
+    if (win.isMinimized()) {
+      win.restore();
+    }
+    win.show();
+    win.focus();
+  }
+});
+
 const createWindow = (): void => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({

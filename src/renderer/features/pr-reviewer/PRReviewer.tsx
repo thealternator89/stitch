@@ -322,6 +322,29 @@ const PRReviewer: React.FC = () => {
   const handleStartReview = async () => {
     if (!selectedPR || !commitSha) return;
 
+    const triggerNotification = (title: string, body: string) => {
+      if (!document.hasFocus() && window.Notification) {
+        const show = () => {
+          const notification = new window.Notification(title, { body });
+          notification.onclick = () => {
+            window.electronAPI.focusWindow().catch((err) => {
+              console.error('Failed to focus window:', err);
+            });
+          };
+        };
+
+        if (window.Notification.permission === 'granted') {
+          show();
+        } else if (window.Notification.permission !== 'denied') {
+          window.Notification.requestPermission().then((permission) => {
+            if (permission === 'granted') {
+              show();
+            }
+          });
+        }
+      }
+    };
+
     const activePhases = phases.filter((p) => p.enabled);
     const phaseWithTemplateError = activePhases.find((p) => p.templateError);
     if (phaseWithTemplateError) {
@@ -409,10 +432,18 @@ const PRReviewer: React.FC = () => {
         maxParallelism,
       );
       setHasReviewed(true);
+      triggerNotification(
+        'PR Review Complete',
+        `The review for PR #${selectedPR.id} ("${selectedPR.title}") has completed successfully.`,
+      );
     } catch (err: unknown) {
       console.error('Review execution failed:', err);
       const msg = err instanceof Error ? err.message : String(err);
       showError(msg);
+      triggerNotification(
+        'PR Review Failed',
+        `The review for PR #${selectedPR.id} ("${selectedPR.title}") failed to complete.`,
+      );
     } finally {
       setIsReviewing(false);
       unsubscribe();

@@ -120,6 +120,7 @@ export interface IElectronAPI {
       comment: string;
     },
   ) => Promise<void>;
+  focusWindow: () => Promise<void>;
   isWindows: boolean;
 }
 
