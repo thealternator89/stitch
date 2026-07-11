@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
 import ModelDropdown from '../../components/ModelDropdown';
 import PageLayout from '../../components/PageLayout';
-import { DocPageData } from '../../../types';
+import { DocPageData, TicketData } from '../../../types';
 import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
 
 interface Story {
@@ -30,6 +30,13 @@ const StoryWriter: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [featureId, setFeatureId] = useState('');
 
+  const [featureSearchQuery, setFeatureSearchQuery] = useState('');
+  const [featureSearchResults, setFeatureSearchResults] = useState<
+    TicketData[]
+  >([]);
+  const [isSearchingFeatures, setIsSearchingFeatures] = useState(false);
+  const [isFeatureDropdownOpen, setIsFeatureDropdownOpen] = useState(false);
+
   const [collapsedStories, setCollapsedStories] = useState<
     Record<number, boolean>
   >({});
@@ -44,8 +51,9 @@ const StoryWriter: React.FC = () => {
   >({});
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const featureSearchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Debounced search effect
+  // Debounced Confluence search effect
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -73,7 +81,37 @@ const StoryWriter: React.FC = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, pageId]);
 
-  // Click outside to dismiss dropdown
+  // Debounced Feature search effect
+  useEffect(() => {
+    if (!featureSearchQuery.trim()) {
+      setFeatureSearchResults([]);
+      return;
+    }
+
+    // If query matches current feature (meaning it was just selected), don't trigger search again
+    if (featureId && featureSearchQuery.startsWith(`#${featureId} -`)) {
+      return;
+    }
+
+    setIsSearchingFeatures(true);
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const results = await window.electronAPI.searchTickets(
+          featureSearchQuery,
+          'Feature',
+        );
+        setFeatureSearchResults(results);
+      } catch (err) {
+        console.error('Error searching features:', err);
+      } finally {
+        setIsSearchingFeatures(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [featureSearchQuery, featureId]);
+
+  // Click outside to dismiss dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -81,6 +119,12 @@ const StoryWriter: React.FC = () => {
         !searchContainerRef.current.contains(event.target as Node)
       ) {
         setIsDropdownOpen(false);
+      }
+      if (
+        featureSearchContainerRef.current &&
+        !featureSearchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsFeatureDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -346,18 +390,128 @@ const StoryWriter: React.FC = () => {
                   )}
               </div>
 
-              <div className="mb-3">
+              <div
+                className="mb-3 position-relative"
+                ref={featureSearchContainerRef}
+              >
                 <label className="form-label fw-medium text-secondary">
-                  Feature ID
+                  Feature ID / Search (Azure DevOps)
                 </label>
-                <input
-                  type="text"
-                  className="form-control border-2 form-control-lg"
-                  placeholder="e.g. 12345"
-                  value={featureId}
-                  onChange={(e) => setFeatureId(e.target.value)}
-                  disabled={isGenerating}
-                />
+                <div className="input-group">
+                  <span className="input-group-text bg-body-secondary border-2 border-end-0">
+                    {isSearchingFeatures ? (
+                      <span
+                        className="spinner-border spinner-border-sm text-success"
+                        role="status"
+                      ></span>
+                    ) : (
+                      <i className="fas fa-search text-muted"></i>
+                    )}
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control form-control-lg border-2 border-start-0 ps-1"
+                    placeholder="Search features or type ID..."
+                    value={featureSearchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFeatureSearchQuery(val);
+                      setIsFeatureDropdownOpen(val.trim().length > 0);
+
+                      // Support direct numeric typing
+                      if (/^\d+$/.test(val.trim())) {
+                        setFeatureId(val.trim());
+                      } else {
+                        setFeatureId('');
+                      }
+                    }}
+                    onFocus={() => {
+                      if (featureSearchQuery.trim().length > 0) {
+                        setIsFeatureDropdownOpen(true);
+                      }
+                    }}
+                    disabled={isGenerating}
+                  />
+                  {featureSearchQuery && (
+                    <button
+                      className="btn btn-outline-secondary border-2 border-start-0"
+                      type="button"
+                      onClick={() => {
+                        setFeatureSearchQuery('');
+                        setFeatureId('');
+                        setFeatureSearchResults([]);
+                        setIsFeatureDropdownOpen(false);
+                      }}
+                      disabled={isGenerating}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  )}
+                </div>
+
+                {isFeatureDropdownOpen &&
+                  (featureSearchResults.length > 0 || isSearchingFeatures) && (
+                    <div
+                      className="dropdown-menu show w-100 shadow-lg border rounded-3 mt-1 overflow-y-auto"
+                      style={{
+                        position: 'absolute',
+                        zIndex: 1050,
+                        maxHeight: '300px',
+                        backgroundColor: 'var(--bs-body-bg)',
+                        borderColor: 'var(--bs-border-color)',
+                      }}
+                    >
+                      {isSearchingFeatures ? (
+                        <div className="dropdown-item text-muted py-3 text-center">
+                          <span
+                            className="spinner-border spinner-border-sm me-2 text-success"
+                            role="status"
+                          ></span>
+                          Searching features...
+                        </div>
+                      ) : (
+                        featureSearchResults.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="dropdown-item py-2 border-bottom border-light text-start d-flex flex-column gap-1"
+                            onClick={() => {
+                              setFeatureId(item.id || '');
+                              setFeatureSearchQuery(
+                                `#${item.id} - ${item.title}`,
+                              );
+                              setIsFeatureDropdownOpen(false);
+                            }}
+                            style={{ whiteSpace: 'normal', cursor: 'pointer' }}
+                          >
+                            <span className="fw-bold text-success small">
+                              #{item.id}
+                            </span>
+                            <span className="text-body small fw-medium">
+                              {item.title}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                {isFeatureDropdownOpen &&
+                  !isSearchingFeatures &&
+                  featureSearchQuery.trim().length > 0 &&
+                  featureSearchResults.length === 0 && (
+                    <div
+                      className="dropdown-menu show w-100 shadow-lg border rounded-3 mt-1 py-3 text-center text-muted small"
+                      style={{
+                        position: 'absolute',
+                        zIndex: 1050,
+                        backgroundColor: 'var(--bs-body-bg)',
+                        borderColor: 'var(--bs-border-color)',
+                      }}
+                    >
+                      No features found.
+                    </div>
+                  )}
               </div>
 
               <div className="mb-4">

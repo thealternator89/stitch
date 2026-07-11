@@ -13,7 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSettings: (settings: AppSettings) =>
     ipcRenderer.invoke('save-settings', settings),
   fetchTicket: (id: string) => ipcRenderer.invoke('fetch-ticket', id),
-  searchTickets: (query: string) => ipcRenderer.invoke('search-tickets', query),
+  searchTickets: (query: string, type?: string) =>
+    ipcRenderer.invoke('search-tickets', query, type),
   generateTestCases: (
     ticketData: TicketData,
     context: string,
