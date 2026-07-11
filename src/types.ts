@@ -111,12 +111,7 @@ export interface PRMetadata {
 export interface PRDiffFile {
   path: string;
   status:
-    | 'added'
-    | 'modified'
-    | 'deleted'
-    | 'renamed'
-    | 'type_changed'
-    | 'unknown';
+    'added' | 'modified' | 'deleted' | 'renamed' | 'type_changed' | 'unknown';
 }
 
 export interface PRCheckoutResult {
