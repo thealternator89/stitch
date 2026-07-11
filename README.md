@@ -33,9 +33,15 @@ automate reviews without losing focus or context.
 - **PR Reviewer (Automated local reviews)**:
   - Automatically conducts code reviews divided into customizable, isolated
     review phases.
-  - Features **Git Workspace Safety**: requires zero uncommitted changes,
-    captures original branch reference, checks out the PR branch, and safely
-    restores user's original branch state when completed or cancelled.
+  - **Parallel Review Execution**: Run review phases in parallel using an
+    asynchronous worker pool, with configurable worker counts via a UI slider.
+  - **Git Worktree Isolation**: Reviews can run in a separate git worktree
+    directory instead of directly on your active working directory, avoiding any
+    disruption to your current staging area/unstaged changes. Includes a cleanup
+    utility to prune stale worktree directories.
+  - Features **Git Workspace Safety**: requires zero uncommitted changes (when
+    running directly in the repository), captures original branch reference,
+    checks out the PR branch, and safely restores your original branch state.
   - Dynamically filters eligible phases based on modified file paths using glob
     patterns (e.g., only run C# analysis on `.cs` files).
   - Employs shared templates to enforce consistent roles, instructions, or
@@ -57,11 +63,16 @@ automate reviews without losing focus or context.
   - Interactive, multi-turn dialog with GitHub Copilot to analyze an Azure
     DevOps work item and elaborate it into a detailed markdown implementation
     plan.
+  - **Git Worktree Isolation & Branch Selection**: Automatically fetches the
+    latest target branch reference from origin and spins up an isolated git
+    worktree for elaboration sessions, allowing the AI to safely perform code
+    analysis and write the plan to the filesystem without interrupting your
+    working directory.
   - **Dual Operating Modes**:
     - _With Repository_: Initializes the Copilot session using the local
-      directory as the workspace context, allowing the model to use built-in
-      tools (reading files, browsing directories) to analyze code and write the
-      final implementation plan file directly to the workspace.
+      directory (or the isolated worktree path) as the workspace context,
+      allowing the model to use built-in tools (reading files, browsing
+      directories) to analyze code and write the final implementation plan file.
     - _Without Repository_: Disables LLM filesystem tools and runs entirely
       context-free, building the plan solely from ticket details and user
       replies.
@@ -78,6 +89,9 @@ automate reviews without losing focus or context.
   - Integration with **Azure DevOps Search** via an autocomplete dropdown,
     supporting debounced queries to search work items by matching title or ID
     text, with automatic prioritized exact-ID fetching.
+  - **Basic Test Case Editing**: Includes a drag-and-drop table for reordering
+    generated rows, a visual indicator during generation, and the ability to
+    delete and restore test cases directly inside the application.
   - Ability to seamlessly write generated test cases back to Azure DevOps as
     **Comments** or new **Child Tasks** (created as linked 'Task' items with an
     AI disclaimer).
@@ -86,9 +100,13 @@ automate reviews without losing focus or context.
     **select specific models** (e.g., GPT-4o, Claude 3.5 Sonnet).
   - Markdown support with GFM (tables, lists, etc.) for rendered results.
 - **Story Writer (Requirements generator)**:
+  - **Card-Based UI**: Modernized card layout for navigating and configuring
+    user story generation.
   - Integration with **Confluence Page Search** via an autocomplete dropdown,
     supporting debounced queries to search space pages by matching title or Page
-    ID (utilizing Confluence Query Language and direct Page ID prioritization).
+    ID.
+  - **Feature ID Autocomplete Search**: Quickly search Azure DevOps Features with
+    automatic project and type filtering, moving configuration to Settings.
   - Prompts **GitHub Copilot SDK** to generate structured JSON containing user
     stories with Titles, Descriptions, and Acceptance Criteria, using your
     **chosen AI model**.
@@ -104,6 +122,10 @@ automate reviews without losing focus or context.
   - Securely store Azure DevOps credentials, Confluence tokens, and project
     configurations locally. Select a default Copilot model and actively check
     the status of local GitHub Copilot CLI authentication.
+  - **Copilot CLI Authentication Status Checks**: Monitors GitHub Copilot connection
+    on startup, alerts the user with an interactive setup and troubleshooting
+    overlay if credentials are not found, and displays a clickable connection
+    status icon in the application footer for quick status verification.
   - Features a fixed top panel for quick access to save and back actions.
 
 ## Tech Stack
@@ -129,12 +151,13 @@ automate reviews without losing focus or context.
 
 - [Node.js](https://nodejs.org/) (v22 or above recommended)
 - **GitHub Copilot CLI**: You must be authenticated via the Copilot CLI on your
-  machine (launch `copilot`, enter `/login` and follow the prompts).
+  machine (e.g. using `copilot auth signin` or `gh auth login`).
   - **Note**: Stitch requires Node.js v22+ to run the Copilot CLI. On launch,
     Stitch will check if the `@github/copilot` CLI is installed locally in the
     application's user data directory. If it is missing or outdated, an
     interactive setup wizard will install it automatically using your system's
-    Node and NPM.
+    Node and NPM. If an active authentication session is missing, an interactive
+    modal will guide you through authentication commands.
 - **Azure DevOps PAT**: A Personal Access Token with "Work Items: Read & Write"
   permissions.
 - **Confluence API Token**: An Atlassian API Token generated from your profile
@@ -215,6 +238,10 @@ npm run make
 
 For a detailed explanation of the process model, configuration management, and
 AI integration, see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+
+## Privacy Policy
+
+Stitch runs entirely locally on your machine and stores all configurations and credentials locally. For details, see [PRIVACY.md](./PRIVACY.md).
 
 ## License
 
