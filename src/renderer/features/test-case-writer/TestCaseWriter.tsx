@@ -70,6 +70,10 @@ const TestCaseWriter: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [isPosting, setIsPosting] = useState(false);
 
+  // Reordering states
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Debounced search effect
@@ -469,14 +473,14 @@ const TestCaseWriter: React.FC = () => {
                   <table className="table table-striped table-hover align-middle mb-0">
                     <thead className="table-dark">
                       <tr>
-                        <th style={{ width: '12%', minWidth: '80px' }}>ID</th>
-                        <th style={{ width: '23%', minWidth: '150px' }}>
+                        <th style={{ width: '10%', minWidth: '80px' }}>ID</th>
+                        <th style={{ width: '22%', minWidth: '150px' }}>
                           Description
                         </th>
-                        <th style={{ width: '20%', minWidth: '130px' }}>
+                        <th style={{ width: '18%', minWidth: '130px' }}>
                           Pre-conditions
                         </th>
-                        <th style={{ width: '25%', minWidth: '180px' }}>
+                        <th style={{ width: '23%', minWidth: '180px' }}>
                           Steps
                         </th>
                         <th style={{ width: '12%', minWidth: '100px' }}>
@@ -485,14 +489,66 @@ const TestCaseWriter: React.FC = () => {
                         <th style={{ width: '8%', minWidth: '80px' }}>
                           Priority
                         </th>
+                        <th
+                          style={{
+                            width: '7%',
+                            minWidth: '50px',
+                            textAlign: 'center',
+                          }}
+                        ></th>
                       </tr>
                     </thead>
                     <tbody>
                       {testCasesList.map((tc, index) => (
                         <tr
                           key={tc.id || index}
-                          className="animate__animated animate__fadeInUp"
+                          className={`animate__animated animate__fadeInUp ${
+                            draggedIndex === index ? 'is-dragging' : ''
+                          } ${
+                            dragOverIndex === index
+                              ? draggedIndex !== null && draggedIndex < index
+                                ? 'drag-over-target-bottom'
+                                : 'drag-over-target-top'
+                              : ''
+                          }`}
                           style={{ animationDuration: '0.4s' }}
+                          onDragOver={(e) => {
+                            if (draggedIndex === null) return;
+                            e.preventDefault();
+                            if (dragOverIndex !== index) {
+                              setDragOverIndex(index);
+                            }
+                          }}
+                          onDragLeave={() => {
+                            setDragOverIndex(null);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (
+                              draggedIndex === null ||
+                              draggedIndex === index
+                            ) {
+                              setDragOverIndex(null);
+                              return;
+                            }
+
+                            const listCopy = [...testCasesList];
+                            const [draggedItem] = listCopy.splice(
+                              draggedIndex,
+                              1,
+                            );
+                            listCopy.splice(index, 0, draggedItem);
+
+                            // Re-map IDs sequentially to keep them in order (TC-1, TC-2, etc.)
+                            const reorderedList = listCopy.map((item, idx) => ({
+                              ...item,
+                              id: `TC-${idx + 1}`,
+                            }));
+
+                            setTestCasesList(reorderedList);
+                            setDraggedIndex(null);
+                            setDragOverIndex(null);
+                          }}
                         >
                           <td className="fw-bold text-primary">{tc.id}</td>
                           <td className="text-secondary small">
@@ -523,6 +579,26 @@ const TestCaseWriter: React.FC = () => {
                               {tc.priority || 'Medium'}
                             </span>
                           </td>
+                          <td className="text-center">
+                            <div
+                              className="drag-handle py-1"
+                              draggable={!isGenerating}
+                              onDragStart={(e) => {
+                                e.dataTransfer.effectAllowed = 'move';
+                                e.dataTransfer.setData(
+                                  'text/plain',
+                                  index.toString(),
+                                );
+                                setDraggedIndex(index);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedIndex(null);
+                                setDragOverIndex(null);
+                              }}
+                            >
+                              <i className="fas fa-grip-lines"></i>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                       {isGenerating && (
@@ -537,7 +613,7 @@ const TestCaseWriter: React.FC = () => {
                               <span className="text-muted small">...</span>
                             </div>
                           </td>
-                          <td colSpan={5} className="py-3">
+                          <td colSpan={6} className="py-3">
                             <span className="text-muted small fst-italic animate__animated animate__pulse animate__infinite d-inline-block">
                               Generating next test case...
                             </span>

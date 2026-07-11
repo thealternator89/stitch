@@ -655,3 +655,27 @@ textarea,
   display: block;
   padding: 0 4px;
 }
+
+/* Drag and Drop Table Rows styling */
+.drag-handle {
+  cursor: grab;
+  color: #adb5bd;
+  text-align: center;
+  transition: color 0.15s ease-in-out;
+}
+.drag-handle:hover {
+  color: #4f46e5;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+tr.drag-over-target-top {
+  border-top: 2px dashed #4f46e5 !important;
+}
+tr.drag-over-target-bottom {
+  border-bottom: 2px dashed #4f46e5 !important;
+}
+tr.is-dragging {
+  opacity: 0.4;
+  background-color: var(--bs-secondary-bg) !important;
+}
