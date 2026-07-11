@@ -2,22 +2,35 @@
 
 _Last updated: July 2026_
 
-This document outlines the data use and privacy practices of Stitch.
+This Privacy Policy describes how Stitch handles data and protects your privacy.
 
 ## Local Execution & Data Storage
 
-- **Local Execution**: The application runs entirely on your local hardware.
-- **No Cloud Synchronization**: No data, configuration settings, or credentials (including API Keys and Personal Access Tokens (PATs)) are uploaded or synced to external servers or cloud storage. All application state is kept locally on your machine.
+- **Runs Locally:** Stitch runs entirely on your local device.
+- **No Cloud Storage:** Stitch does not upload or synchronize your data, configuration, credentials (including API keys and Personal Access Tokens (PATs)), or application state to any cloud service or external server. All application data is stored locally on your device.
 
-## Data Connectivity & Integrations
+## External Services
 
-The application only communicates with external services that you explicitly configure and initiate connectivity to. These services include:
+Stitch communicates only with services that you explicitly configure and choose to use.
 
-- **Azure DevOps**: If configured by the user, the application connects to Azure DevOps to interact with your organization's projects and work items when initiated.
-- **Confluence**: If configured by the user, the application connects to Confluence to read and write wiki pages and documentation when initiated.
-- **GitHub Copilot**: All Large Language Model (LLM) activity is performed via GitHub Copilot and is subject to its privacy policy and terms.
+These integrations include:
+
+- **Azure DevOps:** When configured, Stitch connects to Azure DevOps to access and manage your organization's projects, work items, and related resources.
+- **Confluence:** When configured, Stitch connects to Confluence to read, create, and update documentation and wiki content.
+- **GitHub Copilot:** AI features use the official GitHub Copilot tooling and APIs. When you invoke an AI-powered feature, Stitch sends your prompt to GitHub Copilot and, where required for the requested task, may provide relevant portions of your local codebase as context. Code is shared only when necessary for the feature to function or when explicitly requested by you (for example, during pull request reviews). The handling of any data sent to GitHub Copilot is governed by GitHub's privacy policy and terms of service.
 
 ## Telemetry and Third-Party Tracking
 
-- **No Tracking**: The application does not reach out to external services for telemetry, analytics, or tracking purposes.
-- **No Unauthorized Data Sharing**: The application does not send your data to any external services outside of the services you have explicitly configured.
+- **No Telemetry:** Stitch does not collect or transmit usage analytics or diagnostic telemetry.
+- **Update Checks:** Stitch periodically contacts `update.electronjs.org` to check for application updates. These requests are used only to determine whether a newer version is available and do not include your application data.
+- **No Unauthorized Data Sharing:** Stitch does not send your data to any external services other than the services you explicitly configure and use.
+
+## Updates to This Policy
+
+This Privacy Policy may be updated from time to time. Because Stitch does not collect user contact information, any changes will be communicated through application release notes and updates to the project's repository. Privacy Policy updates will take effect from the release after the policy update, and you will be alerted that a change has occurred within the application on the first launch after updating.
+
+## Contact
+
+If you have questions about this Privacy Policy, please open an issue in the Stitch GitHub repository:
+
+https://github.com/thealternator89/stitch/issues
