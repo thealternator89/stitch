@@ -440,20 +440,6 @@ const StoryWriter: React.FC = () => {
                     className="w-auto border-0 shadow-sm"
                   />
                 )}
-                {stories.length > 0 && (
-                  <button
-                    className="btn btn-sm btn-outline-light px-3 py-2 fw-medium"
-                    onClick={() =>
-                      navigator.clipboard.writeText(
-                        JSON.stringify(stories, null, 2),
-                      )
-                    }
-                    disabled={isGenerating}
-                  >
-                    <i className="fas fa-copy me-2"></i>
-                    Copy JSON
-                  </button>
-                )}
               </div>
             </div>
             <div className="card-body p-4 overflow-auto flex-grow-1">
