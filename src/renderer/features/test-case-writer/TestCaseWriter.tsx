@@ -581,9 +581,13 @@ const TestCaseWriter: React.FC = () => {
                           </td>
                           <td className="text-center">
                             <div
-                              className="drag-handle py-1"
+                              className={`drag-handle py-1 ${isGenerating ? 'drag-disabled' : ''}`}
                               draggable={!isGenerating}
                               onDragStart={(e) => {
+                                if (isGenerating) {
+                                  e.preventDefault();
+                                  return;
+                                }
                                 e.dataTransfer.effectAllowed = 'move';
                                 e.dataTransfer.setData(
                                   'text/plain',
@@ -595,6 +599,11 @@ const TestCaseWriter: React.FC = () => {
                                 setDraggedIndex(null);
                                 setDragOverIndex(null);
                               }}
+                              title={
+                                isGenerating
+                                  ? 'Cannot reorder while generating'
+                                  : 'Drag to reorder'
+                              }
                             >
                               <i className="fas fa-grip-lines"></i>
                             </div>

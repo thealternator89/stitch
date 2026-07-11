@@ -669,6 +669,13 @@ textarea,
 .drag-handle:active {
   cursor: grabbing;
 }
+.drag-handle.drag-disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.drag-handle.drag-disabled:hover {
+  color: #adb5bd;
+}
 tr.drag-over-target-top {
   border-top: 2px dashed #4f46e5 !important;
 }
