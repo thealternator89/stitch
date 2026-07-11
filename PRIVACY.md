@@ -1,6 +1,13 @@
 # Privacy Policy
 
+_Last updated: July 2026_
+
 This document outlines the data use and privacy practices of Stitch.
+
+## Local Execution & Data Storage
+
+- **Local Execution**: The application runs entirely on your local hardware.
+- **No Cloud Synchronization**: No data, configuration settings, or credentials (including API Keys and Personal Access Tokens (PATs)) are uploaded or synced to external servers or cloud storage. All application state is kept locally on your machine.
 
 ## Data Connectivity & Integrations
 
