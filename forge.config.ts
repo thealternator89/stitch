@@ -107,6 +107,32 @@ const config: ForgeConfig = {
       });
 
       console.log('Hook: External dependencies installed successfully!');
+
+      // 5. Strip Copilot CLI files from the packaged app directory
+      console.log('Hook: Stripping Copilot CLI files...');
+      const githubDir = path.join(buildPath, 'node_modules', '@github');
+      if (fs.existsSync(githubDir)) {
+        const dirs = fs.readdirSync(githubDir);
+        for (const dir of dirs) {
+          if (dir.startsWith('copilot') && dir !== 'copilot-sdk') {
+            const dirPath = path.join(githubDir, dir);
+            console.log(`- Removing directory: ${dirPath}`);
+            fs.rmSync(dirPath, { recursive: true, force: true });
+          }
+        }
+      }
+
+      const binDir = path.join(buildPath, 'node_modules', '.bin');
+      if (fs.existsSync(binDir)) {
+        const binFiles = fs.readdirSync(binDir);
+        for (const file of binFiles) {
+          if (file.startsWith('copilot')) {
+            const filePath = path.join(binDir, file);
+            console.log(`- Removing binary: ${filePath}`);
+            fs.rmSync(filePath, { recursive: true, force: true });
+          }
+        }
+      }
     },
   },
 };
