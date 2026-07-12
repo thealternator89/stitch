@@ -30,7 +30,7 @@ main (Node.js) process from the renderer (Chromium) process.
 We use `electron-store` to persist user settings (like Azure DevOps PATs)
 locally on the machine.
 
-- **Encryption:** Settings are stored in the default Electron user data path.
+- **Encryption:** Sensitive credentials (`azurePat`, `copilotToken`, `confluenceToken`) are encrypted using Electron's native `safeStorage` API before being written to disk. They are decrypted on-the-fly when read by the main process. If `safeStorage` is unavailable (e.g., in headless or testing environments), it falls back gracefully to plain-text storage.
 - **IPC Access:** The renderer fetches and saves settings through the
   `get-settings` and `save-settings` IPC handlers.
 

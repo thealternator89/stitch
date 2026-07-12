@@ -20,6 +20,11 @@ import { StoryElaboratorService } from './features/story-elaborator/storyElabora
 import { PromptComplexityService } from './features/settings/promptComplexityService';
 import { GitService } from './infrastructure/git/gitService';
 import { PRReviewerService } from './features/pr-reviewer/prReviewerService';
+import {
+  decryptSettings,
+  encryptSettings,
+  migrateStoredSettings,
+} from './infrastructure/settingsSecureStorage';
 
 // Initialize auto-updates
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -89,10 +94,21 @@ if (require('electron-squirrel-startup')) {
   app.quit();
 }
 
+async function getDecryptedSettings(): Promise<AppSettings> {
+  const s = await initStore();
+  const rawSettings = (s.get('settings') ?? {}) as AppSettings;
+  return decryptSettings(rawSettings);
+}
+
+async function saveEncryptedSettings(settings: AppSettings): Promise<void> {
+  const s = await initStore();
+  const encrypted = encryptSettings(settings);
+  s.set('settings', encrypted);
+}
+
 // IPC Handlers
 ipcMain.handle('get-settings', async () => {
-  const s = await initStore();
-  return s.get('settings');
+  return getDecryptedSettings();
 });
 
 ipcMain.handle('get-version-status', async () => {
@@ -135,12 +151,10 @@ function trimProperties(obj: any): any {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
-  const s = await initStore();
-
   // Trim and normalize saved settings to avoid whitespace-caused auth issues
   const sanitizedSettings = trimProperties(settings) as AppSettings;
 
-  s.set('settings', sanitizedSettings);
+  await saveEncryptedSettings(sanitizedSettings);
 
   copilotService.setModel(sanitizedSettings.copilotModel || 'auto');
   copilotService.clearCache(sanitizedSettings.copilotToken);
@@ -158,10 +172,8 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
 
 async function getAzureService(): Promise<IssueTrackerProvider> {
   if (!azureService) {
-    const s = await initStore();
-    const { azureOrg, azurePat } = trimProperties(
-      s.get('settings'),
-    ) as AppSettings;
+    const settings = await getDecryptedSettings();
+    const { azureOrg, azurePat } = trimProperties(settings) as AppSettings;
     if (!azureOrg || !azurePat) {
       throw new Error('Azure DevOps settings are missing.');
     }
@@ -183,8 +195,7 @@ ipcMain.handle('search-tickets', async (event, query, type) => {
 ipcMain.handle(
   'generate-test-cases',
   async (event, ticketData, additionalContext, modelOverride) => {
-    const s = await initStore();
-    const settings = (s.get('settings') ?? {}) as AppSettings;
+    const settings = await getDecryptedSettings();
     return testCaseWriterService.generateTestCases(
       ticketData,
       additionalContext,
@@ -199,9 +210,9 @@ ipcMain.handle(
 
 async function getConfluenceService(): Promise<DocumentationProvider> {
   if (!confluenceService) {
-    const s = await initStore();
+    const settings = await getDecryptedSettings();
     const { confluenceUrl, confluenceUser, confluenceToken } = trimProperties(
-      s.get('settings'),
+      settings,
     ) as AppSettings;
 
     if (!confluenceUrl || !confluenceToken) {
@@ -230,8 +241,7 @@ ipcMain.handle('search-confluence-pages', async (event, query) => {
 ipcMain.handle(
   'generate-stories',
   async (event, pageData, additionalContext, modelOverride) => {
-    const s = await initStore();
-    const settings = (s.get('settings') ?? {}) as AppSettings;
+    const settings = await getDecryptedSettings();
     return storyWriterService.generateStories(
       pageData,
       additionalContext,
@@ -245,8 +255,7 @@ ipcMain.handle(
 );
 
 ipcMain.handle('check-copilot-auth', async () => {
-  const s = await initStore();
-  const settings = (s.get('settings') ?? {}) as AppSettings;
+  const settings = await getDecryptedSettings();
   return copilotService.checkAuthStatus(settings.copilotToken);
 });
 
@@ -259,14 +268,12 @@ ipcMain.handle('install-copilot-cli', async () => {
 });
 
 ipcMain.handle('list-copilot-models', async () => {
-  const s = await initStore();
-  const settings = (s.get('settings') ?? {}) as AppSettings;
+  const settings = await getDecryptedSettings();
   return copilotService.listModels(settings.copilotToken);
 });
 
 ipcMain.handle('check-prompt-complexity', async (event, type, prompts) => {
-  const s = await initStore();
-  const settings = (s.get('settings') ?? {}) as AppSettings;
+  const settings = await getDecryptedSettings();
   return promptComplexityService.checkPromptComplexity(type, prompts, settings);
 });
 
@@ -290,8 +297,7 @@ ipcMain.handle(
     modelOverride,
     branch,
   ) => {
-    const s = await initStore();
-    const settings = (s.get('settings') ?? {}) as AppSettings;
+    const settings = await getDecryptedSettings();
     return storyElaboratorService.startStoryElaboration(
       ticketData,
       repoPath,
@@ -323,8 +329,7 @@ ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
 ipcMain.handle(
   'pr-reviewer:get-details',
   async (event, repoPath, prUrlOrId) => {
-    const s = await initStore();
-    const settings = (s.get('settings') ?? {}) as AppSettings;
+    const settings = await getDecryptedSettings();
     return prReviewerService.getPRDetails(repoPath, prUrlOrId, settings);
   },
 );
@@ -332,8 +337,7 @@ ipcMain.handle(
 ipcMain.handle(
   'pr-reviewer:checkout',
   async (event, repoPath, prNumber, expectedRepoName) => {
-    const s = await initStore();
-    const settings = (s.get('settings') ?? {}) as AppSettings;
+    const settings = await getDecryptedSettings();
     return prReviewerService.checkoutAndDiff(
       repoPath,
       prNumber,
@@ -360,8 +364,7 @@ ipcMain.handle(
 );
 
 ipcMain.handle('pr-reviewer:search-prs', async (event, searchType) => {
-  const s = await initStore();
-  const settings = (s.get('settings') ?? {}) as AppSettings;
+  const settings = await getDecryptedSettings();
   return prReviewerService.getProjectPRs(searchType, settings);
 });
 
@@ -412,8 +415,7 @@ ipcMain.handle(
     prId,
     maxParallelism,
   ) => {
-    const s = await initStore();
-    const settings = (s.get('settings') ?? {}) as AppSettings;
+    const settings = await getDecryptedSettings();
     return prReviewerService.reviewPR(repoPath, targetBranch, settings, {
       modelOverride,
       customInstructions,
@@ -431,8 +433,7 @@ ipcMain.handle(
 ipcMain.handle(
   'pr-reviewer:post-comment',
   async (event, repoPath, prUrlOrId, comment) => {
-    const s = await initStore();
-    const settings = (s.get('settings') ?? {}) as AppSettings;
+    const settings = await getDecryptedSettings();
     return prReviewerService.postPRComment(
       repoPath,
       prUrlOrId,
@@ -538,7 +539,11 @@ const createWindow = (): void => {
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
   const s = await initStore();
-  const settings = (s.get('settings') ?? {}) as AppSettings;
+
+  // Migrate any existing plain text credentials to secure storage
+  await migrateStoredSettings(s);
+
+  const settings = await getDecryptedSettings();
   const theme = settings.theme ?? 'auto';
   nativeTheme.themeSource = theme === 'auto' ? 'system' : theme;
 
