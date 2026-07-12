@@ -7,7 +7,7 @@ This Privacy Policy describes how Stitch handles data and protects your privacy.
 ## Local Execution & Data Storage
 
 - **Runs Locally:** Stitch runs entirely on your local device.
-- **No Cloud Storage:** Stitch does not upload or synchronize your data, configuration, credentials (including API keys and Personal Access Tokens (PATs)), or application state to any cloud service or external server. All application data is stored locally on your device.
+- **Secure Storage & No Cloud Storage:** Stitch does not upload or synchronize your data, configuration, credentials (including API keys and Personal Access Tokens (PATs)), or application state to any cloud service or external server. All application data is stored locally on your device. Specifically, credentials (such as API keys and Personal Access Tokens) are encrypted at rest on your device using native platform APIs (such as Keychain on macOS or DPAPI on Windows) to prevent unauthorized local access.
 
 ## External Services
 
