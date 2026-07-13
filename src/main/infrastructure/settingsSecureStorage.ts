@@ -120,6 +120,18 @@ export async function migrateStoredSettings(store: {
     }
   }
 
+  // Version 1 Migration: populate featureType and storyType defaults if missing
+  if (updatedSettings.version === undefined || updatedSettings.version < 1) {
+    updatedSettings.version = 1;
+    if (updatedSettings.featureType === undefined) {
+      updatedSettings.featureType = 'Feature';
+    }
+    if (updatedSettings.storyType === undefined) {
+      updatedSettings.storyType = 'Product Backlog Item';
+    }
+    needsWrite = true;
+  }
+
   if (needsWrite) {
     store.set('settings', updatedSettings);
   }

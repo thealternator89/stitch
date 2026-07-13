@@ -9,4 +9,5 @@ export interface IssueTrackerProvider {
     data: TicketData,
   ): Promise<void>;
   searchTickets(query: string, type?: string): Promise<TicketData[]>;
+  getWorkItemTypes?(project: string): Promise<string[]>;
 }

@@ -201,4 +201,17 @@ export class AzureDevOpsService implements IssueTrackerProvider {
       throw error;
     }
   }
+
+  async getWorkItemTypes(project: string): Promise<string[]> {
+    const witApi = await this.getApi();
+    try {
+      const types = await witApi.getWorkItemTypes(project);
+      return (types || [])
+        .map((t) => t.name)
+        .filter((name): name is string => typeof name === 'string');
+    } catch (error) {
+      console.error('Error fetching work item types:', error);
+      throw error;
+    }
+  }
 }

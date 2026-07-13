@@ -16,6 +16,11 @@ export interface IElectronAPI {
   saveSettings: (settings: AppSettings) => Promise<void>;
   fetchTicket: (id: string) => Promise<TicketData>;
   searchTickets: (query: string, type?: string) => Promise<TicketData[]>;
+  getAzureWorkItemTypes: (
+    org: string,
+    pat: string,
+    project: string,
+  ) => Promise<string[]>;
   generateTestCases: (
     ticketData: TicketData,
     context: string,

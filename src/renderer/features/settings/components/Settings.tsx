@@ -10,6 +10,9 @@ import CopilotSettings from './CopilotSettings';
 import PromptSettings from './PromptSettings';
 
 const Settings: React.FC = () => {
+  const [version, setVersion] = useState<number>(1);
+  const [featureType, setFeatureType] = useState('Feature');
+  const [storyType, setStoryType] = useState('Product Backlog Item');
   const [azureOrg, setAzureOrg] = useState('');
   const [azureProject, setAzureProject] = useState('');
   const [azurePat, setAzurePat] = useState('');
@@ -58,6 +61,9 @@ const Settings: React.FC = () => {
 
         const settings = await window.electronAPI.getSettings();
         if (settings) {
+          setVersion(settings.version || 1);
+          setFeatureType(settings.featureType || 'Feature');
+          setStoryType(settings.storyType || 'Product Backlog Item');
           setAzureOrg(settings.azureOrg || '');
           setAzureProject(settings.azureProject || '');
           setAzurePat(settings.azurePat || '');
@@ -111,6 +117,9 @@ const Settings: React.FC = () => {
     e.preventDefault();
     try {
       await window.electronAPI.saveSettings({
+        version: version,
+        featureType: featureType,
+        storyType: storyType,
         azureOrg: azureOrg,
         azureProject: azureProject,
         azurePat: azurePat,
@@ -199,6 +208,10 @@ const Settings: React.FC = () => {
             setAzureProject={setAzureProject}
             azurePat={azurePat}
             setAzurePat={setAzurePat}
+            featureType={featureType}
+            setFeatureType={setFeatureType}
+            storyType={storyType}
+            setStoryType={setStoryType}
           />
         );
       case 'confluence':

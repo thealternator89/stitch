@@ -147,7 +147,7 @@ describe('settingsSecureStorage', () => {
   });
 
   describe('migrateStoredSettings', () => {
-    it('should migrate plain-text secrets in the store if encryption is available', async () => {
+    it('should migrate plain-text secrets in the store and populate version/types if encryption is available', async () => {
       const mockStoreSettings = {
         azureOrg: 'my-org',
         azurePat: 'pat-123',
@@ -166,14 +166,20 @@ describe('settingsSecureStorage', () => {
         azureOrg: 'my-org',
         azurePat: 'secure:v1:bW9ja19lbmNfcGF0LTEyMw==',
         copilotToken: 'secure:v1:already-encrypted',
+        version: 1,
+        featureType: 'Feature',
+        storyType: 'Product Backlog Item',
       });
     });
 
-    it('should do nothing if all secrets are already encrypted', async () => {
+    it('should do nothing if all secrets are already encrypted and version is present', async () => {
       const mockStoreSettings = {
         azureOrg: 'my-org',
         azurePat: 'secure:v1:abc',
         copilotToken: 'secure:v1:xyz',
+        version: 1,
+        featureType: 'Feature',
+        storyType: 'Product Backlog Item',
       };
 
       const mockStore = {
@@ -185,7 +191,7 @@ describe('settingsSecureStorage', () => {
       expect(mockStore.set).not.toHaveBeenCalled();
     });
 
-    it('should do nothing if encryption is not available', async () => {
+    it('should do nothing (regarding encryption) if encryption is not available, but should still migrate version if missing', async () => {
       mockSafeStorage.isEncryptionAvailable.mockReturnValue(false);
       const mockStoreSettings = {
         azureOrg: 'my-org',
@@ -198,7 +204,69 @@ describe('settingsSecureStorage', () => {
       };
 
       await migrateStoredSettings(mockStore);
+      expect(mockStore.set).toHaveBeenCalledWith('settings', {
+        azureOrg: 'my-org',
+        azurePat: 'pat-123',
+        version: 1,
+        featureType: 'Feature',
+        storyType: 'Product Backlog Item',
+      });
+    });
+
+    it('should do nothing if no settings exist in the store', async () => {
+      const mockStore = {
+        get: vi.fn().mockReturnValue(undefined),
+        set: vi.fn(),
+      };
+
+      await migrateStoredSettings(mockStore);
       expect(mockStore.set).not.toHaveBeenCalled();
+    });
+
+    it('should migrate settings and populate version and default types if version is missing', async () => {
+      const mockStoreSettings = {
+        azureOrg: 'my-org',
+        azurePat: 'secure:v1:abc',
+      };
+
+      const mockStore = {
+        get: vi.fn().mockReturnValue(mockStoreSettings),
+        set: vi.fn(),
+      };
+
+      await migrateStoredSettings(mockStore);
+
+      expect(mockStore.set).toHaveBeenCalledWith('settings', {
+        azureOrg: 'my-org',
+        azurePat: 'secure:v1:abc',
+        version: 1,
+        featureType: 'Feature',
+        storyType: 'Product Backlog Item',
+      });
+    });
+
+    it('should not overwrite existing custom work item types during migration', async () => {
+      const mockStoreSettings = {
+        azureOrg: 'my-org',
+        azurePat: 'secure:v1:abc',
+        featureType: 'CustomFeature',
+        storyType: 'CustomStory',
+      };
+
+      const mockStore = {
+        get: vi.fn().mockReturnValue(mockStoreSettings),
+        set: vi.fn(),
+      };
+
+      await migrateStoredSettings(mockStore);
+
+      expect(mockStore.set).toHaveBeenCalledWith('settings', {
+        azureOrg: 'my-org',
+        azurePat: 'secure:v1:abc',
+        version: 1,
+        featureType: 'CustomFeature',
+        storyType: 'CustomStory',
+      });
     });
   });
 });

@@ -1,4 +1,7 @@
 export type AppSettings = {
+  version?: number;
+  featureType?: string;
+  storyType?: string;
   azureOrg?: string;
   azureProject?: string;
   azurePat?: string;
