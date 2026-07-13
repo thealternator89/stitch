@@ -149,7 +149,7 @@ support modern ESM-only libraries like `electron-store` and
 - `list-copilot-models`: Retrieves available GitHub Copilot models.
 - `check-prompt-complexity`: Runs Copilot-based complexity and safety validation on user-customized prompt templates.
 - `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
-- `create-ticket`: Creates a new work item (PBI or Task) in Azure DevOps linked to a parent.
+- `create-ticket`: Creates a new work item (Story or Task) in Azure DevOps linked to a parent.
 - `select-directory`: Triggers Electron's native `dialog.showOpenDialog` to allow user directory selection.
 - `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, configured with ticket details, branch selection, and workspace context. Streams lines via `elaboration-line`.
 - `send-elaboration-answer`: Sends subsequent replies/responses to the ongoing story elaboration session.
