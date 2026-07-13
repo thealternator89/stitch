@@ -193,6 +193,14 @@ ipcMain.handle('search-tickets', async (event, query, type) => {
 });
 
 ipcMain.handle(
+  'get-azure-work-item-types',
+  async (event, org, pat, project) => {
+    const service = new AzureDevOpsService(org, pat);
+    return service.getWorkItemTypes(project);
+  },
+);
+
+ipcMain.handle(
   'generate-test-cases',
   async (event, ticketData, additionalContext, modelOverride) => {
     const settings = await getDecryptedSettings();

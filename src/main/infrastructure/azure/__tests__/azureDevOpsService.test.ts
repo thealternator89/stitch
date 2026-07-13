@@ -7,6 +7,7 @@ const mockWitApi = {
   createWorkItem: vi.fn(),
   queryByWiql: vi.fn(),
   getWorkItems: vi.fn(),
+  getWorkItemTypes: vi.fn(),
 };
 
 function mockWebApiFunction() {
@@ -353,6 +354,30 @@ describe('AzureDevOpsService', () => {
 
       const resultWithoutMatch = await service.searchTickets('456', 'Feature');
       expect(resultWithoutMatch.length).toBe(0);
+    });
+  });
+
+  describe('getWorkItemTypes', () => {
+    it('should retrieve work item types and map names correctly', async () => {
+      mockWitApi.getWorkItemTypes.mockResolvedValueOnce([
+        { name: 'Feature' },
+        { name: 'Product Backlog Item' },
+        { name: 'Bug' },
+      ]);
+
+      const result = await service.getWorkItemTypes('MyProject');
+
+      expect(mockWitApi.getWorkItemTypes).toHaveBeenCalledWith('MyProject');
+      expect(result).toEqual(['Feature', 'Product Backlog Item', 'Bug']);
+    });
+
+    it('should throw error when API call fails', async () => {
+      const apiError = new Error('WIT API error');
+      mockWitApi.getWorkItemTypes.mockRejectedValueOnce(apiError);
+
+      await expect(service.getWorkItemTypes('MyProject')).rejects.toThrow(
+        'WIT API error',
+      );
     });
   });
 });

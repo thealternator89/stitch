@@ -45,7 +45,7 @@ locally on the machine.
   - Pushes AI-generated content as **Comments** (updating `System.History`).
   - Creates new **Tasks** linked to a parent ID via `Hierarchy-Reverse`
     relationships.
-  - Creates new **Product Backlog Items (PBIs)** linked to a Feature ID.
+  - Creates new user stories/work items (e.g. Product Backlog Items) linked to a parent Feature ID using customizable work item type settings.
   - Fetches details of a specific Pull Request (`gitApi.getPullRequestById`) or lists active pull requests for the project (`gitApi.getPullRequestsByProject`).
   - Fetches work item references linked to a Pull Request (`gitApi.getPullRequestWorkItemRefs`) to attach user stories as additional code review context.
   - Posts code review findings (both general and line-specific comments) to the PR as new active comment threads (`gitApi.createThread`) targeting precise file paths and line offsets with an AI disclaimer.
@@ -149,7 +149,7 @@ support modern ESM-only libraries like `electron-store` and
 - `list-copilot-models`: Retrieves available GitHub Copilot models.
 - `check-prompt-complexity`: Runs Copilot-based complexity and safety validation on user-customized prompt templates.
 - `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
-- `create-ticket`: Creates a new work item (PBI or Task) in Azure DevOps linked to a parent.
+- `create-ticket`: Creates a new work item (Story or Task) in Azure DevOps linked to a parent.
 - `select-directory`: Triggers Electron's native `dialog.showOpenDialog` to allow user directory selection.
 - `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, configured with ticket details, branch selection, and workspace context. Streams lines via `elaboration-line`.
 - `send-elaboration-answer`: Sends subsequent replies/responses to the ongoing story elaboration session.

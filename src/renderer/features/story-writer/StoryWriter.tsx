@@ -17,6 +17,28 @@ interface Story {
 const StoryWriter: React.FC = () => {
   const { showTimeout } = useTimeoutModal();
   const isMountedRef = useRef(true);
+  const [featureType, setFeatureType] = useState('Feature');
+  const [storyType, setStoryType] = useState('Product Backlog Item');
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const settings = await window.electronAPI.getSettings();
+        if (settings) {
+          if (settings.featureType) {
+            setFeatureType(settings.featureType);
+          }
+          if (settings.storyType) {
+            setStoryType(settings.storyType);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load settings in StoryWriter:', err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   const [pageId, setPageId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<DocPageData[]>([]);
@@ -98,7 +120,7 @@ const StoryWriter: React.FC = () => {
       try {
         const results = await window.electronAPI.searchTickets(
           featureSearchQuery,
-          'Feature',
+          featureType,
         );
         setFeatureSearchResults(results);
       } catch (err) {
@@ -239,7 +261,7 @@ const StoryWriter: React.FC = () => {
         '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
       ].join('\n');
 
-      await window.electronAPI.createTicket('Product Backlog Item', featureId, {
+      await window.electronAPI.createTicket(storyType, featureId, {
         title: story.title,
         description: descriptionWithDisclaimer,
         acceptanceCriteria: story.acceptanceCriteria,
@@ -744,7 +766,7 @@ const StoryWriter: React.FC = () => {
                               ) : (
                                 <>
                                   <i className="fas fa-plus me-1"></i>
-                                  Create PBI
+                                  Create Story
                                 </>
                               )}
                             </button>

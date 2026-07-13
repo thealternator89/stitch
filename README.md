@@ -26,7 +26,7 @@ automate reviews without losing focus or context.
   into your repo.
 - **Accelerate Planning and Testing**: Generate comprehensive user stories and
   test cases from tickets in seconds, then instantly push them back to Azure
-  DevOps as PBIs or child tasks.
+  DevOps as stories or child tasks.
 
 ## Core Features
 
@@ -111,7 +111,7 @@ automate reviews without losing focus or context.
     stories with Titles, Descriptions, and Acceptance Criteria, using your
     **chosen AI model**.
   - Ability to selectively choose generated stories and write them back to Azure
-    DevOps as new **Product Backlog Items (PBIs)** linked under a specific
+    DevOps as new **Stories** linked under a specific
     Feature.
 - **Persistent Settings & Prompt Customization**:
   - **Prompt Customization**: Fine-tune the base and detail prompt templates
