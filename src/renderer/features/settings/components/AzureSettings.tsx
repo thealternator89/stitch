@@ -11,6 +11,10 @@ interface AzureSettingsProps {
   setFeatureType: (val: string) => void;
   storyType: string;
   setStoryType: (val: string) => void;
+  taskType: string;
+  setTaskType: (val: string) => void;
+  testTaskTitle: string;
+  setTestTaskTitle: (val: string) => void;
 }
 
 const AzureSettings: React.FC<AzureSettingsProps> = ({
@@ -24,6 +28,10 @@ const AzureSettings: React.FC<AzureSettingsProps> = ({
   setFeatureType,
   storyType,
   setStoryType,
+  taskType,
+  setTaskType,
+  testTaskTitle,
+  setTestTaskTitle,
 }) => {
   const [workItemTypes, setWorkItemTypes] = useState<string[]>([]);
   const [isLoadingTypes, setIsLoadingTypes] = useState(false);
@@ -221,6 +229,53 @@ const AzureSettings: React.FC<AzureSettingsProps> = ({
               <div className="form-text">
                 Work item type used for Stories. Default is `Product Backlog
                 Item`.
+              </div>
+            </div>
+
+            <div className="col-md-6 mb-3">
+              <label className="form-label fw-semibold">
+                Task Work Item Type
+              </label>
+              {workItemTypes.length > 0 ? (
+                <select
+                  className="form-select"
+                  value={taskType}
+                  onChange={(e) => setTaskType(e.target.value)}
+                >
+                  {!workItemTypes.includes(taskType) && (
+                    <option value={taskType}>{taskType} (custom)</option>
+                  )}
+                  {workItemTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Task"
+                  value={taskType}
+                  onChange={(e) => setTaskType(e.target.value)}
+                />
+              )}
+              <div className="form-text">
+                Work item type used for Tasks. Default is `Task`.
+              </div>
+            </div>
+
+            <div className="col-md-6 mb-3">
+              <label className="form-label fw-semibold">Test Task Title</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Testing"
+                value={testTaskTitle}
+                onChange={(e) => setTestTaskTitle(e.target.value)}
+              />
+              <div className="form-text">
+                Title template for testing tasks. Default is `Testing`.
               </div>
             </div>
           </div>

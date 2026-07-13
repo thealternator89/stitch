@@ -169,6 +169,8 @@ describe('settingsSecureStorage', () => {
         version: 1,
         featureType: 'Feature',
         storyType: 'Product Backlog Item',
+        taskType: 'Task',
+        testTaskTitle: 'Testing',
       });
     });
 
@@ -180,6 +182,8 @@ describe('settingsSecureStorage', () => {
         version: 1,
         featureType: 'Feature',
         storyType: 'Product Backlog Item',
+        taskType: 'Task',
+        testTaskTitle: 'Testing',
       };
 
       const mockStore = {
@@ -210,6 +214,8 @@ describe('settingsSecureStorage', () => {
         version: 1,
         featureType: 'Feature',
         storyType: 'Product Backlog Item',
+        taskType: 'Task',
+        testTaskTitle: 'Testing',
       });
     });
 
@@ -242,6 +248,8 @@ describe('settingsSecureStorage', () => {
         version: 1,
         featureType: 'Feature',
         storyType: 'Product Backlog Item',
+        taskType: 'Task',
+        testTaskTitle: 'Testing',
       });
     });
 
@@ -251,6 +259,8 @@ describe('settingsSecureStorage', () => {
         azurePat: 'secure:v1:abc',
         featureType: 'CustomFeature',
         storyType: 'CustomStory',
+        taskType: 'CustomTask',
+        testTaskTitle: 'CustomTesting',
       };
 
       const mockStore = {
@@ -266,6 +276,8 @@ describe('settingsSecureStorage', () => {
         version: 1,
         featureType: 'CustomFeature',
         storyType: 'CustomStory',
+        taskType: 'CustomTask',
+        testTaskTitle: 'CustomTesting',
       });
     });
   });

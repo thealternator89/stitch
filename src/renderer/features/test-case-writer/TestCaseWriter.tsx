@@ -59,6 +59,28 @@ const convertToMarkdownTable = (tcList: TestCase[]): string => {
 const TestCaseWriter: React.FC = () => {
   const { showTimeout } = useTimeoutModal();
   const isMountedRef = useRef(true);
+  const [taskType, setTaskType] = useState('Task');
+  const [testTaskTitle, setTestTaskTitle] = useState('Testing');
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const settings = await window.electronAPI.getSettings();
+        if (settings) {
+          if (settings.taskType) {
+            setTaskType(settings.taskType);
+          }
+          if (settings.testTaskTitle) {
+            setTestTaskTitle(settings.testTaskTitle);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load settings in TestCaseWriter:', err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   const [ticketId, setTicketId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TicketData[]>([]);
@@ -165,8 +187,8 @@ const TestCaseWriter: React.FC = () => {
     try {
       const mdTable = convertToMarkdownTable(testCasesList);
       const text = generateTicketOrCommentText(mdTable);
-      await window.electronAPI.createTicket('Task', ticketId, {
-        title: 'BA Test',
+      await window.electronAPI.createTicket(taskType, ticketId, {
+        title: testTaskTitle,
         description: text,
       });
       alert('Task created successfully!');

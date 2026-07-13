@@ -2,6 +2,8 @@ export type AppSettings = {
   version?: number;
   featureType?: string;
   storyType?: string;
+  taskType?: string;
+  testTaskTitle?: string;
   azureOrg?: string;
   azureProject?: string;
   azurePat?: string;

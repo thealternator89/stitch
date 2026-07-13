@@ -13,6 +13,8 @@ const Settings: React.FC = () => {
   const [version, setVersion] = useState<number>(1);
   const [featureType, setFeatureType] = useState('Feature');
   const [storyType, setStoryType] = useState('Product Backlog Item');
+  const [taskType, setTaskType] = useState('Task');
+  const [testTaskTitle, setTestTaskTitle] = useState('Testing');
   const [azureOrg, setAzureOrg] = useState('');
   const [azureProject, setAzureProject] = useState('');
   const [azurePat, setAzurePat] = useState('');
@@ -64,6 +66,8 @@ const Settings: React.FC = () => {
           setVersion(settings.version || 1);
           setFeatureType(settings.featureType || 'Feature');
           setStoryType(settings.storyType || 'Product Backlog Item');
+          setTaskType(settings.taskType || 'Task');
+          setTestTaskTitle(settings.testTaskTitle || 'Testing');
           setAzureOrg(settings.azureOrg || '');
           setAzureProject(settings.azureProject || '');
           setAzurePat(settings.azurePat || '');
@@ -120,6 +124,8 @@ const Settings: React.FC = () => {
         version: version,
         featureType: featureType,
         storyType: storyType,
+        taskType: taskType,
+        testTaskTitle: testTaskTitle,
         azureOrg: azureOrg,
         azureProject: azureProject,
         azurePat: azurePat,
@@ -212,6 +218,10 @@ const Settings: React.FC = () => {
             setFeatureType={setFeatureType}
             storyType={storyType}
             setStoryType={setStoryType}
+            taskType={taskType}
+            setTaskType={setTaskType}
+            testTaskTitle={testTaskTitle}
+            setTestTaskTitle={setTestTaskTitle}
           />
         );
       case 'confluence':

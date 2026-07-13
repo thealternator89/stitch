@@ -129,6 +129,12 @@ export async function migrateStoredSettings(store: {
     if (updatedSettings.storyType === undefined) {
       updatedSettings.storyType = 'Product Backlog Item';
     }
+    if (updatedSettings.taskType === undefined) {
+      updatedSettings.taskType = 'Task';
+    }
+    if (updatedSettings.testTaskTitle === undefined) {
+      updatedSettings.testTaskTitle = 'Testing';
+    }
     needsWrite = true;
   }
 
