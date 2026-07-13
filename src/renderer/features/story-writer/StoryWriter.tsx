@@ -766,7 +766,7 @@ const StoryWriter: React.FC = () => {
                               ) : (
                                 <>
                                   <i className="fas fa-plus me-1"></i>
-                                  Create PBI
+                                  Create Story
                                 </>
                               )}
                             </button>
