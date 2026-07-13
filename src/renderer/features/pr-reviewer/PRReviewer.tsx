@@ -60,6 +60,10 @@ const PRReviewer: React.FC = () => {
   const [showDirtyModal, setShowDirtyModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [showNoPhasesModal, setShowNoPhasesModal] = useState(false);
+  const [editingCommentIndex, setEditingCommentIndex] = useState<number | null>(
+    null,
+  );
+  const [editedCommentText, setEditedCommentText] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState('');
   const [errorTitle, setErrorTitle] = useState('Fetch & Checkout Failed');
 
@@ -425,7 +429,11 @@ const PRReviewer: React.FC = () => {
     setCollapsedComments((prev) => ({ ...prev, [index]: true }));
   };
 
-  const handlePostComment = async (comment: ReviewComment, index: number) => {
+  const handlePostComment = async (
+    comment: ReviewComment,
+    index: number,
+    updatedText?: string,
+  ) => {
     if (!selectedPR) return;
 
     setIsPostingComment((prev) => ({ ...prev, [index]: true }));
@@ -433,20 +441,24 @@ const PRReviewer: React.FC = () => {
       const prIdentifier =
         activeTab === 'manual' ? manualPrUrlOrId : selectedPR.id;
 
+      const commentText =
+        updatedText !== undefined ? updatedText : comment.comment;
+
       await window.electronAPI.postPRComment(repoPath, prIdentifier, {
         type: comment.type,
         file: comment.file,
         line: comment.line,
-        comment: comment.comment,
+        comment: commentText,
       });
 
       // Mark as posted
       setComments((prev) => {
         const copy = [...prev];
-        copy[index] = { ...copy[index], posted: true };
+        copy[index] = { ...copy[index], comment: commentText, posted: true };
         return copy;
       });
       setCollapsedComments((prev) => ({ ...prev, [index]: true }));
+      setEditingCommentIndex(null);
     } catch (err: unknown) {
       console.error('Failed to post comment:', err);
       const msg = err instanceof Error ? err.message : String(err);
@@ -1370,25 +1382,38 @@ const PRReviewer: React.FC = () => {
                                       <i className="fas fa-eye-slash me-1"></i>
                                       Dismiss
                                     </button>
-                                    <button
-                                      className="btn btn-sm btn-primary"
-                                      onClick={() =>
-                                        handlePostComment(comment, index)
-                                      }
-                                      disabled={isPostingComment[index]}
-                                    >
-                                      {isPostingComment[index] ? (
-                                        <>
-                                          <span className="spinner-border spinner-border-sm me-1"></span>
-                                          Posting...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <i className="fas fa-paper-plane me-1"></i>
-                                          Post
-                                        </>
-                                      )}
-                                    </button>
+                                    <div className="btn-group" role="group">
+                                      <button
+                                        className="btn btn-sm btn-primary"
+                                        onClick={() =>
+                                          handlePostComment(comment, index)
+                                        }
+                                        disabled={isPostingComment[index]}
+                                      >
+                                        {isPostingComment[index] ? (
+                                          <>
+                                            <span className="spinner-border spinner-border-sm me-1"></span>
+                                            Posting...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <i className="fas fa-paper-plane me-1"></i>
+                                            Post
+                                          </>
+                                        )}
+                                      </button>
+                                      <button
+                                        className="btn btn-sm btn-primary"
+                                        onClick={() => {
+                                          setEditingCommentIndex(index);
+                                          setEditedCommentText(comment.comment);
+                                        }}
+                                        disabled={isPostingComment[index]}
+                                        title="Edit comment before posting"
+                                      >
+                                        <i className="fas fa-edit"></i>
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -1404,6 +1429,69 @@ const PRReviewer: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Comment Modal */}
+      {editingCommentIndex !== null && (
+        <div className="env-error-overlay">
+          <div
+            className="near-full-modal text-start"
+            style={{
+              textAlign: 'left',
+              alignItems: 'stretch',
+              padding: '30px',
+            }}
+          >
+            <h4 className="fw-semibold mb-3">Edit Comment</h4>
+            <div className="mb-4 flex-grow-1 d-flex flex-column">
+              <label className="form-label text-muted small fw-semibold">
+                Comment Content (Markdown Supported)
+              </label>
+              <textarea
+                className="form-control flex-grow-1"
+                rows={10}
+                style={{
+                  minHeight: '200px',
+                  fontFamily: 'var(--bs-font-monospace)',
+                }}
+                placeholder="Write your comment here..."
+                value={editedCommentText}
+                onChange={(e) => setEditedCommentText(e.target.value)}
+              />
+            </div>
+            <div className="d-flex justify-content-end gap-2 pt-2 border-top border-secondary-subtle">
+              <button
+                className="btn btn-sm btn-outline-secondary px-4"
+                onClick={() => setEditingCommentIndex(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-sm btn-primary px-4"
+                onClick={() =>
+                  handlePostComment(
+                    comments[editingCommentIndex],
+                    editingCommentIndex,
+                    editedCommentText,
+                  )
+                }
+                disabled={isPostingComment[editingCommentIndex]}
+              >
+                {isPostingComment[editingCommentIndex] ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-1"></span>
+                    Posting...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-paper-plane me-1"></i>
+                    Post
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Dirty Repository Modal */}
       {showDirtyModal && (
