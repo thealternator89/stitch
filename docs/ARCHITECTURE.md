@@ -45,7 +45,7 @@ locally on the machine.
   - Pushes AI-generated content as **Comments** (updating `System.History`).
   - Creates new **Tasks** linked to a parent ID via `Hierarchy-Reverse`
     relationships.
-  - Creates new **Product Backlog Items (PBIs)** linked to a Feature ID.
+  - Creates new user stories/work items (e.g. Product Backlog Items) linked to a parent Feature ID using customizable work item type settings.
   - Fetches details of a specific Pull Request (`gitApi.getPullRequestById`) or lists active pull requests for the project (`gitApi.getPullRequestsByProject`).
   - Fetches work item references linked to a Pull Request (`gitApi.getPullRequestWorkItemRefs`) to attach user stories as additional code review context.
   - Posts code review findings (both general and line-specific comments) to the PR as new active comment threads (`gitApi.createThread`) targeting precise file paths and line offsets with an AI disclaimer.
