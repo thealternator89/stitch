@@ -4,14 +4,26 @@ export type AppSettings = {
   storyType?: string;
   taskType?: string;
   testTaskTitle?: string;
-  azureOrg?: string;
-  azureProject?: string;
-  azurePat?: string;
+  connectors?: {
+    atlassian?: {
+      url?: string;
+      username?: string;
+      token?: string;
+    };
+    azureDevOps?: {
+      org?: string;
+      project?: string;
+      pat?: string;
+    };
+    [key: string]: Record<string, string | undefined> | undefined;
+  };
+  sources?: {
+    issues?: string;
+    code?: string;
+    docs?: string;
+  };
   copilotToken?: string;
   copilotModel?: string;
-  confluenceUrl?: string;
-  confluenceUser?: string;
-  confluenceToken?: string;
   theme?: 'auto' | 'light' | 'dark';
   gitWorktreeEnabled?: boolean;
   gitWorktreeBaseDir?: string;

@@ -107,22 +107,30 @@ describe('settingsSecureStorage', () => {
   describe('encryptSettings', () => {
     it('should encrypt secret settings and leave other settings intact', () => {
       const settings: AppSettings = {
-        azureOrg: 'my-org',
-        azurePat: 'pat-123',
         copilotToken: 'copilot-abc',
-        confluenceUrl: 'https://confluence',
-        confluenceToken: 'confluence-xyz',
+        connectors: {
+          atlassian: {
+            url: 'https://confluence',
+            token: 'confluence-xyz',
+          },
+          azureDevOps: {
+            org: 'my-org',
+            pat: 'pat-123',
+          },
+        },
       };
 
       const result = encryptSettings(settings);
-      expect(result.azureOrg).toBe('my-org');
-      expect(result.azurePat).toBe('secure:v1:bW9ja19lbmNfcGF0LTEyMw==');
       expect(result.copilotToken).toBe(
         'secure:v1:bW9ja19lbmNfY29waWxvdC1hYmM=',
       );
-      expect(result.confluenceUrl).toBe('https://confluence');
-      expect(result.confluenceToken).toBe(
+      expect(result.connectors?.atlassian?.url).toBe('https://confluence');
+      expect(result.connectors?.atlassian?.token).toBe(
         'secure:v1:bW9ja19lbmNfY29uZmx1ZW5jZS14eXo=',
+      );
+      expect(result.connectors?.azureDevOps?.org).toBe('my-org');
+      expect(result.connectors?.azureDevOps?.pat).toBe(
+        'secure:v1:bW9ja19lbmNfcGF0LTEyMw==',
       );
     });
   });
@@ -130,24 +138,30 @@ describe('settingsSecureStorage', () => {
   describe('decryptSettings', () => {
     it('should decrypt secret settings and leave other settings intact', () => {
       const settings: AppSettings = {
-        azureOrg: 'my-org',
-        azurePat: 'secure:v1:bW9ja19lbmNfcGF0LTEyMw==',
         copilotToken: 'secure:v1:bW9ja19lbmNfY29waWxvdC1hYmM=',
-        confluenceUrl: 'https://confluence',
-        confluenceToken: 'secure:v1:bW9ja19lbmNfY29uZmx1ZW5jZS14eXo=',
+        connectors: {
+          atlassian: {
+            url: 'https://confluence',
+            token: 'secure:v1:bW9ja19lbmNfY29uZmx1ZW5jZS14eXo=',
+          },
+          azureDevOps: {
+            org: 'my-org',
+            pat: 'secure:v1:bW9ja19lbmNfcGF0LTEyMw==',
+          },
+        },
       };
 
       const result = decryptSettings(settings);
-      expect(result.azureOrg).toBe('my-org');
-      expect(result.azurePat).toBe('pat-123');
       expect(result.copilotToken).toBe('copilot-abc');
-      expect(result.confluenceUrl).toBe('https://confluence');
-      expect(result.confluenceToken).toBe('confluence-xyz');
+      expect(result.connectors?.atlassian?.url).toBe('https://confluence');
+      expect(result.connectors?.atlassian?.token).toBe('confluence-xyz');
+      expect(result.connectors?.azureDevOps?.org).toBe('my-org');
+      expect(result.connectors?.azureDevOps?.pat).toBe('pat-123');
     });
   });
 
   describe('migrateStoredSettings', () => {
-    it('should migrate plain-text secrets in the store and populate version/types if encryption is available', async () => {
+    it('should migrate plain-text secrets in the store and populate version/types/connectors if encryption is available', async () => {
       const mockStoreSettings = {
         azureOrg: 'my-org',
         azurePat: 'pat-123',
@@ -163,27 +177,47 @@ describe('settingsSecureStorage', () => {
 
       expect(mockStore.get).toHaveBeenCalledWith('settings');
       expect(mockStore.set).toHaveBeenCalledWith('settings', {
-        azureOrg: 'my-org',
-        azurePat: 'secure:v1:bW9ja19lbmNfcGF0LTEyMw==',
         copilotToken: 'secure:v1:already-encrypted',
-        version: 1,
+        version: 2,
         featureType: 'Feature',
         storyType: 'Product Backlog Item',
         taskType: 'Task',
         testTaskTitle: 'Testing',
+        connectors: {
+          azureDevOps: {
+            org: 'my-org',
+            project: '',
+            pat: 'secure:v1:bW9ja19lbmNfcGF0LTEyMw==',
+          },
+        },
+        sources: {
+          issues: 'azureDevOps',
+          code: 'azureDevOps',
+          docs: 'atlassian',
+        },
       });
     });
 
-    it('should do nothing if all secrets are already encrypted and version is present', async () => {
+    it('should do nothing if all secrets are already encrypted and version is present (v2)', async () => {
       const mockStoreSettings = {
-        azureOrg: 'my-org',
-        azurePat: 'secure:v1:abc',
         copilotToken: 'secure:v1:xyz',
-        version: 1,
+        version: 2,
         featureType: 'Feature',
         storyType: 'Product Backlog Item',
         taskType: 'Task',
         testTaskTitle: 'Testing',
+        connectors: {
+          azureDevOps: {
+            org: 'my-org',
+            project: 'my-proj',
+            pat: 'secure:v1:bW9ja19lbmNfYWJj',
+          },
+        },
+        sources: {
+          issues: 'azureDevOps',
+          code: 'azureDevOps',
+          docs: 'atlassian',
+        },
       };
 
       const mockStore = {
@@ -195,7 +229,7 @@ describe('settingsSecureStorage', () => {
       expect(mockStore.set).not.toHaveBeenCalled();
     });
 
-    it('should do nothing (regarding encryption) if encryption is not available, but should still migrate version if missing', async () => {
+    it('should do nothing (regarding encryption) if encryption is not available, but should still migrate version to v2 if missing', async () => {
       mockSafeStorage.isEncryptionAvailable.mockReturnValue(false);
       const mockStoreSettings = {
         azureOrg: 'my-org',
@@ -209,13 +243,23 @@ describe('settingsSecureStorage', () => {
 
       await migrateStoredSettings(mockStore);
       expect(mockStore.set).toHaveBeenCalledWith('settings', {
-        azureOrg: 'my-org',
-        azurePat: 'pat-123',
-        version: 1,
+        version: 2,
         featureType: 'Feature',
         storyType: 'Product Backlog Item',
         taskType: 'Task',
         testTaskTitle: 'Testing',
+        connectors: {
+          azureDevOps: {
+            org: 'my-org',
+            project: '',
+            pat: 'pat-123',
+          },
+        },
+        sources: {
+          issues: 'azureDevOps',
+          code: 'azureDevOps',
+          docs: 'atlassian',
+        },
       });
     });
 
@@ -229,10 +273,10 @@ describe('settingsSecureStorage', () => {
       expect(mockStore.set).not.toHaveBeenCalled();
     });
 
-    it('should migrate settings and populate version and default types if version is missing', async () => {
+    it('should migrate settings to v2 and populate version and default types if version is missing', async () => {
       const mockStoreSettings = {
         azureOrg: 'my-org',
-        azurePat: 'secure:v1:abc',
+        azurePat: 'secure:v1:bW9ja19lbmNfYWJj',
       };
 
       const mockStore = {
@@ -243,20 +287,30 @@ describe('settingsSecureStorage', () => {
       await migrateStoredSettings(mockStore);
 
       expect(mockStore.set).toHaveBeenCalledWith('settings', {
-        azureOrg: 'my-org',
-        azurePat: 'secure:v1:abc',
-        version: 1,
+        version: 2,
         featureType: 'Feature',
         storyType: 'Product Backlog Item',
         taskType: 'Task',
         testTaskTitle: 'Testing',
+        connectors: {
+          azureDevOps: {
+            org: 'my-org',
+            project: '',
+            pat: 'secure:v1:bW9ja19lbmNfYWJj',
+          },
+        },
+        sources: {
+          issues: 'azureDevOps',
+          code: 'azureDevOps',
+          docs: 'atlassian',
+        },
       });
     });
 
     it('should not overwrite existing custom work item types during migration', async () => {
       const mockStoreSettings = {
         azureOrg: 'my-org',
-        azurePat: 'secure:v1:abc',
+        azurePat: 'secure:v1:bW9ja19lbmNfYWJj',
         featureType: 'CustomFeature',
         storyType: 'CustomStory',
         taskType: 'CustomTask',
@@ -271,13 +325,23 @@ describe('settingsSecureStorage', () => {
       await migrateStoredSettings(mockStore);
 
       expect(mockStore.set).toHaveBeenCalledWith('settings', {
-        azureOrg: 'my-org',
-        azurePat: 'secure:v1:abc',
-        version: 1,
+        version: 2,
         featureType: 'CustomFeature',
         storyType: 'CustomStory',
         taskType: 'CustomTask',
         testTaskTitle: 'CustomTesting',
+        connectors: {
+          azureDevOps: {
+            org: 'my-org',
+            project: '',
+            pat: 'secure:v1:bW9ja19lbmNfYWJj',
+          },
+        },
+        sources: {
+          issues: 'azureDevOps',
+          code: 'azureDevOps',
+          docs: 'atlassian',
+        },
       });
     });
   });
