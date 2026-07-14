@@ -447,8 +447,9 @@ export class PRReviewerService {
     settings: AppSettings,
   ): Promise<PRMetadata> {
     let prNumber = parseInt(prUrlOrId);
-    let org = settings.azureOrg || '';
-    let project = settings.azureProject || '';
+    const azureConn = settings.connectors?.azureDevOps;
+    let org = azureConn?.org || '';
+    let project = azureConn?.project || '';
 
     const parsedUrl = this.parsePRUrl(prUrlOrId);
     if (parsedUrl) {
@@ -480,7 +481,7 @@ export class PRReviewerService {
       );
     }
 
-    const pat = settings.azurePat;
+    const pat = settings.connectors?.azureDevOps?.pat;
     if (!pat) {
       throw new Error(
         'Azure DevOps PAT token is missing. Please configure it in Settings.',
@@ -533,9 +534,10 @@ export class PRReviewerService {
     searchType: 'assigned' | 'created' | 'all',
     settings: AppSettings,
   ): Promise<PRMetadata[]> {
-    const org = settings.azureOrg || '';
-    const project = settings.azureProject || '';
-    const pat = settings.azurePat;
+    const azureConn = settings.connectors?.azureDevOps;
+    const org = azureConn?.org || '';
+    const project = azureConn?.project || '';
+    const pat = azureConn?.pat;
 
     if (!org) {
       throw new Error(
@@ -914,14 +916,15 @@ export class PRReviewerService {
       ) {
         try {
           const prNumber = parseInt(prDetails.id);
-          let org = settings.azureOrg || '';
-          let project = settings.azureProject || '';
+          const azureConn = settings.connectors?.azureDevOps;
+          let org = azureConn?.org || '';
+          let project = azureConn?.project || '';
           const parsedUrl = this.parsePRUrl(options.prId);
           if (parsedUrl) {
             org = parsedUrl.org;
             project = parsedUrl.project;
           }
-          const pat = settings.azurePat;
+          const pat = azureConn?.pat;
           if (pat && org && project) {
             const orgUrl = this.getOrgUrl(org);
             const authHandler = azdev.getPersonalAccessTokenHandler(pat);
@@ -1307,8 +1310,9 @@ export class PRReviewerService {
     settings: AppSettings,
   ): Promise<void> {
     let prNumber = parseInt(prUrlOrId);
-    let org = settings.azureOrg || '';
-    let project = settings.azureProject || '';
+    const azureConn = settings.connectors?.azureDevOps;
+    let org = azureConn?.org || '';
+    let project = azureConn?.project || '';
 
     const parsedUrl = this.parsePRUrl(prUrlOrId);
     if (parsedUrl) {
@@ -1340,7 +1344,7 @@ export class PRReviewerService {
       );
     }
 
-    const pat = settings.azurePat;
+    const pat = settings.connectors?.azureDevOps?.pat;
     if (!pat) {
       throw new Error(
         'Azure DevOps PAT token is missing. Please configure it in Settings.',

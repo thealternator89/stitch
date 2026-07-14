@@ -3,8 +3,6 @@ import { AppSettings } from '../../types';
 
 const ENCRYPT_PREFIX = 'secure:v1:';
 
-const SECRET_KEYS = ['azurePat', 'copilotToken', 'confluenceToken'] as const;
-
 /**
  * Encrypts a single secret string using safeStorage if available.
  */
@@ -65,12 +63,31 @@ export function decryptSecret(
 export function encryptSettings(settings: AppSettings): AppSettings {
   if (!settings) return settings;
   const encryptedSettings = { ...settings };
-  for (const key of SECRET_KEYS) {
-    const val = settings[key];
-    if (typeof val === 'string') {
-      encryptedSettings[key] = encryptSecret(val);
+
+  // Encrypt copilotToken (still top-level)
+  if (typeof encryptedSettings.copilotToken === 'string') {
+    encryptedSettings.copilotToken = encryptSecret(
+      encryptedSettings.copilotToken,
+    );
+  }
+
+  // Encrypt nested connector secrets
+  if (encryptedSettings.connectors) {
+    encryptedSettings.connectors = { ...encryptedSettings.connectors };
+    for (const key of Object.keys(encryptedSettings.connectors)) {
+      const conn = encryptedSettings.connectors[key];
+      if (conn && typeof conn === 'object') {
+        const encryptedConn = { ...conn };
+        for (const secretKey of ['token', 'pat', 'password', 'secret']) {
+          if (typeof encryptedConn[secretKey] === 'string') {
+            encryptedConn[secretKey] = encryptSecret(encryptedConn[secretKey]);
+          }
+        }
+        encryptedSettings.connectors[key] = encryptedConn;
+      }
     }
   }
+
   return encryptedSettings;
 }
 
@@ -80,12 +97,31 @@ export function encryptSettings(settings: AppSettings): AppSettings {
 export function decryptSettings(settings: AppSettings): AppSettings {
   if (!settings) return settings;
   const decryptedSettings = { ...settings };
-  for (const key of SECRET_KEYS) {
-    const val = settings[key];
-    if (typeof val === 'string') {
-      decryptedSettings[key] = decryptSecret(val);
+
+  // Decrypt copilotToken
+  if (typeof decryptedSettings.copilotToken === 'string') {
+    decryptedSettings.copilotToken = decryptSecret(
+      decryptedSettings.copilotToken,
+    );
+  }
+
+  // Decrypt nested connector secrets
+  if (decryptedSettings.connectors) {
+    decryptedSettings.connectors = { ...decryptedSettings.connectors };
+    for (const key of Object.keys(decryptedSettings.connectors)) {
+      const conn = decryptedSettings.connectors[key];
+      if (conn && typeof conn === 'object') {
+        const decryptedConn = { ...conn };
+        for (const secretKey of ['token', 'pat', 'password', 'secret']) {
+          if (typeof decryptedConn[secretKey] === 'string') {
+            decryptedConn[secretKey] = decryptSecret(decryptedConn[secretKey]);
+          }
+        }
+        decryptedSettings.connectors[key] = decryptedConn;
+      }
     }
   }
+
   return decryptedSettings;
 }
 
@@ -97,28 +133,12 @@ export async function migrateStoredSettings(store: {
   set(key: string, value: unknown): void;
 }): Promise<void> {
   if (!store) return;
-  const rawSettings = store.get('settings') as AppSettings | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawSettings = store.get('settings') as any;
   if (!rawSettings) return;
 
   let needsWrite = false;
-  const updatedSettings = { ...rawSettings };
-
-  for (const key of SECRET_KEYS) {
-    const val = rawSettings[key];
-    if (typeof val === 'string' && val && !val.startsWith(ENCRYPT_PREFIX)) {
-      if (
-        safeStorage &&
-        safeStorage.isEncryptionAvailable &&
-        safeStorage.isEncryptionAvailable()
-      ) {
-        const encrypted = encryptSecret(val);
-        if (encrypted && encrypted.startsWith(ENCRYPT_PREFIX)) {
-          updatedSettings[key] = encrypted;
-          needsWrite = true;
-        }
-      }
-    }
-  }
+  const updatedSettings = JSON.parse(JSON.stringify(rawSettings));
 
   // Version 1 Migration: populate featureType and storyType defaults if missing
   if (updatedSettings.version === undefined || updatedSettings.version < 1) {
@@ -136,6 +156,105 @@ export async function migrateStoredSettings(store: {
       updatedSettings.testTaskTitle = 'Testing';
     }
     needsWrite = true;
+  }
+
+  // Version 2 Migration: migrate to connectors system
+  if (updatedSettings.version < 2) {
+    updatedSettings.version = 2;
+
+    if (!updatedSettings.connectors) {
+      updatedSettings.connectors = {};
+    }
+    if (!updatedSettings.sources) {
+      updatedSettings.sources = {
+        issues: 'azureDevOps',
+        code: 'azureDevOps',
+        docs: 'atlassian',
+      };
+    }
+
+    // Confluence
+    const confluenceTokenDecrypted = decryptSecret(
+      updatedSettings.confluenceToken,
+    );
+    if (
+      updatedSettings.confluenceUrl !== undefined ||
+      updatedSettings.confluenceUser !== undefined ||
+      confluenceTokenDecrypted !== undefined
+    ) {
+      updatedSettings.connectors.atlassian = {
+        url: updatedSettings.confluenceUrl ?? '',
+        username: updatedSettings.confluenceUser ?? '',
+        token: confluenceTokenDecrypted ?? '',
+      };
+    }
+
+    // Azure DevOps
+    const azurePatDecrypted = decryptSecret(updatedSettings.azurePat);
+    if (
+      updatedSettings.azureOrg !== undefined ||
+      updatedSettings.azureProject !== undefined ||
+      azurePatDecrypted !== undefined
+    ) {
+      updatedSettings.connectors.azureDevOps = {
+        org: updatedSettings.azureOrg ?? '',
+        project: updatedSettings.azureProject ?? '',
+        pat: azurePatDecrypted ?? '',
+      };
+    }
+
+    // Delete legacy top-level properties
+    delete updatedSettings.confluenceUrl;
+    delete updatedSettings.confluenceUser;
+    delete updatedSettings.confluenceToken;
+    delete updatedSettings.azureOrg;
+    delete updatedSettings.azureProject;
+    delete updatedSettings.azurePat;
+
+    needsWrite = true;
+  }
+
+  // Plain text secrets encryption check for connectors & copilotToken
+  if (
+    safeStorage &&
+    safeStorage.isEncryptionAvailable &&
+    safeStorage.isEncryptionAvailable()
+  ) {
+    // Encrypt copilotToken if plain text
+    if (
+      typeof updatedSettings.copilotToken === 'string' &&
+      updatedSettings.copilotToken &&
+      !updatedSettings.copilotToken.startsWith(ENCRYPT_PREFIX)
+    ) {
+      const encrypted = encryptSecret(updatedSettings.copilotToken);
+      if (encrypted && encrypted.startsWith(ENCRYPT_PREFIX)) {
+        updatedSettings.copilotToken = encrypted;
+        needsWrite = true;
+      }
+    }
+
+    // Encrypt connector secrets if plain text
+    if (updatedSettings.connectors) {
+      for (const key of Object.keys(updatedSettings.connectors)) {
+        const conn = updatedSettings.connectors[key];
+        if (conn && typeof conn === 'object') {
+          for (const secretKey of ['token', 'pat', 'password', 'secret']) {
+            const val = conn[secretKey];
+            if (
+              typeof val === 'string' &&
+              val &&
+              !val.startsWith(ENCRYPT_PREFIX)
+            ) {
+              const encrypted = encryptSecret(val);
+              if (encrypted && encrypted.startsWith(ENCRYPT_PREFIX)) {
+                conn[secretKey] = encrypted;
+                needsWrite = true;
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   if (needsWrite) {

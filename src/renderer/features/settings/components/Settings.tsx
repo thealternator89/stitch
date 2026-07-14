@@ -68,13 +68,15 @@ const Settings: React.FC = () => {
           setStoryType(settings.storyType || 'Product Backlog Item');
           setTaskType(settings.taskType || 'Task');
           setTestTaskTitle(settings.testTaskTitle || 'Testing');
-          setAzureOrg(settings.azureOrg || '');
-          setAzureProject(settings.azureProject || '');
-          setAzurePat(settings.azurePat || '');
+          const azureConn = settings.connectors?.azureDevOps;
+          const atlassianConn = settings.connectors?.atlassian;
+          setAzureOrg(azureConn?.org || '');
+          setAzureProject(azureConn?.project || '');
+          setAzurePat(azureConn?.pat || '');
           setCopilotToken(settings.copilotToken || '');
-          setConfluenceUrl(settings.confluenceUrl || '');
-          setConfluenceUser(settings.confluenceUser || '');
-          setConfluenceToken(settings.confluenceToken || '');
+          setConfluenceUrl(atlassianConn?.url || '');
+          setConfluenceUser(atlassianConn?.username || '');
+          setConfluenceToken(atlassianConn?.token || '');
           setTheme(settings.theme || 'auto');
           setGitWorktreeEnabled(settings.gitWorktreeEnabled || false);
           setGitWorktreeBaseDir(settings.gitWorktreeBaseDir || '');
@@ -126,18 +128,29 @@ const Settings: React.FC = () => {
         storyType: storyType,
         taskType: taskType,
         testTaskTitle: testTaskTitle,
-        azureOrg: azureOrg,
-        azureProject: azureProject,
-        azurePat: azurePat,
         copilotToken: copilotToken,
         copilotModel: selectedModel,
-        confluenceUrl: confluenceUrl,
-        confluenceUser: confluenceUser,
-        confluenceToken: confluenceToken,
         theme: theme,
         gitWorktreeEnabled: gitWorktreeEnabled,
         gitWorktreeBaseDir: gitWorktreeBaseDir,
         maxParallelism: maxParallelism,
+        connectors: {
+          atlassian: {
+            url: confluenceUrl,
+            username: confluenceUser,
+            token: confluenceToken,
+          },
+          azureDevOps: {
+            org: azureOrg,
+            project: azureProject,
+            pat: azurePat,
+          },
+        },
+        sources: {
+          issues: 'azureDevOps',
+          code: 'azureDevOps',
+          docs: 'atlassian',
+        },
         prompts: {
           storyWriter: {
             general: storyGeneral,

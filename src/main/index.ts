@@ -174,11 +174,14 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
 async function getAzureService(): Promise<IssueTrackerProvider> {
   if (!azureService) {
     const settings = await getDecryptedSettings();
-    const { azureOrg, azurePat } = trimProperties(settings) as AppSettings;
-    if (!azureOrg || !azurePat) {
+    const sanitized = trimProperties(settings) as AppSettings;
+    const azureConn = sanitized.connectors?.azureDevOps;
+    const org = azureConn?.org;
+    const pat = azureConn?.pat;
+    if (!org || !pat) {
       throw new Error('Azure DevOps settings are missing.');
     }
-    azureService = new AzureDevOpsService(azureOrg, azurePat);
+    azureService = new AzureDevOpsService(org, pat);
   }
   return azureService;
 }
@@ -220,19 +223,17 @@ ipcMain.handle(
 async function getConfluenceService(): Promise<DocumentationProvider> {
   if (!confluenceService) {
     const settings = await getDecryptedSettings();
-    const { confluenceUrl, confluenceUser, confluenceToken } = trimProperties(
-      settings,
-    ) as AppSettings;
+    const sanitized = trimProperties(settings) as AppSettings;
+    const atlassianConn = sanitized.connectors?.atlassian;
+    const url = atlassianConn?.url;
+    const user = atlassianConn?.username;
+    const token = atlassianConn?.token;
 
-    if (!confluenceUrl || !confluenceToken) {
+    if (!url || !token) {
       throw new Error('Confluence URL and Token are required.');
     }
 
-    confluenceService = new ConfluenceService(
-      confluenceUrl,
-      confluenceUser,
-      confluenceToken,
-    );
+    confluenceService = new ConfluenceService(url, user || '', token);
   }
   return confluenceService;
 }

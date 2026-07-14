@@ -162,9 +162,13 @@ describe('PRReviewerService', () => {
 
   describe('getPRDetails', () => {
     const settings = {
-      azureOrg: 'conf-org',
-      azureProject: 'conf-proj',
-      azurePat: 'conf-pat',
+      connectors: {
+        azureDevOps: {
+          org: 'conf-org',
+          project: 'conf-proj',
+          pat: 'conf-pat',
+        },
+      },
     };
 
     it('should fetch PR details successfully using settings when given numeric ID', async () => {
@@ -299,9 +303,13 @@ describe('PRReviewerService', () => {
 
   describe('getProjectPRs', () => {
     const settings = {
-      azureOrg: 'conf-org',
-      azureProject: 'conf-proj',
-      azurePat: 'conf-pat',
+      connectors: {
+        azureDevOps: {
+          org: 'conf-org',
+          project: 'conf-proj',
+          pat: 'conf-pat',
+        },
+      },
     };
 
     it('should query pull requests for project and return mapped results', async () => {
@@ -765,9 +773,13 @@ describe('PRReviewerService', () => {
       const localSettings = {
         copilotToken: 'mock-token',
         copilotModel: 'mock-model',
-        azureOrg: 'conf-org',
-        azureProject: 'conf-proj',
-        azurePat: 'conf-pat',
+        connectors: {
+          azureDevOps: {
+            org: 'conf-org',
+            project: 'conf-proj',
+            pat: 'conf-pat',
+          },
+        },
       };
 
       const onLineCallback = vi.fn();
@@ -854,9 +866,13 @@ describe('PRReviewerService', () => {
       const localSettings = {
         copilotToken: 'mock-token',
         copilotModel: 'mock-model',
-        azureOrg: 'conf-org',
-        azureProject: 'conf-proj',
-        azurePat: 'conf-pat',
+        connectors: {
+          azureDevOps: {
+            org: 'conf-org',
+            project: 'conf-proj',
+            pat: 'conf-pat',
+          },
+        },
       };
 
       const onLineCallback = vi.fn();
@@ -930,9 +946,13 @@ describe('PRReviewerService', () => {
 
   describe('postPRComment', () => {
     const settings = {
-      azurePat: 'mock-token',
-      azureOrg: 'mock-org',
-      azureProject: 'mock-project',
+      connectors: {
+        azureDevOps: {
+          org: 'mock-org',
+          project: 'mock-project',
+          pat: 'mock-token',
+        },
+      },
       promptComplexity: 'normal',
     };
 
