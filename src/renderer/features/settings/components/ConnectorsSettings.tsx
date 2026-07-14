@@ -113,6 +113,13 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
     setLocalConfluenceToken(confluenceToken);
   }, [confluenceUrl, confluenceUser, confluenceToken]);
 
+  // Load work item types if credentials exist when opening Azure Modal
+  useEffect(() => {
+    if (showAzureModal && localAzureOrg && localAzurePat && localAzureProject) {
+      fetchWorkItemTypes();
+    }
+  }, [showAzureModal]);
+
   // Is Connector Configured?
   const isAzureConfigured = azureOrg && azurePat;
   const isConfluenceConfigured = confluenceUrl && confluenceToken;
@@ -212,55 +219,63 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
 
           <div className="row g-3">
             {/* Azure DevOps Connector Card */}
-            <div className="col-12 col-md-6">
-              <div className="card h-100 border bg-light-subtle">
-                <div className="card-body d-flex flex-column">
-                  <div className="d-flex justify-content-between align-items-start mb-3">
-                    <div className="d-flex align-items-center gap-2">
-                      <div
-                        className="d-flex align-items-center justify-content-center rounded bg-primary-subtle text-primary"
-                        style={{ width: '40px', height: '40px' }}
-                      >
-                        <i className="fab fa-microsoft fa-lg"></i>
-                      </div>
-                      <div>
-                        <h6 className="mb-0 fw-bold">Azure DevOps</h6>
-                        <span className="text-muted small">
-                          Issues, Code, and Pull Requests
-                        </span>
-                      </div>
+            <div className="col-12">
+              <div className="card border bg-light-subtle">
+                <div className="card-body d-flex align-items-center justify-content-between py-3">
+                  {/* Left side: Icon & Details */}
+                  <div className="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
+                    <div
+                      className="d-flex align-items-center justify-content-center rounded bg-primary-subtle text-primary"
+                      style={{ width: '45px', height: '45px', flexShrink: 0 }}
+                    >
+                      <i className="fab fa-microsoft fa-lg"></i>
                     </div>
-                    {isAzureConfigured ? (
-                      <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                        Connected
-                      </span>
-                    ) : (
-                      <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
-                        Not Connected
-                      </span>
-                    )}
+                    <div
+                      className="flex-grow-1 min-w-0"
+                      style={{ maxWidth: '500px' }}
+                    >
+                      <div className="d-flex align-items-center gap-2 mb-1">
+                        <h6 className="mb-0 fw-bold">Azure DevOps</h6>
+                        {isAzureConfigured ? (
+                          <span
+                            className="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Connected
+                          </span>
+                        ) : (
+                          <span
+                            className="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0.5"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Not Connected
+                          </span>
+                        )}
+                      </div>
+                      {isAzureConfigured && (
+                        <div className="text-muted small mt-1">
+                          <div className="text-truncate">
+                            <strong>Org:</strong> {azureOrg}
+                          </div>
+                          <div className="text-truncate">
+                            <strong>Project:</strong> {azureProject}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {isAzureConfigured && (
-                    <div className="bg-body-tertiary rounded p-2 mb-3 small">
-                      <div className="text-truncate">
-                        <strong>Org:</strong> {azureOrg}
-                      </div>
-                      <div className="text-truncate">
-                        <strong>Project:</strong> {azureProject}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mt-auto pt-2 d-flex gap-2">
+                  {/* Right side: Action Buttons */}
+                  <div className="d-flex gap-2 align-items-center ms-3">
                     {isAzureConfigured ? (
                       <>
                         <button
                           type="button"
-                          className="btn btn-outline-secondary btn-sm flex-grow-1"
+                          className="btn btn-outline-secondary btn-sm px-3"
                           onClick={handleOpenAzureModal}
+                          title="Edit Azure DevOps Connection"
                         >
-                          <i className="fas fa-edit me-1"></i> Edit
+                          <i className="fas fa-edit"></i>
                         </button>
                         <button
                           type="button"
@@ -274,7 +289,7 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                     ) : (
                       <button
                         type="button"
-                        className="btn btn-primary btn-sm w-100"
+                        className="btn btn-primary btn-sm px-4"
                         onClick={handleOpenAzureModal}
                       >
                         <i className="fas fa-link me-1"></i> Connect
@@ -285,64 +300,72 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
               </div>
             </div>
 
-            {/* Confluence Connector Card */}
-            <div className="col-12 col-md-6">
-              <div className="card h-100 border bg-light-subtle">
-                <div className="card-body d-flex flex-column">
-                  <div className="d-flex justify-content-between align-items-start mb-3">
-                    <div className="d-flex align-items-center gap-2">
-                      <div
-                        className="d-flex align-items-center justify-content-center rounded bg-primary-subtle text-primary"
-                        style={{ width: '40px', height: '40px' }}
-                      >
-                        <i className="fas fa-book fa-lg"></i>
-                      </div>
-                      <div>
-                        <h6 className="mb-0 fw-bold">Confluence</h6>
-                        <span className="text-muted small">
-                          Requirements & Documentation
-                        </span>
-                      </div>
+            {/* Confluence/Atlassian Connector Card */}
+            <div className="col-12">
+              <div className="card border bg-light-subtle">
+                <div className="card-body d-flex align-items-center justify-content-between py-3">
+                  {/* Left side: Icon & Details */}
+                  <div className="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
+                    <div
+                      className="d-flex align-items-center justify-content-center rounded bg-primary-subtle text-primary"
+                      style={{ width: '45px', height: '45px', flexShrink: 0 }}
+                    >
+                      <i className="fas fa-book fa-lg"></i>
                     </div>
-                    {isConfluenceConfigured ? (
-                      <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                        Connected
-                      </span>
-                    ) : (
-                      <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
-                        Not Connected
-                      </span>
-                    )}
-                  </div>
-
-                  {isConfluenceConfigured && (
-                    <div className="bg-body-tertiary rounded p-2 mb-3 small">
-                      <div className="text-truncate">
-                        <strong>URL:</strong> {confluenceUrl}
+                    <div
+                      className="flex-grow-1 min-w-0"
+                      style={{ maxWidth: '500px' }}
+                    >
+                      <div className="d-flex align-items-center gap-2 mb-1">
+                        <h6 className="mb-0 fw-bold">Atlassian</h6>
+                        {isConfluenceConfigured ? (
+                          <span
+                            className="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Connected
+                          </span>
+                        ) : (
+                          <span
+                            className="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0.5"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Not Connected
+                          </span>
+                        )}
                       </div>
-                      {confluenceUser && (
-                        <div className="text-truncate">
-                          <strong>User:</strong> {confluenceUser}
+                      {isConfluenceConfigured && (
+                        <div className="text-muted small mt-1">
+                          <div className="text-truncate">
+                            <strong>URL:</strong> {confluenceUrl}
+                          </div>
+                          {confluenceUser && (
+                            <div className="text-truncate">
+                              <strong>User:</strong> {confluenceUser}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
 
-                  <div className="mt-auto pt-2 d-flex gap-2">
+                  {/* Right side: Action Buttons */}
+                  <div className="d-flex gap-2 align-items-center ms-3">
                     {isConfluenceConfigured ? (
                       <>
                         <button
                           type="button"
-                          className="btn btn-outline-secondary btn-sm flex-grow-1"
+                          className="btn btn-outline-secondary btn-sm px-3"
                           onClick={handleOpenConfluenceModal}
+                          title="Edit Atlassian Connection"
                         >
-                          <i className="fas fa-edit me-1"></i> Edit
+                          <i className="fas fa-edit"></i>
                         </button>
                         <button
                           type="button"
                           className="btn btn-outline-danger btn-sm px-3"
                           onClick={handleDisconnectConfluence}
-                          title="Disconnect Confluence"
+                          title="Disconnect Atlassian"
                         >
                           <i className="fas fa-unlink"></i>
                         </button>
@@ -350,7 +373,7 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                     ) : (
                       <button
                         type="button"
-                        className="btn btn-primary btn-sm w-100"
+                        className="btn btn-primary btn-sm px-4"
                         onClick={handleOpenConfluenceModal}
                       >
                         <i className="fas fa-link me-1"></i> Connect
@@ -362,24 +385,23 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
             </div>
 
             {/* GitHub Connector Card (Coming Soon) */}
-            <div className="col-12 col-md-6 opacity-75">
-              <div className="card h-100 border border-dashed bg-body-tertiary">
-                <div className="card-body d-flex flex-column justify-content-center py-4">
-                  <div className="d-flex align-items-center justify-content-between mb-2">
-                    <div className="d-flex align-items-center gap-2">
-                      <div
-                        className="d-flex align-items-center justify-content-center rounded bg-body text-muted"
-                        style={{ width: '40px', height: '40px' }}
-                      >
-                        <i className="fab fa-github fa-lg"></i>
-                      </div>
-                      <div>
+            <div className="col-12 opacity-75">
+              <div className="card border border-dashed bg-body-tertiary">
+                <div className="card-body d-flex align-items-center justify-content-between py-3">
+                  <div className="d-flex align-items-center gap-3">
+                    <div
+                      className="d-flex align-items-center justify-content-center rounded bg-body text-muted"
+                      style={{ width: '45px', height: '45px', flexShrink: 0 }}
+                    >
+                      <i className="fab fa-github fa-lg"></i>
+                    </div>
+                    <div>
+                      <div className="d-flex align-items-center gap-2 mb-1">
                         <h6 className="mb-0 fw-semibold text-muted">GitHub</h6>
-                        <span className="text-muted small">
-                          Code & PR Reviewer
-                        </span>
                       </div>
                     </div>
+                  </div>
+                  <div className="ms-3">
                     <span className="badge bg-secondary-subtle text-secondary px-2 py-1 small">
                       Coming Soon
                     </span>
@@ -389,24 +411,23 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
             </div>
 
             {/* Notion Connector Card (Coming Soon) */}
-            <div className="col-12 col-md-6 opacity-75">
-              <div className="card h-100 border border-dashed bg-body-tertiary">
-                <div className="card-body d-flex flex-column justify-content-center py-4">
-                  <div className="d-flex align-items-center justify-content-between mb-2">
-                    <div className="d-flex align-items-center gap-2">
-                      <div
-                        className="d-flex align-items-center justify-content-center rounded bg-body text-muted"
-                        style={{ width: '40px', height: '40px' }}
-                      >
-                        <i className="fas fa-file-invoice fa-lg"></i>
-                      </div>
-                      <div>
+            <div className="col-12 opacity-75">
+              <div className="card border border-dashed bg-body-tertiary">
+                <div className="card-body d-flex align-items-center justify-content-between py-3">
+                  <div className="d-flex align-items-center gap-3">
+                    <div
+                      className="d-flex align-items-center justify-content-center rounded bg-body text-muted"
+                      style={{ width: '45px', height: '45px', flexShrink: 0 }}
+                    >
+                      <i className="fas fa-file-invoice fa-lg"></i>
+                    </div>
+                    <div>
+                      <div className="d-flex align-items-center gap-2 mb-1">
                         <h6 className="mb-0 fw-semibold text-muted">Notion</h6>
-                        <span className="text-muted small">
-                          Workspaces & Docs
-                        </span>
                       </div>
                     </div>
+                  </div>
+                  <div className="ms-3">
                     <span className="badge bg-secondary-subtle text-secondary px-2 py-1 small">
                       Coming Soon
                     </span>
@@ -430,13 +451,13 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
             sources only support specific integrations.
           </p>
 
-          <div className="row g-3">
+          <div className="mt-2">
             {/* Issues Source */}
-            <div className="col-12 col-md-4">
-              <div className="mb-3">
-                <label className="form-label fw-semibold">
-                  Issues Tracker Source
-                </label>
+            <div className="row mb-3 align-items-center">
+              <label className="col-sm-4 form-label fw-semibold small mb-0">
+                Issues Tracker Source
+              </label>
+              <div className="col-sm-8">
                 <select
                   className="form-select"
                   value={issuesSource}
@@ -444,19 +465,18 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                 >
                   <option value="">None</option>
                   <option value="azureDevOps" disabled={!isAzureConfigured}>
-                    Azure DevOps {!isAzureConfigured ? '(Unconfigured)' : ''}
+                    Azure DevOps {!isAzureConfigured ? ' (Unconfigured)' : ''}
                   </option>
                 </select>
-                <div className="form-text small">
-                  Select where to fetch and sync work items/issues.
-                </div>
               </div>
             </div>
 
             {/* Code Source */}
-            <div className="col-12 col-md-4">
-              <div className="mb-3">
-                <label className="form-label fw-semibold">Code Source</label>
+            <div className="row mb-3 align-items-center">
+              <label className="col-sm-4 form-label fw-semibold small mb-0">
+                Code Source
+              </label>
+              <div className="col-sm-8">
                 <select
                   className="form-select"
                   value={codeSource}
@@ -464,21 +484,18 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                 >
                   <option value="">None</option>
                   <option value="azureDevOps" disabled={!isAzureConfigured}>
-                    Azure DevOps {!isAzureConfigured ? '(Unconfigured)' : ''}
+                    Azure DevOps {!isAzureConfigured ? ' (Unconfigured)' : ''}
                   </option>
                 </select>
-                <div className="form-text small">
-                  Select where repositories and pull requests reside.
-                </div>
               </div>
             </div>
 
             {/* Docs Source */}
-            <div className="col-12 col-md-4">
-              <div className="mb-3">
-                <label className="form-label fw-semibold">
-                  Documentation Source
-                </label>
+            <div className="row mb-3 align-items-center">
+              <label className="col-sm-4 form-label fw-semibold small mb-0">
+                Documentation Source
+              </label>
+              <div className="col-sm-8">
                 <select
                   className="form-select"
                   value={docsSource}
@@ -486,13 +503,9 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                 >
                   <option value="">None</option>
                   <option value="atlassian" disabled={!isConfluenceConfigured}>
-                    Confluence / Atlassian{' '}
-                    {!isConfluenceConfigured ? '(Unconfigured)' : ''}
+                    Atlassian {!isConfluenceConfigured ? ' (Unconfigured)' : ''}
                   </option>
                 </select>
-                <div className="form-text small">
-                  Select where product requirements/specs reside.
-                </div>
               </div>
             </div>
           </div>
@@ -520,43 +533,51 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                 Azure DevOps
               </h5>
 
-              <div className="mb-3">
-                <label className="form-label fw-semibold small">
-                  Organization URL
-                </label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="https://dev.azure.com/your-org"
-                  value={localAzureOrg}
-                  onChange={(e) => setLocalAzureOrg(e.target.value)}
-                />
-              </div>
+              <div className="mt-2">
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    Organization URL
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="https://dev.azure.com/your-org"
+                      value={localAzureOrg}
+                      onChange={(e) => setLocalAzureOrg(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-              <div className="mb-3">
-                <label className="form-label fw-semibold small">
-                  Project Name
-                </label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="YourProject"
-                  value={localAzureProject}
-                  onChange={(e) => setLocalAzureProject(e.target.value)}
-                />
-              </div>
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    Project Name
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="YourProject"
+                      value={localAzureProject}
+                      onChange={(e) => setLocalAzureProject(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-              <div className="mb-3">
-                <label className="form-label fw-semibold small">
-                  Personal Access Token (PAT)
-                </label>
-                <input
-                  type="password"
-                  className="form-control"
-                  value={localAzurePat}
-                  onChange={(e) => setLocalAzurePat(e.target.value)}
-                  placeholder="••••••••••••••••••••••••••••••••••••••••••••"
-                />
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    Personal Access Token (PAT)
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={localAzurePat}
+                      onChange={(e) => setLocalAzurePat(e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••••••••••••••"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Work Item Types inside Modal */}
@@ -596,53 +617,123 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                   </div>
                 )}
 
-                <div className="row g-2">
-                  <div className="col-6">
-                    <label className="form-label small">Feature Type</label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      list="work-item-types-list"
-                      value={localFeatureType}
-                      onChange={(e) => setLocalFeatureType(e.target.value)}
-                    />
+                <div className="mt-2">
+                  <div className="row mb-2 align-items-center">
+                    <label className="col-sm-4 form-label small mb-0">
+                      Feature Type
+                    </label>
+                    <div className="col-sm-8">
+                      {workItemTypes.length > 0 ? (
+                        <select
+                          className="form-select form-select-sm"
+                          value={localFeatureType}
+                          onChange={(e) => setLocalFeatureType(e.target.value)}
+                        >
+                          {!workItemTypes.includes(localFeatureType) && (
+                            <option value={localFeatureType}>
+                              {localFeatureType} (custom)
+                            </option>
+                          )}
+                          {workItemTypes.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="Feature"
+                          value={localFeatureType}
+                          onChange={(e) => setLocalFeatureType(e.target.value)}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="col-6">
-                    <label className="form-label small">Story Type</label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      list="work-item-types-list"
-                      value={localStoryType}
-                      onChange={(e) => setLocalStoryType(e.target.value)}
-                    />
+
+                  <div className="row mb-2 align-items-center">
+                    <label className="col-sm-4 form-label small mb-0">
+                      Story Type
+                    </label>
+                    <div className="col-sm-8">
+                      {workItemTypes.length > 0 ? (
+                        <select
+                          className="form-select form-select-sm"
+                          value={localStoryType}
+                          onChange={(e) => setLocalStoryType(e.target.value)}
+                        >
+                          {!workItemTypes.includes(localStoryType) && (
+                            <option value={localStoryType}>
+                              {localStoryType} (custom)
+                            </option>
+                          )}
+                          {workItemTypes.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="Product Backlog Item"
+                          value={localStoryType}
+                          onChange={(e) => setLocalStoryType(e.target.value)}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="col-6">
-                    <label className="form-label small">Task Type</label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      list="work-item-types-list"
-                      value={localTaskType}
-                      onChange={(e) => setLocalTaskType(e.target.value)}
-                    />
+
+                  <div className="row mb-2 align-items-center">
+                    <label className="col-sm-4 form-label small mb-0">
+                      Task Type
+                    </label>
+                    <div className="col-sm-8">
+                      {workItemTypes.length > 0 ? (
+                        <select
+                          className="form-select form-select-sm"
+                          value={localTaskType}
+                          onChange={(e) => setLocalTaskType(e.target.value)}
+                        >
+                          {!workItemTypes.includes(localTaskType) && (
+                            <option value={localTaskType}>
+                              {localTaskType} (custom)
+                            </option>
+                          )}
+                          {workItemTypes.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="Task"
+                          value={localTaskType}
+                          onChange={(e) => setLocalTaskType(e.target.value)}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="col-6">
-                    <label className="form-label small">Test Task Title</label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      value={localTestTaskTitle}
-                      onChange={(e) => setLocalTestTaskTitle(e.target.value)}
-                    />
+
+                  <div className="row mb-2 align-items-center">
+                    <label className="col-sm-4 form-label small mb-0">
+                      Test Task Title
+                    </label>
+                    <div className="col-sm-8">
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        value={localTestTaskTitle}
+                        onChange={(e) => setLocalTestTaskTitle(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
-
-                <datalist id="work-item-types-list">
-                  {workItemTypes.map((t) => (
-                    <option key={t} value={t} />
-                  ))}
-                </datalist>
               </div>
 
               <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
@@ -684,46 +775,54 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
 
               <h5 className="mb-4 fw-bold">
                 <i className="fas fa-book text-primary me-2"></i>Configure
-                Confluence
+                Atlassian
               </h5>
 
-              <div className="mb-3">
-                <label className="form-label fw-semibold small">
-                  Confluence URL
-                </label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="https://your-domain.atlassian.net/wiki"
-                  value={localConfluenceUrl}
-                  onChange={(e) => setLocalConfluenceUrl(e.target.value)}
-                />
-              </div>
+              <div className="mt-2">
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    Confluence URL
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="https://your-domain.atlassian.net/wiki"
+                      value={localConfluenceUrl}
+                      onChange={(e) => setLocalConfluenceUrl(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-              <div className="mb-3">
-                <label className="form-label fw-semibold small">
-                  Email / User (Optional)
-                </label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="user@example.com"
-                  value={localConfluenceUser}
-                  onChange={(e) => setLocalConfluenceUser(e.target.value)}
-                />
-              </div>
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    Email / User (Optional)
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="user@example.com"
+                      value={localConfluenceUser}
+                      onChange={(e) => setLocalConfluenceUser(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-              <div className="mb-3">
-                <label className="form-label fw-semibold small">
-                  API Token / PAT
-                </label>
-                <input
-                  type="password"
-                  className="form-control"
-                  value={localConfluenceToken}
-                  onChange={(e) => setLocalConfluenceToken(e.target.value)}
-                  placeholder="••••••••••••••••••••••••••••••••••••••••••••"
-                />
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    API Token / PAT
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={localConfluenceToken}
+                      onChange={(e) => setLocalConfluenceToken(e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••••••••••••••"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
