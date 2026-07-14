@@ -310,7 +310,7 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                       className="d-flex align-items-center justify-content-center rounded bg-primary-subtle text-primary"
                       style={{ width: '45px', height: '45px', flexShrink: 0 }}
                     >
-                      <i className="fas fa-book fa-lg"></i>
+                      <i className="fab fa-atlassian fa-lg"></i>
                     </div>
                     <div
                       className="flex-grow-1 min-w-0"
@@ -419,7 +419,7 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                       className="d-flex align-items-center justify-content-center rounded bg-body text-muted"
                       style={{ width: '45px', height: '45px', flexShrink: 0 }}
                     >
-                      <i className="fas fa-file-invoice fa-lg"></i>
+                      <i className="fab fa-notion fa-lg"></i>
                     </div>
                     <div>
                       <div className="d-flex align-items-center gap-2 mb-1">
@@ -774,7 +774,7 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
               ></button>
 
               <h5 className="mb-4 fw-bold">
-                <i className="fas fa-book text-primary me-2"></i>Configure
+                <i className="fab fa-atlassian text-primary me-2"></i>Configure
                 Atlassian
               </h5>
 
