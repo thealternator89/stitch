@@ -516,6 +516,9 @@ ipcMain.handle('create-ticket', async (event, type, parentTicketId, data) => {
   return service.createTicket(type, parentTicketId, data);
 });
 
+// Keep active notifications in memory to prevent garbage collection before click/close events fire
+const activeNotifications = new Set<Notification>();
+
 ipcMain.handle('show-notification', (event, title: string, body: string) => {
   const webContents = event.sender;
   const win = BrowserWindow.fromWebContents(webContents);
@@ -526,6 +529,8 @@ ipcMain.handle('show-notification', (event, title: string, body: string) => {
         body,
       });
 
+      activeNotifications.add(notification);
+
       notification.on('click', () => {
         if (win) {
           if (win.isMinimized()) {
@@ -534,6 +539,11 @@ ipcMain.handle('show-notification', (event, title: string, body: string) => {
           win.show();
           win.focus();
         }
+        activeNotifications.delete(notification);
+      });
+
+      notification.on('close', () => {
+        activeNotifications.delete(notification);
       });
 
       notification.show();
