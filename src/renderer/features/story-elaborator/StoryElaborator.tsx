@@ -68,6 +68,14 @@ const StoryElaborator: React.FC = () => {
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
 
+  const triggerNotification = (title: string, body: string) => {
+    if (!document.hasFocus()) {
+      window.electronAPI.showNotification(title, body).catch((err) => {
+        console.error('Failed to show notification:', err);
+      });
+    }
+  };
+
   // Debounced ticket search
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -205,12 +213,20 @@ const StoryElaborator: React.FC = () => {
             },
           ]);
           setCurrentSuggestions(data.suggestedAnswers || []);
+          triggerNotification(
+            'Elaborator Question',
+            `The agent has asked a question for ticket #${ticketId}.`,
+          );
         } else if (data.type === 'plan') {
           setPlanMarkdown(data.text);
           setPlanFilePath(data.filePath || '');
           setStage('plan_completed');
           setIsGenerating(false);
           setIsWaitingForUser(false);
+          triggerNotification(
+            'Elaboration Plan Completed',
+            `The agent has successfully written the plan for ticket #${ticketId}.`,
+          );
         }
       } catch (err) {
         console.warn('Failed to parse JSONL line:', trimmed, err);
@@ -245,6 +261,10 @@ const StoryElaborator: React.FC = () => {
       }
       setStage('idle');
       setIsGenerating(false);
+      triggerNotification(
+        'Elaboration Failed',
+        `Story elaboration failed for ticket #${ticketId}: ${errMsg}`,
+      );
     } finally {
       if (isMountedRef.current) {
         unsubscribeRef.current = unsubscribe;
@@ -282,6 +302,10 @@ const StoryElaborator: React.FC = () => {
         setError(errMsg);
       }
       setIsGenerating(false);
+      triggerNotification(
+        'Elaboration Error',
+        `Failed to send response: ${errMsg}`,
+      );
     }
   };
 
@@ -309,6 +333,10 @@ const StoryElaborator: React.FC = () => {
         setError(errMsg);
       }
       setIsGenerating(false);
+      triggerNotification(
+        'Elaboration Error',
+        `Failed to send response: ${errMsg}`,
+      );
     }
   };
 

@@ -195,5 +195,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       prUrlOrId,
       comment,
     ),
+  showNotification: (title: string, body: string): Promise<void> =>
+    ipcRenderer.invoke('show-notification', title, body),
   isWindows: process.platform === 'win32',
 });

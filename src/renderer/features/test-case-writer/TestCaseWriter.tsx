@@ -208,6 +208,14 @@ const TestCaseWriter: React.FC = () => {
       return;
     }
 
+    const triggerNotification = (title: string, body: string) => {
+      if (!document.hasFocus()) {
+        window.electronAPI.showNotification(title, body).catch((err) => {
+          console.error('Failed to show notification:', err);
+        });
+      }
+    };
+
     setError('');
     setIsGenerating(true);
     setGenerationStarted(true);
@@ -251,6 +259,10 @@ const TestCaseWriter: React.FC = () => {
         context,
         selectedModel,
       );
+      triggerNotification(
+        'Test Case Generation Complete',
+        `Stitch has successfully generated test cases for ticket #${fetchedTicket.id} ("${fetchedTicket.title}").`,
+      );
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
@@ -263,6 +275,10 @@ const TestCaseWriter: React.FC = () => {
       } else {
         setError(errMsg);
       }
+      triggerNotification(
+        'Test Case Generation Failed',
+        `Failed to generate test cases: ${errMsg}`,
+      );
     } finally {
       unsubscribe();
       if (isMountedRef.current) {

@@ -322,6 +322,14 @@ const PRReviewer: React.FC = () => {
   const handleStartReview = async () => {
     if (!selectedPR || !commitSha) return;
 
+    const triggerNotification = (title: string, body: string) => {
+      if (!document.hasFocus()) {
+        window.electronAPI.showNotification(title, body).catch((err) => {
+          console.error('Failed to show notification:', err);
+        });
+      }
+    };
+
     const activePhases = phases.filter((p) => p.enabled);
     const phaseWithTemplateError = activePhases.find((p) => p.templateError);
     if (phaseWithTemplateError) {
@@ -409,10 +417,18 @@ const PRReviewer: React.FC = () => {
         maxParallelism,
       );
       setHasReviewed(true);
+      triggerNotification(
+        'PR Review Complete',
+        `The review for PR #${selectedPR.id} ("${selectedPR.title}") has completed successfully.`,
+      );
     } catch (err: unknown) {
       console.error('Review execution failed:', err);
       const msg = err instanceof Error ? err.message : String(err);
       showError(msg);
+      triggerNotification(
+        'PR Review Failed',
+        `The review for PR #${selectedPR.id} ("${selectedPR.title}") failed to complete.`,
+      );
     } finally {
       setIsReviewing(false);
       unsubscribe();

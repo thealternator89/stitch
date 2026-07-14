@@ -173,6 +173,14 @@ const StoryWriter: React.FC = () => {
       return;
     }
 
+    const triggerNotification = (title: string, body: string) => {
+      if (!document.hasFocus()) {
+        window.electronAPI.showNotification(title, body).catch((err) => {
+          console.error('Failed to show notification:', err);
+        });
+      }
+    };
+
     setError('');
     setIsGenerating(true);
     setGenerationStarted(true);
@@ -217,6 +225,10 @@ const StoryWriter: React.FC = () => {
         context,
         selectedModel,
       );
+      triggerNotification(
+        'Story Generation Complete',
+        `Stitch has successfully generated stories for Confluence page "${fetchedPage.title}".`,
+      );
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
@@ -229,6 +241,10 @@ const StoryWriter: React.FC = () => {
       } else {
         setError(errMsg);
       }
+      triggerNotification(
+        'Story Generation Failed',
+        `Failed to generate stories: ${errMsg}`,
+      );
     } finally {
       unsubscribe();
       if (isMountedRef.current) {
