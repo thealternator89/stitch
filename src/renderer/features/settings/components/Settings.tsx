@@ -4,8 +4,7 @@ import PageLayout from '../../../components/PageLayout';
 import { CopilotAuth } from '../../../../types';
 
 import GeneralSettings from './GeneralSettings';
-import AzureSettings from './AzureSettings';
-import ConfluenceSettings from './ConfluenceSettings';
+import ConnectorsSettings from './ConnectorsSettings';
 import CopilotSettings from './CopilotSettings';
 import PromptSettings from './PromptSettings';
 
@@ -22,6 +21,9 @@ const Settings: React.FC = () => {
   const [confluenceUrl, setConfluenceUrl] = useState('');
   const [confluenceUser, setConfluenceUser] = useState('');
   const [confluenceToken, setConfluenceToken] = useState('');
+  const [issuesSource, setIssuesSource] = useState('azureDevOps');
+  const [codeSource, setCodeSource] = useState('azureDevOps');
+  const [docsSource, setDocsSource] = useState('atlassian');
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto');
   const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
   const [gitWorktreeBaseDir, setGitWorktreeBaseDir] = useState('');
@@ -34,7 +36,7 @@ const Settings: React.FC = () => {
     useCopilotModels();
 
   const [activeTab, setActiveTab] = useState<
-    'general' | 'azure' | 'confluence' | 'copilot' | 'prompts'
+    'general' | 'connectors' | 'copilot' | 'prompts'
   >('general');
 
   // Story Writer Custom Prompts
@@ -77,6 +79,9 @@ const Settings: React.FC = () => {
           setConfluenceUrl(atlassianConn?.url || '');
           setConfluenceUser(atlassianConn?.username || '');
           setConfluenceToken(atlassianConn?.token || '');
+          setIssuesSource(settings.sources?.issues || 'azureDevOps');
+          setCodeSource(settings.sources?.code || 'azureDevOps');
+          setDocsSource(settings.sources?.docs || 'atlassian');
           setTheme(settings.theme || 'auto');
           setGitWorktreeEnabled(settings.gitWorktreeEnabled || false);
           setGitWorktreeBaseDir(settings.gitWorktreeBaseDir || '');
@@ -147,9 +152,9 @@ const Settings: React.FC = () => {
           },
         },
         sources: {
-          issues: 'azureDevOps',
-          code: 'azureDevOps',
-          docs: 'atlassian',
+          issues: issuesSource,
+          code: codeSource,
+          docs: docsSource,
         },
         prompts: {
           storyWriter: {
@@ -218,9 +223,9 @@ const Settings: React.FC = () => {
             cpuCount={cpuCount}
           />
         );
-      case 'azure':
+      case 'connectors':
         return (
-          <AzureSettings
+          <ConnectorsSettings
             azureOrg={azureOrg}
             setAzureOrg={setAzureOrg}
             azureProject={azureProject}
@@ -235,17 +240,18 @@ const Settings: React.FC = () => {
             setTaskType={setTaskType}
             testTaskTitle={testTaskTitle}
             setTestTaskTitle={setTestTaskTitle}
-          />
-        );
-      case 'confluence':
-        return (
-          <ConfluenceSettings
             confluenceUrl={confluenceUrl}
             setConfluenceUrl={setConfluenceUrl}
             confluenceUser={confluenceUser}
             setConfluenceUser={setConfluenceUser}
             confluenceToken={confluenceToken}
             setConfluenceToken={setConfluenceToken}
+            issuesSource={issuesSource}
+            setIssuesSource={setIssuesSource}
+            codeSource={codeSource}
+            setCodeSource={setCodeSource}
+            docsSource={docsSource}
+            setDocsSource={setDocsSource}
           />
         );
       case 'copilot':
@@ -317,19 +323,11 @@ const Settings: React.FC = () => {
             </button>
             <button
               type="button"
-              className={`settings-nav-item ${activeTab === 'azure' ? 'active' : ''}`}
-              onClick={() => setActiveTab('azure')}
+              className={`settings-nav-item ${activeTab === 'connectors' ? 'active' : ''}`}
+              onClick={() => setActiveTab('connectors')}
             >
-              <i className="fab fa-microsoft"></i>
-              Azure DevOps
-            </button>
-            <button
-              type="button"
-              className={`settings-nav-item ${activeTab === 'confluence' ? 'active' : ''}`}
-              onClick={() => setActiveTab('confluence')}
-            >
-              <i className="fas fa-book"></i>
-              Confluence
+              <i className="fas fa-plug"></i>
+              Connectors
             </button>
             <button
               type="button"
