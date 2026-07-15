@@ -106,7 +106,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             </label>
             <p className="text-muted small mb-3">
               Choose how Stitch appears. Selecting "Auto" will sync with your
-              macOS system theme settings.
+              system theme settings.
             </p>
             <div
               className="btn-group"
