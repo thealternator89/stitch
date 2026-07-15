@@ -533,11 +533,11 @@ const PRReviewer: React.FC = () => {
                 <div className="d-flex align-items-center flex-wrap gap-3">
                   <div className="text-muted small">
                     <strong>Branches:</strong>{' '}
-                    <span className="font-monospace bg-light px-2 py-1 rounded">
+                    <span className="font-monospace bg-body-secondary text-body px-2 py-1 rounded border">
                       {selectedPR.sourceBranch}
                     </span>{' '}
                     &rarr;{' '}
-                    <span className="font-monospace bg-light px-2 py-1 rounded">
+                    <span className="font-monospace bg-body-secondary text-body px-2 py-1 rounded border">
                       {selectedPR.targetBranch}
                     </span>
                   </div>
