@@ -76,10 +76,11 @@ export class GitService {
         await this.runCommand(repoPath, 'git checkout FETCH_HEAD');
         const commitSha = await this.runCommand(repoPath, 'git rev-parse HEAD');
         return commitSha;
-      } catch (_fallbackError: unknown) {
+      } catch (fallbackError: unknown) {
         const errMsg = error instanceof Error ? error.message : String(error);
         throw new Error(
           `Failed to fetch and checkout PR #${prNumber}: ${errMsg}`,
+          { cause: fallbackError },
         );
       }
     }
@@ -147,6 +148,7 @@ export class GitService {
       const errMsg = error instanceof Error ? error.message : String(error);
       throw new Error(
         `Failed to get diff files against ${targetBranch}: ${errMsg}`,
+        { cause: error },
       );
     }
   }
@@ -164,7 +166,9 @@ export class GitService {
       );
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to get file diff for ${filePath}: ${errMsg}`);
+      throw new Error(`Failed to get file diff for ${filePath}: ${errMsg}`, {
+        cause: error,
+      });
     }
   }
 
@@ -207,9 +211,11 @@ export class GitService {
           `git fetch origin refs/pull/${prNumber}/head`,
         );
         return await this.runCommand(repoPath, 'git rev-parse FETCH_HEAD');
-      } catch (_fallbackError: unknown) {
+      } catch (fallbackError: unknown) {
         const errMsg = error instanceof Error ? error.message : String(error);
-        throw new Error(`Failed to fetch PR #${prNumber}: ${errMsg}`);
+        throw new Error(`Failed to fetch PR #${prNumber}: ${errMsg}`, {
+          cause: fallbackError,
+        });
       }
     }
   }

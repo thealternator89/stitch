@@ -2,6 +2,7 @@
   "compilerOptions": {
     "rootDir": "src",
     "target": "ES6",
+    "lib": ["ES2022", "DOM"],
     "allowJs": true,
     "module": "commonjs",
     "skipLibCheck": true,
