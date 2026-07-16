@@ -9,6 +9,7 @@ updates:
         patterns:
           - "eslint*"
           - "@eslint/*"
+          - "@eslint-community/*"
           - "@typescript-eslint/*"
       react-packages:
         patterns:
