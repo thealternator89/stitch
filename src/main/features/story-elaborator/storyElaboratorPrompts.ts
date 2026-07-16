@@ -9,7 +9,7 @@ export function buildStoryElaboratorPrompt(
 ): string {
   const customGeneral = settings.prompts?.storyElaborator?.general || '';
 
-  let repoInstructions = '';
+  let repoInstructions: string;
   if (hasRepo) {
     repoInstructions = `
 You have access to the local codebase of the project through your built-in tools (such as reading files and browsing directories).

@@ -526,7 +526,9 @@ export class PRReviewerService {
       };
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to fetch PR from Azure DevOps API: ${errMsg}`);
+      throw new Error(`Failed to fetch PR from Azure DevOps API: ${errMsg}`, {
+        cause: error,
+      });
     }
   }
 
@@ -609,7 +611,9 @@ export class PRReviewerService {
       });
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to query PRs from Azure DevOps: ${errMsg}`);
+      throw new Error(`Failed to query PRs from Azure DevOps: ${errMsg}`, {
+        cause: error,
+      });
     }
   }
 
@@ -1164,7 +1168,7 @@ export class PRReviewerService {
             : { workingDirectory: effectiveRepoPath };
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let clientAndSession: { client: any; session: any } | null = null;
+          let clientAndSession: { client: any; session: any } | null;
           try {
             clientAndSession = await this.copilotService.createClientAndSession(
               settings.copilotToken,
@@ -1406,7 +1410,9 @@ export class PRReviewerService {
       await gitApi.createThread(thread, repositoryId, prNumber, project);
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to create comment thread: ${errMsg}`);
+      throw new Error(`Failed to create comment thread: ${errMsg}`, {
+        cause: error,
+      });
     }
   }
 }
