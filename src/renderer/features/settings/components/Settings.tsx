@@ -194,7 +194,8 @@ const Settings: React.FC = () => {
       const res = await window.electronAPI.checkCopilotAuth();
       setAuthStatus(res);
     } catch (error) {
-      setAuthStatus({ error: error.message || 'Unknown error' });
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setAuthStatus({ error: errMsg });
     } finally {
       setCheckingAuth(false);
     }

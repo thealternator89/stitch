@@ -276,7 +276,7 @@ export async function checkEnvironment(): Promise<EnvironmentCheckResult> {
       nodeVersion: nodeResult.nodeVersion,
       minRequiredVersion: MIN_NODE_VERSION,
       errorType: copilotResult.errorType,
-      message: copilotResult.message,
+      message: copilotResult.message ?? null,
       requiredCopilotVersion: copilotResult.requiredVersion,
       installedCopilotVersion: copilotResult.installedVersion,
     };
@@ -324,9 +324,11 @@ export function getCopilotScriptPath(): string | null {
       const fallbackDir = path.join(dir, '@github', 'copilot');
       if (fs.existsSync(fallbackDir)) {
         const pkgInfo = getCopilotPackageInfo(fallbackDir);
-        const fallbackCandidate = path.join(fallbackDir, pkgInfo.binScript);
-        if (fs.existsSync(fallbackCandidate)) {
-          return fallbackCandidate;
+        if (pkgInfo) {
+          const fallbackCandidate = path.join(fallbackDir, pkgInfo.binScript);
+          if (fs.existsSync(fallbackCandidate)) {
+            return fallbackCandidate;
+          }
         }
       }
       const parent = path.dirname(dir);
