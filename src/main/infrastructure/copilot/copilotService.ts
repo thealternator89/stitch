@@ -1,6 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { CopilotModel, EnvironmentCheckResult } from '../../../types';
+import {
+  CopilotModel,
+  EnvironmentCheckResult,
+  CopilotUsage,
+} from '../../../types';
 import {
   checkEnvironment,
   getNodePath,
@@ -289,6 +293,14 @@ export class CopilotService {
     let resolvePromise: (value: string) => void;
     let rejectPromise: (reason: any) => void;
 
+    const sessionUsage: CopilotUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cost: 0,
+    };
+    session.usage = sessionUsage;
+
     const completionPromise = new Promise<string>((resolve, reject) => {
       resolvePromise = resolve;
       rejectPromise = reject;
@@ -322,6 +334,11 @@ export class CopilotService {
         }
       } else if (event.type === 'assistant.message') {
         lastAssistantMessage = event;
+      } else if (event.type === 'assistant.usage') {
+        sessionUsage.inputTokens += event.data?.inputTokens ?? 0;
+        sessionUsage.outputTokens += event.data?.outputTokens ?? 0;
+        sessionUsage.cacheReadTokens += event.data?.cacheReadTokens ?? 0;
+        sessionUsage.cost += event.data?.cost ?? 0;
       } else if (event.type === 'session.idle') {
         if (onLine && buffer.trim()) {
           buffer = parseResilientJSONL(buffer, onLine);
@@ -376,6 +393,14 @@ export class CopilotService {
         clearTimeout(timeoutId);
       }
       unsubscribe();
+
+      if (!session.isPrReviewer) {
+        console.log(`[Copilot Session Usage - ${session.label || 'Unknown'}]
+- Input tokens: ${sessionUsage.inputTokens}
+- Output tokens: ${sessionUsage.outputTokens}
+- Cached tokens: ${sessionUsage.cacheReadTokens}
+- Model multiplier (cost): ${sessionUsage.cost}`);
+      }
     }
   }
 }

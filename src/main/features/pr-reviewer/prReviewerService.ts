@@ -11,6 +11,7 @@ import {
   AppSettings,
   ReviewPhase,
   TicketData,
+  CopilotUsage,
 } from '../../../types';
 import { IssueTrackerProvider } from '../../infrastructure/providers/IssueTrackerProvider';
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
@@ -751,6 +752,7 @@ export class PRReviewerService {
       }
 
       const results: string[] = new Array(enabledPhases.length).fill('');
+      const phaseStats: { phaseTitle: string; usage: CopilotUsage }[] = [];
       let firstError: Error | null = null;
       let queueIndex = 0;
 
@@ -920,6 +922,8 @@ export class PRReviewerService {
           }
 
           const { client, session } = clientAndSession;
+          session.isPrReviewer = true;
+          session.label = `PR Reviewer Phase: ${phase.title}`;
 
           const attachDescription =
             phase.attach && phase.attach.toLowerCase().includes('description');
@@ -977,6 +981,24 @@ export class PRReviewerService {
               firstError = err as Error;
             }
           } finally {
+            const usage: CopilotUsage = session.usage ?? {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cost: 0,
+            };
+
+            phaseStats.push({
+              phaseTitle: phase.title,
+              usage,
+            });
+
+            console.log(`[Copilot PR Review - Phase Complete: "${phase.title}"]
+- Input tokens: ${usage.inputTokens}
+- Output tokens: ${usage.outputTokens}
+- Cached tokens: ${usage.cacheReadTokens}
+- Model multiplier (cost): ${usage.cost}`);
+
             try {
               await session.disconnect();
             } catch (e) {
@@ -1003,6 +1025,40 @@ export class PRReviewerService {
 
       const workers = Array.from({ length: workerCount }, () => runWorker());
       await Promise.all(workers);
+
+      if (phaseStats.length > 0) {
+        console.log(
+          `\n=========================================\n[Copilot PR Review - Phase Usage Summary]\n=========================================`,
+        );
+        for (const stat of phaseStats) {
+          console.log(`Phase "${stat.phaseTitle}":
+- Input tokens: ${stat.usage.inputTokens}
+- Output tokens: ${stat.usage.outputTokens}
+- Cached tokens: ${stat.usage.cacheReadTokens}
+- Model multiplier (cost): ${stat.usage.cost}`);
+        }
+
+        const totalInputTokens = phaseStats.reduce(
+          (sum, stat) => sum + stat.usage.inputTokens,
+          0,
+        );
+        const totalOutputTokens = phaseStats.reduce(
+          (sum, stat) => sum + stat.usage.outputTokens,
+          0,
+        );
+        const totalCacheReadTokens = phaseStats.reduce(
+          (sum, stat) => sum + stat.usage.cacheReadTokens,
+          0,
+        );
+        const totalCost = phaseStats.reduce(
+          (sum, stat) => sum + stat.usage.cost,
+          0,
+        );
+
+        console.log(
+          `\n=========================================\n[Copilot PR Review - Aggregated Usage]\n=========================================\n- Input tokens: ${totalInputTokens}\n- Output tokens: ${totalOutputTokens}\n- Cached tokens: ${totalCacheReadTokens}\n- Model multiplier (cost): ${totalCost}\n=========================================`,
+        );
+      }
 
       if (firstError) {
         throw firstError;

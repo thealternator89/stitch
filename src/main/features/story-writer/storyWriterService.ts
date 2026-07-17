@@ -18,6 +18,7 @@ export class StoryWriterService {
         modelOverride,
         { availableTools: [] },
       );
+    session.label = 'Story Writer';
 
     try {
       const prompt = buildStoryPrompt(

@@ -18,6 +18,7 @@ export class TestCaseWriterService {
         modelOverride,
         { availableTools: [] },
       );
+    session.label = 'Test Case Writer';
 
     try {
       const prompt = buildTestCasePrompt(

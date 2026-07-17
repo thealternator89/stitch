@@ -524,4 +524,120 @@ describe('CopilotService', () => {
       );
     });
   });
+
+  describe('usage tracking', () => {
+    it('should track and accumulate usage from assistant.usage events and default missing values to 0', async () => {
+      const mockConsoleLog = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {});
+
+      const responsePromise = service.sendAndCollectStream(
+        mockSession as any,
+        'prompt',
+      );
+
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(sessionListener).toBeTypeOf('function');
+
+      // Emit assistant.usage event
+      sessionListener!({
+        type: 'assistant.usage',
+        data: {
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheReadTokens: 10,
+          cost: 1.5,
+        },
+      });
+
+      // Emit another usage event with some missing values to test fallback
+      sessionListener!({
+        type: 'assistant.usage',
+        data: {
+          inputTokens: 200,
+          // outputTokens, cacheReadTokens, cost are missing
+        },
+      });
+
+      // Finalize the stream
+      sessionListener!({
+        type: 'session.idle',
+      });
+
+      await responsePromise;
+
+      // Verify stats attached to session
+      expect((mockSession as any).usage).toEqual({
+        inputTokens: 300,
+        outputTokens: 50,
+        cacheReadTokens: 10,
+        cost: 1.5,
+      });
+
+      // Verify that console.log was called with stats (since session.isPrReviewer is not true)
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Copilot Session Usage'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Input tokens: 300'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Output tokens: 50'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Cached tokens: 10'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Model multiplier (cost): 1.5'),
+      );
+
+      mockConsoleLog.mockRestore();
+    });
+
+    it('should NOT print to console if session.isPrReviewer is true', async () => {
+      const mockConsoleLog = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {});
+
+      const customMockSession = {
+        ...mockSession,
+        isPrReviewer: true,
+      };
+
+      const responsePromise = service.sendAndCollectStream(
+        customMockSession as any,
+        'prompt',
+      );
+
+      await vi.advanceTimersByTimeAsync(10);
+
+      sessionListener!({
+        type: 'assistant.usage',
+        data: {
+          inputTokens: 10,
+          outputTokens: 20,
+          cacheReadTokens: 5,
+          cost: 0.5,
+        },
+      });
+
+      sessionListener!({
+        type: 'session.idle',
+      });
+
+      await responsePromise;
+
+      expect(customMockSession.usage).toEqual({
+        inputTokens: 10,
+        outputTokens: 20,
+        cacheReadTokens: 5,
+        cost: 0.5,
+      });
+
+      expect(mockConsoleLog).not.toHaveBeenCalled();
+
+      mockConsoleLog.mockRestore();
+    });
+  });
 });

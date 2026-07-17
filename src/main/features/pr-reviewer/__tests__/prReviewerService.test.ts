@@ -1658,6 +1658,102 @@ describe('PRReviewerService', () => {
         'original-branch-ref',
       );
     });
+
+    it('should aggregate Copilot session usage across workers and log them', async () => {
+      mockGitService.checkGitRepo.mockResolvedValue(true);
+      mockGitService.hasUncommittedChanges.mockResolvedValue(false);
+      mockGitService.fetchAndCheckoutPR.mockResolvedValue('pr-sha');
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'src/index.ts', status: 'modified' },
+      ]);
+
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue([
+        {
+          id: '010-dod.md',
+          title: 'DoD Review',
+          body: 'Check requirements',
+        },
+        {
+          id: '020-security.md',
+          title: 'Security Review',
+          body: 'Check vulnerabilities',
+        },
+      ]);
+
+      const mockConsoleLog = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {});
+
+      const mockSession1 = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+        usage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheReadTokens: 10,
+          cost: 0.1,
+        },
+      };
+
+      const mockSession2 = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+        usage: {
+          inputTokens: 200,
+          outputTokens: 75,
+          cacheReadTokens: 20,
+          cost: 0.25,
+        },
+      };
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+
+      let sessionCount = 0;
+      mockCopilotService.createClientAndSession.mockImplementation(async () => {
+        sessionCount++;
+        return {
+          client: mockClient,
+          session: sessionCount === 1 ? mockSession1 : mockSession2,
+        };
+      });
+
+      mockCopilotService.sendAndCollectStream.mockResolvedValue('done');
+
+      // Run review
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        enabledPhaseIds: ['010-dod.md', '020-security.md'],
+        maxParallelism: 2,
+      });
+
+      // Verify that individual phase usage was logged
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Phase Complete: "DoD Review"'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Phase Complete: "Security Review"'),
+      );
+
+      // Verify aggregated usage was logged
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('[Copilot PR Review - Aggregated Usage]'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('- Input tokens: 300'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('- Output tokens: 125'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('- Cached tokens: 30'),
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('- Model multiplier (cost): 0.35'),
+      );
+
+      // Verify sessions had isPrReviewer attached
+      expect((mockSession1 as any).isPrReviewer).toBe(true);
+      expect((mockSession2 as any).isPrReviewer).toBe(true);
+
+      mockConsoleLog.mockRestore();
+    });
   });
 
   describe('checkWorktrees', () => {

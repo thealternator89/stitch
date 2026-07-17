@@ -125,6 +125,7 @@ export class StoryElaboratorService {
                 tools: [requestDocumentationTool],
               },
         );
+      session.label = 'Story Elaborator';
 
       // Store in map so we can continue or stop later
       this.activeElaborations.set(ticketData.id || '', {
