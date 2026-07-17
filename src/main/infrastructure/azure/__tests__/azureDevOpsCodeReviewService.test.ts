@@ -313,10 +313,7 @@ describe('AzureDevOpsCodeReviewService', () => {
               parentCommentId: 0,
               content:
                 'This is a general comment\n' +
-                [
-                  '> Generated with Stitch and GitHub Copilot.',
-                  '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-                ].join('\n'),
+                ['> Generated with Stitch and GitHub Copilot.'].join('\n'),
               commentType: 1,
             },
           ],
@@ -354,10 +351,7 @@ describe('AzureDevOpsCodeReviewService', () => {
               parentCommentId: 0,
               content:
                 'Fix this line\n' +
-                [
-                  '> Generated with Stitch and GitHub Copilot.',
-                  '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-                ].join('\n'),
+                ['> Generated with Stitch and GitHub Copilot.'].join('\n'),
               commentType: 1,
             },
           ],

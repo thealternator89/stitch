@@ -359,11 +359,9 @@ export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
 
     const repositoryId = prDetails.repository.id;
 
-    const disclaimer = [
-      '',
-      '> Generated with Stitch and GitHub Copilot.',
-      '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-    ].join('\n');
+    const disclaimer = ['', '> Generated with Stitch and GitHub Copilot.'].join(
+      '\n',
+    );
 
     const contentWithDisclaimer = comment.comment + disclaimer;
 
