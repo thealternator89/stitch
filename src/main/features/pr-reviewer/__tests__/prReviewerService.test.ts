@@ -1687,10 +1687,6 @@ describe('PRReviewerService', () => {
         },
       ]);
 
-      const mockConsoleLog = vi
-        .spyOn(console, 'log')
-        .mockImplementation(() => {});
-
       const mockSession1 = {
         disconnect: vi.fn().mockResolvedValue(undefined),
         usage: {
@@ -1725,41 +1721,27 @@ describe('PRReviewerService', () => {
       mockCopilotService.sendAndCollectStream.mockResolvedValue('done');
 
       // Run review
-      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
-        enabledPhaseIds: ['010-dod.md', '020-security.md'],
-        maxParallelism: 2,
+      const res = await prReviewerService.reviewPR(
+        '/mock/repo',
+        'main',
+        settings,
+        {
+          enabledPhaseIds: ['010-dod.md', '020-security.md'],
+          maxParallelism: 2,
+        },
+      );
+
+      // Verify aggregated usage was returned correctly
+      expect(res.usage).toEqual({
+        inputTokens: 300,
+        outputTokens: 125,
+        cacheReadTokens: 30,
+        cost: 0.35,
       });
-
-      // Verify that individual phase usage was logged
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('Phase Complete: "DoD Review"'),
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('Phase Complete: "Security Review"'),
-      );
-
-      // Verify aggregated usage was logged
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('[Copilot PR Review - Aggregated Usage]'),
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('- Input tokens: 300'),
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('- Output tokens: 125'),
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('- Cached tokens: 30'),
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('- Model multiplier (cost): 0.35'),
-      );
 
       // Verify sessions had isPrReviewer attached
       expect((mockSession1 as any).isPrReviewer).toBe(true);
       expect((mockSession2 as any).isPrReviewer).toBe(true);
-
-      mockConsoleLog.mockRestore();
     });
   });
 

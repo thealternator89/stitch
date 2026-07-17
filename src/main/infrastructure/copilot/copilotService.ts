@@ -393,14 +393,6 @@ export class CopilotService {
         clearTimeout(timeoutId);
       }
       unsubscribe();
-
-      if (!session.isPrReviewer) {
-        console.log(`[Copilot Session Usage - ${session.label || 'Unknown'}]
-- Input tokens: ${sessionUsage.inputTokens}
-- Output tokens: ${sessionUsage.outputTokens}
-- Cached tokens: ${sessionUsage.cacheReadTokens}
-- Model multiplier (cost): ${sessionUsage.cost}`);
-      }
     }
   }
 }

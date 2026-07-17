@@ -994,12 +994,6 @@ export class PRReviewerService {
               usage,
             });
 
-            console.log(`[Copilot PR Review - Phase Complete: "${phase.title}"]
-- Input tokens: ${usage.inputTokens}
-- Output tokens: ${usage.outputTokens}
-- Cached tokens: ${usage.cacheReadTokens}
-- Model multiplier (cost): ${usage.cost}`);
-
             try {
               await session.disconnect();
             } catch (e) {
@@ -1043,23 +1037,6 @@ export class PRReviewerService {
         (sum, stat) => sum + stat.usage.cost,
         0,
       );
-
-      if (phaseStats.length > 0) {
-        console.log(
-          `\n=========================================\n[Copilot PR Review - Phase Usage Summary]\n=========================================`,
-        );
-        for (const stat of phaseStats) {
-          console.log(`Phase "${stat.phaseTitle}":
-- Input tokens: ${stat.usage.inputTokens}
-- Output tokens: ${stat.usage.outputTokens}
-- Cached tokens: ${stat.usage.cacheReadTokens}
-- Model multiplier (cost): ${stat.usage.cost}`);
-        }
-
-        console.log(
-          `\n=========================================\n[Copilot PR Review - Aggregated Usage]\n=========================================\n- Input tokens: ${totalInputTokens}\n- Output tokens: ${totalOutputTokens}\n- Cached tokens: ${totalCacheReadTokens}\n- Model multiplier (cost): ${totalCost}\n=========================================`,
-        );
-      }
 
       if (firstError) {
         throw firstError;
