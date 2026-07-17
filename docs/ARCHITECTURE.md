@@ -39,10 +39,10 @@ locally on the machine.
 ### Azure DevOps
 
 - **Library:** `azure-devops-node-api`
-- **Method:** Uses Personal Access Tokens (PAT) via the Work Item Tracking API.
+- **Method:** Uses Personal Access Tokens (PAT) via the Work Item Tracking API (for work items) and Git API (for pull requests via `CodeReviewProvider`).
 - **Scope:**
   - Fetches work item details (ID, Title, Description, Acceptance Criteria) and supports real-time text-based and ID-based work item searching using WIQL and exact-match prioritization.
-  - Pushes AI-generated content as **Comments** (updating `System.History`).
+  - Pushes AI-generated content as **Comments** (updating `System.History`) and manages pull request review threads.
   - Creates new **Tasks** linked to a parent ID via `Hierarchy-Reverse`
     relationships.
   - Creates new user stories/work items (e.g. Product Backlog Items) linked to a parent Feature ID using customizable work item type settings.
@@ -114,7 +114,7 @@ To prevent tool-specific logic, UI files, prompts, and backend coordination from
 
 1. **Symmetrical Feature Slices**: Feature directories under `src/main/features/` and `src/renderer/features/` encapsulate domain-specific code (e.g. `story-writer`, `test-case-writer`, `story-elaborator`, `pr-reviewer`, `settings`, `menu`).
 2. **Containment of Prompts**: Rather than using a single centralized prompt file, prompts are contained inside their respective main process feature slices (e.g., `storyWriterPrompts.ts`). The prompt validation logic (`checkPromptComplexity`) is centralized inside the `settings` feature slice (`promptComplexityService.ts`) which imports prompt templates from the individual slices to validate complexity.
-3. **Decoupled Infrastructure**: Shared, low-level integration services (like `AzureDevOpsService`, `ConfluenceService`, and `CopilotService` connection lifecycle management) reside inside `src/main/infrastructure/`. Feature services leverage these services via constructor dependency injection, keeping tool logic fully decoupled from infrastructure.
+3. **Decoupled Infrastructure**: Shared, low-level integration services (like `AzureDevOpsService`, `ConfluenceService`, `CodeReviewProvider` implementations, and `CopilotService` connection lifecycle management) reside inside `src/main/infrastructure/`. Feature services leverage these services via constructor dependency injection, keeping tool logic fully decoupled from infrastructure.
 
 ### Hybrid ESM/CommonJS Approach
 
@@ -154,17 +154,17 @@ support modern ESM-only libraries like `electron-store` and
 - `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, configured with ticket details, branch selection, and workspace context. Streams lines via `elaboration-line`.
 - `send-elaboration-answer`: Sends subsequent replies/responses to the ongoing story elaboration session.
 - `stop-story-elaboration`: Cleans up and destroys an active story elaboration session.
-- `pr-reviewer:get-details`: Fetches Azure DevOps PR metadata, target/source branch references, and linked work item references.
+- `pr-reviewer:get-details`: Fetches PR metadata, target/source branch references, and linked work item references via `CodeReviewProvider`.
 - `pr-reviewer:checkout`: Sanitizes repository state, checks out the PR branch (with worktree support if configured), and returns comparison details.
 - `pr-reviewer:get-diff-files`: Lists all modified files in the repository between HEAD and the target branch.
 - `pr-reviewer:get-file-diff`: Retrieves the git diff for a specific file compared to the target branch.
-- `pr-reviewer:search-prs`: Queries Azure DevOps for active PRs matching user search criteria.
+- `pr-reviewer:search-prs`: Queries the code review host for active PRs matching user search criteria.
 - `pr-reviewer:get-phases`: Reads, parses, and sorts frontmatter metadata from review phase files in `~/.stitch/pr-reviewer/phases/`.
 - `pr-reviewer:open-directory`: Opens the local `~/.stitch/pr-reviewer/` configuration folder using the OS shell.
 - `pr-reviewer:check-worktrees`: Scans the configured base directory for active/orphaned git worktrees and returns their status and count.
 - `pr-reviewer:clean-worktrees`: Force-cleans and prunes worktrees and directories in the configured base directory.
 - `get-cpu-count`: Retrieves the CPU cores count from the operating system to establish worker pool boundaries.
 - `pr-reviewer:review`: Triggers a sequential or parallel multi-phase PR review, streaming real-time status and line-anchored code feedback to the UI.
-- `pr-reviewer:post-comment`: Submits a code review comment (general or line-anchored code block thread) back to the Azure DevOps PR.
+- `pr-reviewer:post-comment`: Submits a code review comment (general or line-anchored code block thread) back to the PR via `CodeReviewProvider`.
 - `pr-reviewer:get-repo-path-history` / `pr-reviewer:save-repo-path-history`: Stores the last used local filesystem clone path mapping for a given repository.
 - `pr-reviewer:verify-repo-path`: Asserts if a path represents a git repository, resolving its root directory if necessary.
