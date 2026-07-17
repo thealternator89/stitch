@@ -1,4 +1,4 @@
-import { TicketData, AppSettings } from '../../../types';
+import { TicketData, AppSettings, CopilotResult } from '../../../types';
 import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { buildTestCasePrompt } from './testCaseWriterPrompts';
 
@@ -11,7 +11,7 @@ export class TestCaseWriterService {
     modelOverride: string,
     settings: AppSettings,
     onLine?: (line: string) => void,
-  ): Promise<string> {
+  ): Promise<CopilotResult<string>> {
     const { client, session } =
       await this.copilotService.createClientAndSession(
         settings.copilotToken,
@@ -30,11 +30,12 @@ export class TestCaseWriterService {
         settings,
       );
 
-      return await this.copilotService.sendAndCollectStream(
+      const res = await this.copilotService.sendAndCollectStream(
         session,
         prompt,
         onLine,
       );
+      return { result: res, usage: session.usage };
     } catch (error) {
       console.error('Error generating test cases:', error);
       throw error;

@@ -4,8 +4,9 @@ import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
 import ModelDropdown from '../../components/ModelDropdown';
 import PageLayout from '../../components/PageLayout';
-import { TicketData } from '../../../types';
+import { TicketData, CopilotUsage } from '../../../types';
 import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
+import UsageStatsToast from '../../components/UsageStatsToast';
 
 interface FeedItem {
   type: 'chat' | 'status';
@@ -51,6 +52,7 @@ const StoryElaborator: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isWaitingForUser, setIsWaitingForUser] = useState(false);
   const [error, setError] = useState<string>('');
+  const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
 
   // Elaboration Content
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -165,6 +167,7 @@ const StoryElaborator: React.FC = () => {
     }
 
     setError('');
+    setUsageStats(null);
     setStage('elaborating');
     setIsGenerating(true);
     setIsWaitingForUser(false);
@@ -227,6 +230,19 @@ const StoryElaborator: React.FC = () => {
             'Elaboration Plan Completed',
             `The agent has successfully written the plan for ticket #${ticketId}.`,
           );
+          window.electronAPI
+            .stopStoryElaboration(ticketId)
+            .then((usage) => {
+              if (usage) {
+                setUsageStats(usage);
+              }
+            })
+            .catch((err) => {
+              console.error(
+                'Error stopping story elaboration on plan complete:',
+                err,
+              );
+            });
         }
       } catch (err) {
         console.warn('Failed to parse JSONL line:', trimmed, err);
@@ -888,6 +904,12 @@ const StoryElaborator: React.FC = () => {
           </div>
         </div>
       </div>
+      {usageStats && (
+        <UsageStatsToast
+          stats={usageStats}
+          onClose={() => setUsageStats(null)}
+        />
+      )}
     </PageLayout>
   );
 };

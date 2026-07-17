@@ -318,9 +318,16 @@ describe('PRReviewerService', () => {
 
       expect(mockSession.disconnect).toHaveBeenCalled();
       expect(mockClient.stop).toHaveBeenCalled();
-      expect(result).toBe(
-        '\n--- Phase Definition of Done Result ---\n{"type":"general","comment":"LGTM"}',
-      );
+      expect(result).toEqual({
+        result:
+          '\n--- Phase Definition of Done Result ---\n{"type":"general","comment":"LGTM"}',
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cost: 0,
+        },
+      });
     });
 
     it('should cleanly stop client and session even when review throws an error', async () => {

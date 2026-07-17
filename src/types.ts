@@ -157,3 +157,8 @@ export interface CopilotUsage {
   cacheReadTokens: number;
   cost: number;
 }
+
+export interface CopilotResult<T> {
+  result: T;
+  usage: CopilotUsage;
+}

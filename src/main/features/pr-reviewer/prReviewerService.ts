@@ -12,6 +12,7 @@ import {
   ReviewPhase,
   TicketData,
   CopilotUsage,
+  CopilotResult,
 } from '../../../types';
 import { IssueTrackerProvider } from '../../infrastructure/providers/IssueTrackerProvider';
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
@@ -606,7 +607,7 @@ export class PRReviewerService {
       onLine?: (line: string) => void;
       maxParallelism?: number;
     } = {},
-  ): Promise<string> {
+  ): Promise<CopilotResult<string>> {
     if (!options.enabledPhaseIds || options.enabledPhaseIds.length === 0) {
       throw new Error(
         'No review phases selected. Please select at least one phase to start the review.',
@@ -1026,6 +1027,23 @@ export class PRReviewerService {
       const workers = Array.from({ length: workerCount }, () => runWorker());
       await Promise.all(workers);
 
+      const totalInputTokens = phaseStats.reduce(
+        (sum, stat) => sum + stat.usage.inputTokens,
+        0,
+      );
+      const totalOutputTokens = phaseStats.reduce(
+        (sum, stat) => sum + stat.usage.outputTokens,
+        0,
+      );
+      const totalCacheReadTokens = phaseStats.reduce(
+        (sum, stat) => sum + stat.usage.cacheReadTokens,
+        0,
+      );
+      const totalCost = phaseStats.reduce(
+        (sum, stat) => sum + stat.usage.cost,
+        0,
+      );
+
       if (phaseStats.length > 0) {
         console.log(
           `\n=========================================\n[Copilot PR Review - Phase Usage Summary]\n=========================================`,
@@ -1038,23 +1056,6 @@ export class PRReviewerService {
 - Model multiplier (cost): ${stat.usage.cost}`);
         }
 
-        const totalInputTokens = phaseStats.reduce(
-          (sum, stat) => sum + stat.usage.inputTokens,
-          0,
-        );
-        const totalOutputTokens = phaseStats.reduce(
-          (sum, stat) => sum + stat.usage.outputTokens,
-          0,
-        );
-        const totalCacheReadTokens = phaseStats.reduce(
-          (sum, stat) => sum + stat.usage.cacheReadTokens,
-          0,
-        );
-        const totalCost = phaseStats.reduce(
-          (sum, stat) => sum + stat.usage.cost,
-          0,
-        );
-
         console.log(
           `\n=========================================\n[Copilot PR Review - Aggregated Usage]\n=========================================\n- Input tokens: ${totalInputTokens}\n- Output tokens: ${totalOutputTokens}\n- Cached tokens: ${totalCacheReadTokens}\n- Model multiplier (cost): ${totalCost}\n=========================================`,
         );
@@ -1066,7 +1067,15 @@ export class PRReviewerService {
 
       const accumulatedResult = results.filter((r) => r !== '').join('');
 
-      return accumulatedResult;
+      return {
+        result: accumulatedResult,
+        usage: {
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cost: totalCost,
+        },
+      };
     } finally {
       if (blockerId !== null && powerSaveBlocker.isStarted(blockerId)) {
         powerSaveBlocker.stop(blockerId);

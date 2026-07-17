@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
 import ModelDropdown from '../../components/ModelDropdown';
 import PageLayout from '../../components/PageLayout';
-import { TicketData } from '../../../types';
+import { TicketData, CopilotUsage } from '../../../types';
 import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
+import UsageStatsToast from '../../components/UsageStatsToast';
 
 interface TestCase {
   id: string;
@@ -61,6 +62,7 @@ const TestCaseWriter: React.FC = () => {
   const isMountedRef = useRef(true);
   const [taskType, setTaskType] = useState('Task');
   const [testTaskTitle, setTestTaskTitle] = useState('Testing');
+  const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -253,12 +255,16 @@ const TestCaseWriter: React.FC = () => {
       if (!isMountedRef.current) return;
       setTicketData(fetchedTicket);
 
+      setUsageStats(null);
       // 2. Generate Test Cases using Copilot SDK (this will stream lines via event listeners)
-      await window.electronAPI.generateTestCases(
+      const res = await window.electronAPI.generateTestCases(
         fetchedTicket,
         context,
         selectedModel,
       );
+      if (res && res.usage) {
+        setUsageStats(res.usage);
+      }
       triggerNotification(
         'Test Case Generation Complete',
         `Stitch has successfully generated test cases for ticket #${fetchedTicket.id} ("${fetchedTicket.title}").`,
@@ -805,6 +811,12 @@ const TestCaseWriter: React.FC = () => {
           </div>
         </div>
       </div>
+      {usageStats && (
+        <UsageStatsToast
+          stats={usageStats}
+          onClose={() => setUsageStats(null)}
+        />
+      )}
     </PageLayout>
   );
 };
