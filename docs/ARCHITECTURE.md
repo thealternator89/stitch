@@ -85,6 +85,11 @@ locally on the machine.
   - For the **PR Reviewer**, review comments and status outputs are parsed as JSONL lines (`type: "status"`, `type: "general"`, or `type: "line"`). When a `line` comment is parsed, the backend dynamically resolves context lines using `extractFileContextSync` and enriches the JSON object before pushing it to the UI.
   - For the **Story Elaborator**, lines are emitted via `elaboration-line`. The communication uses a strict JSON Lines (JSONL) protocol, streaming objects of type `status` (thoughts and directory search updates), `question` (with suggested answers for the user), or `plan` (the finalized implementation plan).
   - Inside `sendAndCollectStream`, a newline buffer fallback processes block-delivered responses when incremental token deltas are skipped during tool executions, ensuring smooth UI status tracking.
+- **Usage Metrics Tracking**:
+  - For each Copilot session, `CopilotService` listens to the `assistant.usage` event emitted by the Copilot agent.
+  - The service tracks token usage metrics, including input tokens (`inputTokens`), output tokens (`outputTokens`), cached tokens (`cacheReadTokens`), and model multiplier/cost (`cost`), falling back to `0` if any metric is missing.
+  - For general sessions, the accumulated usage metrics are logged to the main process console upon session completion.
+  - For parallelized tasks like the **PR Reviewer**, individual phase sessions suppress direct console logging (`session.isPrReviewer = true`) and instead propagate their stats to the reviewer service. The service then logs individual phase usage upon completion and prints an aggregated summary of all review phases at the end of the review execution.
 - **`request_documentation` Custom Tool**:
   - Exposed to the Copilot session during both **PR Reviewer** (when attaching linked stories) and **Story Elaborator** tasks.
   - The custom tool (`createRequestDocumentationTool` from `src/main/infrastructure/copilot/tools/documentationTool.ts`) takes a `documentId` (e.g., Confluence Page ID) and queries `ConfluenceService` to retrieve the page title and storage body layout.
