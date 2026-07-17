@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AzureDevOpsService } from '../azureDevOpsService';
+import { ATTRIBUTION_STATEMENT } from '../../constants';
 
 const mockWitApi = {
   getWorkItem: vi.fn(),
@@ -85,7 +86,9 @@ describe('AzureDevOpsService', () => {
           {
             op: 'add',
             path: '/fields/System.History',
-            value: 'This is a test comment',
+            value: ['This is a test comment', '', ATTRIBUTION_STATEMENT].join(
+              '\n',
+            ),
           },
           {
             op: 'add',
@@ -129,7 +132,11 @@ describe('AzureDevOpsService', () => {
           {
             op: 'add',
             path: '/fields/System.Description',
-            value: 'Need to write unit tests for Stitch services',
+            value: [
+              'Need to write unit tests for Stitch services',
+              '',
+              ATTRIBUTION_STATEMENT,
+            ].join('\n'),
           },
           {
             op: 'add',

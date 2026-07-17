@@ -276,15 +276,9 @@ const StoryWriter: React.FC = () => {
 
     setCreatingStories((prev) => ({ ...prev, [index]: true }));
     try {
-      const descriptionWithDisclaimer = [
-        story.description,
-        '',
-        '> Generated with Stitch and GitHub Copilot.',
-      ].join('\n');
-
       await window.electronAPI.createTicket(storyType, featureId, {
         title: story.title,
-        description: descriptionWithDisclaimer,
+        description: story.description,
         acceptanceCriteria: story.acceptanceCriteria,
       });
 

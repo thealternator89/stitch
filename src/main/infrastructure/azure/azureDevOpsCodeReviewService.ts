@@ -6,6 +6,7 @@ import {
 } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { CodeReviewProvider } from '../providers/CodeReviewProvider';
 import { PRMetadata } from '../../../types';
+import { ATTRIBUTION_STATEMENT } from '../constants';
 
 export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
   private gitApi: IGitApi | null = null;
@@ -359,9 +360,7 @@ export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
 
     const repositoryId = prDetails.repository.id;
 
-    const disclaimer = ['', '> Generated with Stitch and GitHub Copilot.'].join(
-      '\n',
-    );
+    const disclaimer = ['', ATTRIBUTION_STATEMENT].join('\n');
 
     const contentWithDisclaimer = comment.comment + disclaimer;
 

@@ -17,13 +17,7 @@ interface TestCase {
 }
 
 const generateTicketOrCommentText = (testCases: string) =>
-  [
-    'Test Cases:',
-    '',
-    testCases,
-    '',
-    '> Generated with Stitch and GitHub Copilot.',
-  ].join('\n');
+  ['Test Cases:', '', testCases].join('\n');
 
 const convertToMarkdownTable = (tcList: TestCase[]): string => {
   const activeList = tcList.filter((tc) => !tc.deleted);
