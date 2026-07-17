@@ -27,6 +27,7 @@ export class PromptComplexityService {
         'auto',
         { availableTools: [], streaming: false },
       );
+    session.label = 'Prompt Complexity';
 
     try {
       let promptToCheck = '';

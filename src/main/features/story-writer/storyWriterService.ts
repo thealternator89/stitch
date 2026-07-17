@@ -1,4 +1,4 @@
-import { DocPageData, AppSettings } from '../../../types';
+import { DocPageData, AppSettings, CopilotResult } from '../../../types';
 import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { buildStoryPrompt } from './storyWriterPrompts';
 
@@ -11,13 +11,14 @@ export class StoryWriterService {
     modelOverride: string,
     settings: AppSettings,
     onLine?: (line: string) => void,
-  ): Promise<string> {
+  ): Promise<CopilotResult<string>> {
     const { client, session } =
       await this.copilotService.createClientAndSession(
         settings.copilotToken,
         modelOverride,
         { availableTools: [] },
       );
+    session.label = 'Story Writer';
 
     try {
       const prompt = buildStoryPrompt(
@@ -27,11 +28,12 @@ export class StoryWriterService {
         settings,
       );
 
-      return await this.copilotService.sendAndCollectStream(
+      const res = await this.copilotService.sendAndCollectStream(
         session,
         prompt,
         onLine,
       );
+      return { result: res, usage: session.usage };
     } catch (error) {
       console.error('Error generating stories:', error);
       throw error;

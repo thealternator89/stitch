@@ -4,8 +4,9 @@ import remarkGfm from 'remark-gfm';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
 import ModelDropdown from '../../components/ModelDropdown';
 import PageLayout from '../../components/PageLayout';
-import { DocPageData, TicketData } from '../../../types';
+import { DocPageData, TicketData, CopilotUsage } from '../../../types';
 import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
+import UsageStatsToast from '../../components/UsageStatsToast';
 
 interface Story {
   title: string;
@@ -19,6 +20,7 @@ const StoryWriter: React.FC = () => {
   const isMountedRef = useRef(true);
   const [featureType, setFeatureType] = useState('Feature');
   const [storyType, setStoryType] = useState('Product Backlog Item');
+  const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -219,12 +221,16 @@ const StoryWriter: React.FC = () => {
       if (!isMountedRef.current) return;
       setPageData(fetchedPage);
 
+      setUsageStats(null);
       // 2. Generate Stories using Copilot SDK (this will stream lines via event listeners)
-      await window.electronAPI.generateStories(
+      const res = await window.electronAPI.generateStories(
         fetchedPage,
         context,
         selectedModel,
       );
+      if (res && res.usage) {
+        setUsageStats(res.usage);
+      }
       triggerNotification(
         'Story Generation Complete',
         `Stitch has successfully generated stories for Confluence page "${fetchedPage.title}".`,
@@ -859,6 +865,12 @@ const StoryWriter: React.FC = () => {
           </div>
         </div>
       </div>
+      {usageStats && (
+        <UsageStatsToast
+          stats={usageStats}
+          onClose={() => setUsageStats(null)}
+        />
+      )}
     </PageLayout>
   );
 };

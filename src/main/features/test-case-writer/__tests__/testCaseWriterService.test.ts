@@ -88,7 +88,10 @@ describe('TestCaseWriter feature', () => {
         'gpt-4',
         defaultSettings,
       );
-      expect(result).toBe('Mocked response');
+      expect(result).toEqual({
+        result: 'Mocked response',
+        usage: undefined,
+      });
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         undefined,
         'gpt-4',

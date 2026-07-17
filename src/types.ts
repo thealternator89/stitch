@@ -150,3 +150,15 @@ export interface ReviewPhase {
   template?: string;
   templateError?: string;
 }
+
+export interface CopilotUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cost: number;
+}
+
+export interface CopilotResult<T> {
+  result: T;
+  usage: CopilotUsage;
+}

@@ -11,6 +11,8 @@ import {
   AppSettings,
   ReviewPhase,
   TicketData,
+  CopilotUsage,
+  CopilotResult,
 } from '../../../types';
 import { IssueTrackerProvider } from '../../infrastructure/providers/IssueTrackerProvider';
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
@@ -605,7 +607,7 @@ export class PRReviewerService {
       onLine?: (line: string) => void;
       maxParallelism?: number;
     } = {},
-  ): Promise<string> {
+  ): Promise<CopilotResult<string>> {
     if (!options.enabledPhaseIds || options.enabledPhaseIds.length === 0) {
       throw new Error(
         'No review phases selected. Please select at least one phase to start the review.',
@@ -751,6 +753,7 @@ export class PRReviewerService {
       }
 
       const results: string[] = new Array(enabledPhases.length).fill('');
+      const phaseStats: { phaseTitle: string; usage: CopilotUsage }[] = [];
       let firstError: Error | null = null;
       let queueIndex = 0;
 
@@ -920,6 +923,8 @@ export class PRReviewerService {
           }
 
           const { client, session } = clientAndSession;
+          session.isPrReviewer = true;
+          session.label = `PR Reviewer Phase: ${phase.title}`;
 
           const attachDescription =
             phase.attach && phase.attach.toLowerCase().includes('description');
@@ -977,6 +982,18 @@ export class PRReviewerService {
               firstError = err as Error;
             }
           } finally {
+            const usage: CopilotUsage = session.usage ?? {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cost: 0,
+            };
+
+            phaseStats.push({
+              phaseTitle: phase.title,
+              usage,
+            });
+
             try {
               await session.disconnect();
             } catch (e) {
@@ -1004,13 +1021,38 @@ export class PRReviewerService {
       const workers = Array.from({ length: workerCount }, () => runWorker());
       await Promise.all(workers);
 
+      const totalInputTokens = phaseStats.reduce(
+        (sum, stat) => sum + stat.usage.inputTokens,
+        0,
+      );
+      const totalOutputTokens = phaseStats.reduce(
+        (sum, stat) => sum + stat.usage.outputTokens,
+        0,
+      );
+      const totalCacheReadTokens = phaseStats.reduce(
+        (sum, stat) => sum + stat.usage.cacheReadTokens,
+        0,
+      );
+      const totalCost = phaseStats.reduce(
+        (sum, stat) => sum + stat.usage.cost,
+        0,
+      );
+
       if (firstError) {
         throw firstError;
       }
 
       const accumulatedResult = results.filter((r) => r !== '').join('');
 
-      return accumulatedResult;
+      return {
+        result: accumulatedResult,
+        usage: {
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cost: totalCost,
+        },
+      };
     } finally {
       if (blockerId !== null && powerSaveBlocker.isStarted(blockerId)) {
         powerSaveBlocker.stop(blockerId);

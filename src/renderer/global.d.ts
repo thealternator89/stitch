@@ -9,6 +9,8 @@ import {
   PRMetadata,
   PRDiffFile,
   ReviewPhase,
+  CopilotResult,
+  CopilotUsage,
 } from '../types';
 
 export interface IElectronAPI {
@@ -25,7 +27,7 @@ export interface IElectronAPI {
     ticketData: TicketData,
     context: string,
     modelOverride: string,
-  ) => Promise<string>;
+  ) => Promise<CopilotResult<string>>;
   onTestCaseLine: (callback: (line: string) => void) => () => void;
   fetchConfluencePage: (pageId: string) => Promise<DocPageData>;
   searchConfluencePages: (query: string) => Promise<DocPageData[]>;
@@ -33,7 +35,7 @@ export interface IElectronAPI {
     pageData: DocPageData,
     context: string,
     modelOverride: string,
-  ) => Promise<string>;
+  ) => Promise<CopilotResult<string>>;
   onStoryLine: (callback: (line: string) => void) => () => void;
   addComment: (ticketId: string, text: string) => Promise<void>;
   createTicket: (
@@ -61,7 +63,7 @@ export interface IElectronAPI {
     branch?: string,
   ) => Promise<string>;
   sendElaborationAnswer: (ticketId: string, answer: string) => Promise<string>;
-  stopStoryElaboration: (ticketId: string) => Promise<void>;
+  stopStoryElaboration: (ticketId: string) => Promise<CopilotUsage | null>;
   onElaborationLine: (callback: (line: string) => void) => () => void;
   getPRDetails: (repoPath: string, prUrlOrId: string) => Promise<PRMetadata>;
   checkoutPR: (
@@ -108,7 +110,7 @@ export interface IElectronAPI {
     prDescription?: string,
     prId?: string,
     maxParallelism?: number,
-  ) => Promise<string>;
+  ) => Promise<CopilotResult<string>>;
   onPRReviewLine: (callback: (line: string) => void) => () => void;
   postPRComment: (
     repoPath: string,

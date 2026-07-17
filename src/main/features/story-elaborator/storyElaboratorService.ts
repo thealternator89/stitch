@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { TicketData, AppSettings } from '../../../types';
+import { TicketData, AppSettings, CopilotUsage } from '../../../types';
 import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
 import { buildStoryElaboratorPrompt } from './storyElaboratorPrompts';
@@ -125,6 +125,7 @@ export class StoryElaboratorService {
                 tools: [requestDocumentationTool],
               },
         );
+      session.label = 'Story Elaborator';
 
       // Store in map so we can continue or stop later
       this.activeElaborations.set(ticketData.id || '', {
@@ -263,12 +264,13 @@ export class StoryElaboratorService {
     return urls;
   }
 
-  async stopStoryElaboration(ticketId: string): Promise<void> {
+  async stopStoryElaboration(ticketId: string): Promise<CopilotUsage | null> {
     const data = this.activeElaborations.get(ticketId);
-    if (!data) return;
+    if (!data) return null;
 
     this.activeElaborations.delete(ticketId);
     const { client, session, worktreeInfo } = data;
+    const usage = session.usage || null;
     try {
       await session.disconnect();
     } catch (e) {
@@ -289,6 +291,7 @@ export class StoryElaboratorService {
         console.error('Error removing worktree in stopStoryElaboration:', e);
       }
     }
+    return usage;
   }
 
   async cleanup() {

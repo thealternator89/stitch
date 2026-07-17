@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../components/PageLayout';
 import ModelDropdown from '../../components/ModelDropdown';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
-import { PRMetadata, ReviewPhase } from '../../../types';
+import { PRMetadata, ReviewPhase, CopilotUsage } from '../../../types';
+import UsageStatsToast from '../../components/UsageStatsToast';
 
 interface ReviewComment {
   type: 'general' | 'line';
@@ -47,6 +48,7 @@ const PRReviewer: React.FC = () => {
   const [hasReviewed, setHasReviewed] = useState(false);
   const [lastStatusTime, setLastStatusTime] = useState<Date | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
+  const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
   const [collapsedComments, setCollapsedComments] = useState<
@@ -405,8 +407,9 @@ const PRReviewer: React.FC = () => {
     });
 
     try {
+      setUsageStats(null);
       const enabledPhaseIds = activePhases.map((p) => p.id);
-      await window.electronAPI.reviewPR(
+      const res = await window.electronAPI.reviewPR(
         repoPath,
         selectedPR.targetBranch,
         customInstructions,
@@ -416,6 +419,9 @@ const PRReviewer: React.FC = () => {
         selectedPR.id,
         maxParallelism,
       );
+      if (res && res.usage) {
+        setUsageStats(res.usage);
+      }
       setHasReviewed(true);
       triggerNotification(
         'PR Review Complete',
@@ -1643,6 +1649,12 @@ const PRReviewer: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {usageStats && (
+        <UsageStatsToast
+          stats={usageStats}
+          onClose={() => setUsageStats(null)}
+        />
       )}
     </PageLayout>
   );
