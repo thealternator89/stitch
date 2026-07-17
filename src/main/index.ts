@@ -10,11 +10,13 @@ import {
   Notification,
 } from 'electron';
 import { AzureDevOpsService } from './infrastructure/azure/azureDevOpsService';
+import { AzureDevOpsCodeReviewService } from './infrastructure/azure/azureDevOpsCodeReviewService';
 import { CopilotService } from './infrastructure/copilot/copilotService';
 import { ConfluenceService } from './infrastructure/confluence/confluenceService';
 import { AppSettings } from '../types';
 import { IssueTrackerProvider } from './infrastructure/providers/IssueTrackerProvider';
 import { DocumentationProvider } from './infrastructure/providers/DocumentationProvider';
+import { CodeReviewProvider } from './infrastructure/providers/CodeReviewProvider';
 import { StoryWriterService } from './features/story-writer/storyWriterService';
 import { TestCaseWriterService } from './features/test-case-writer/testCaseWriterService';
 import { StoryElaboratorService } from './features/story-elaborator/storyElaboratorService';
@@ -60,6 +62,7 @@ async function initStore() {
 // Global service instances
 let azureService: IssueTrackerProvider | null = null;
 let confluenceService: DocumentationProvider | null = null;
+let codeReviewProvider: CodeReviewProvider | null = null;
 const copilotService = new CopilotService();
 const gitService = new GitService();
 const storyWriterService = new StoryWriterService(copilotService);
@@ -89,6 +92,13 @@ const prReviewerService = new PRReviewerService(
   async () => {
     try {
       return await getConfluenceService();
+    } catch {
+      return null;
+    }
+  },
+  async () => {
+    try {
+      return await getCodeReviewProvider();
     } catch {
       return null;
     }
@@ -173,9 +183,30 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
   // Invalidate services so they get re-created on the next fetch with new credentials
   azureService = null;
   confluenceService = null;
+  codeReviewProvider = null;
 
   return { success: true };
 });
+
+async function getCodeReviewProvider(): Promise<CodeReviewProvider> {
+  if (!codeReviewProvider) {
+    const settings = await getDecryptedSettings();
+    const sanitized = trimProperties(settings) as AppSettings;
+    const azureConn = sanitized.connectors?.azureDevOps;
+    const org = azureConn?.org;
+    const pat = azureConn?.pat;
+    const project = azureConn?.project;
+    if (!org || !pat) {
+      throw new Error('Azure DevOps settings are missing.');
+    }
+    codeReviewProvider = new AzureDevOpsCodeReviewService(
+      org,
+      pat,
+      project || '',
+    );
+  }
+  return codeReviewProvider;
+}
 
 async function getAzureService(): Promise<IssueTrackerProvider> {
   if (!azureService) {

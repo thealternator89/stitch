@@ -10,33 +10,14 @@ import {
   buildPhaseReviewPrompt,
 } from '../prReviewerService';
 
-const mockGetPullRequestById = vi.fn();
-const mockGetPullRequestsByProject = vi.fn();
-const mockCreateThread = vi.fn();
-const mockGetPullRequestWorkItemRefs = vi.fn();
-const mockConnect = vi.fn().mockResolvedValue({
-  authorizedUser: { id: 'mock-user-id' },
-});
-
-const mockGetGitApi = vi.fn().mockResolvedValue({
-  getPullRequestById: mockGetPullRequestById,
-  getPullRequestsByProject: mockGetPullRequestsByProject,
-  createThread: mockCreateThread,
-  getPullRequestWorkItemRefs: mockGetPullRequestWorkItemRefs,
-});
-const mockWebApi = {
-  getGitApi: mockGetGitApi,
-  connect: mockConnect,
+const mockCodeReviewProvider = {
+  parsePRUrl: vi.fn(),
+  parseRemoteUrl: vi.fn(),
+  getPRDetails: vi.fn(),
+  getProjectPRs: vi.fn(),
+  getLinkedTickets: vi.fn(),
+  postPRComment: vi.fn(),
 };
-
-vi.mock('azure-devops-node-api', () => {
-  return {
-    getPersonalAccessTokenHandler: vi.fn(),
-    WebApi: function () {
-      return mockWebApi;
-    },
-  };
-});
 
 const mockPowerSaveBlockerStart = vi.fn().mockReturnValue(42);
 const mockPowerSaveBlockerStop = vi.fn();
@@ -80,84 +61,29 @@ describe('PRReviewerService', () => {
       mockCopilotService,
       async () => null,
       async () => null,
+      async () => mockCodeReviewProvider,
     );
     vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
-    mockGetPullRequestById.mockReset();
-    mockGetPullRequestsByProject.mockReset();
-    mockGetPullRequestWorkItemRefs.mockReset();
-    mockConnect.mockClear();
-    mockGetGitApi.mockClear();
+    mockCodeReviewProvider.parsePRUrl.mockReset();
+    mockCodeReviewProvider.parseRemoteUrl.mockReset();
+    mockCodeReviewProvider.getPRDetails.mockReset().mockResolvedValue({
+      id: '123',
+      title: 'Pr Title',
+      description: 'Pr Description',
+      sourceBranch: 'feature-x',
+      targetBranch: 'main',
+      author: 'John Doe',
+      repositoryName: 'my-repo',
+      repositoryId: 'repo-123',
+      hostType: 'azure',
+      url: 'https://dev.azure.com/mock-org/mock-project/_git/my-repo/pullrequest/123',
+    });
+    mockCodeReviewProvider.getProjectPRs.mockReset();
+    mockCodeReviewProvider.getLinkedTickets.mockReset();
+    mockCodeReviewProvider.postPRComment.mockReset();
     mockPowerSaveBlockerStart.mockClear().mockReturnValue(42);
     mockPowerSaveBlockerStop.mockClear();
     mockPowerSaveBlockerIsStarted.mockClear().mockReturnValue(true);
-  });
-
-  describe('parsePRUrl', () => {
-    it('should parse valid dev.azure.com pullrequest URLs', () => {
-      const result = prReviewerService.parsePRUrl(
-        'https://dev.azure.com/myorg/myproject/_git/myrepo/pullrequest/12345',
-      );
-      expect(result).toEqual({
-        org: 'myorg',
-        project: 'myproject',
-        repoName: 'myrepo',
-        prNumber: 12345,
-      });
-    });
-
-    it('should parse valid visualstudio.com pullrequest URLs', () => {
-      const result = prReviewerService.parsePRUrl(
-        'https://myorg.visualstudio.com/myproject/_git/myrepo/pullrequest/54321',
-      );
-      expect(result).toEqual({
-        org: 'myorg',
-        project: 'myproject',
-        repoName: 'myrepo',
-        prNumber: 54321,
-      });
-    });
-
-    it('should return null for invalid URLs', () => {
-      const result = prReviewerService.parsePRUrl(
-        'https://dev.azure.com/myorg/myproject',
-      );
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('parseRemoteUrl', () => {
-    it('should parse valid HTTPS remote URLs', () => {
-      const result = prReviewerService.parseRemoteUrl(
-        'https://dev.azure.com/myorg/myproject/_git/myrepo',
-      );
-      expect(result).toEqual({
-        org: 'myorg',
-        project: 'myproject',
-        repoName: 'myrepo',
-      });
-    });
-
-    it('should parse valid HTTPS remote URLs with userInfo', () => {
-      const result = prReviewerService.parseRemoteUrl(
-        'https://user@dev.azure.com/myorg/myproject/_git/myrepo',
-      );
-      expect(result).toEqual({
-        org: 'myorg',
-        project: 'myproject',
-        repoName: 'myrepo',
-      });
-    });
-
-    it('should parse SSH remote URLs', () => {
-      const result = prReviewerService.parseRemoteUrl(
-        'git@ssh.dev.azure.com:v3/myorg/myproject/myrepo',
-      );
-      expect(result).toEqual({
-        org: 'myorg',
-        project: 'myproject',
-        repoName: 'myrepo',
-      });
-    });
   });
 
   describe('getPRDetails', () => {
@@ -171,16 +97,21 @@ describe('PRReviewerService', () => {
       },
     };
 
-    it('should fetch PR details successfully using settings when given numeric ID', async () => {
-      mockGetPullRequestById.mockResolvedValue({
-        pullRequestId: 123,
+    it('should fetch PR details successfully delegating to CodeReviewProvider', async () => {
+      mockCodeReviewProvider.getPRDetails.mockResolvedValue({
+        id: '123',
         title: 'Pr Title',
         description: 'Pr Description',
-        sourceRefName: 'refs/heads/feature-x',
-        targetRefName: 'refs/heads/main',
-        createdBy: { displayName: 'John Doe' },
-        repository: { name: 'my-repo' },
+        sourceBranch: 'feature-x',
+        targetBranch: 'main',
+        author: 'John Doe',
+        repositoryName: 'my-repo',
+        hostType: 'azure',
+        url: 'https://dev.azure.com/conf-org/conf-proj/_git/my-repo/pullrequest/123',
       });
+      mockGitService.getRemoteUrl.mockResolvedValue(
+        'https://dev.azure.com/conf-org/conf-proj/_git/my-repo',
+      );
 
       const details = await prReviewerService.getPRDetails(
         '/mock/repo',
@@ -198,37 +129,11 @@ describe('PRReviewerService', () => {
         hostType: 'azure',
         url: 'https://dev.azure.com/conf-org/conf-proj/_git/my-repo/pullrequest/123',
       });
-    });
-
-    it('should parse URL and use its org/project when given a full URL', async () => {
-      mockGetPullRequestById.mockResolvedValue({
-        pullRequestId: 999,
-        title: 'Url PR',
-        description: 'Url Desc',
-        sourceRefName: 'refs/heads/feature-url',
-        targetRefName: 'refs/heads/master',
-        createdBy: { displayName: 'Jane Doe' },
-      });
-
-      const details = await prReviewerService.getPRDetails(
+      expect(mockCodeReviewProvider.getPRDetails).toHaveBeenCalledWith(
         '/mock/repo',
-        'https://dev.azure.com/url-org/url-proj/_git/myrepo/pullrequest/999',
-        settings,
+        '123',
+        'https://dev.azure.com/conf-org/conf-proj/_git/my-repo',
       );
-      expect(details.id).toBe('999');
-      expect(details.sourceBranch).toBe('feature-url');
-      expect(details.targetBranch).toBe('master');
-    });
-
-    it('should throw if target branch ref is missing', async () => {
-      mockGetPullRequestById.mockResolvedValue({
-        pullRequestId: 123,
-        title: 'Pr Title',
-      });
-
-      await expect(
-        prReviewerService.getPRDetails('/mock/repo', '123', settings),
-      ).rejects.toThrow('missing target branch ref');
     });
   });
 
@@ -264,6 +169,11 @@ describe('PRReviewerService', () => {
       mockGitService.getRemoteUrl.mockResolvedValue(
         'https://dev.azure.com/org/proj/_git/mismatched-repo',
       );
+      mockCodeReviewProvider.parseRemoteUrl.mockReturnValue({
+        org: 'org',
+        project: 'proj',
+        repoName: 'mismatched-repo',
+      });
 
       await expect(
         prReviewerService.checkoutAndDiff('/mock/repo', 123, 'expected-repo'),
@@ -312,21 +222,8 @@ describe('PRReviewerService', () => {
       },
     };
 
-    it('should query pull requests for project and return mapped results', async () => {
-      mockGetPullRequestsByProject.mockResolvedValue([
-        {
-          pullRequestId: 444,
-          title: 'My active PR',
-          description: 'PR Description',
-          sourceRefName: 'refs/heads/feature-x',
-          targetRefName: 'refs/heads/main',
-          createdBy: { displayName: 'John Author' },
-          repository: { name: 'my-repo-name' },
-        },
-      ]);
-
-      const result = await prReviewerService.getProjectPRs('all', settings);
-      expect(result).toEqual([
+    it('should query pull requests delegating to CodeReviewProvider', async () => {
+      const mockPRs = [
         {
           id: '444',
           title: 'My active PR',
@@ -338,41 +235,12 @@ describe('PRReviewerService', () => {
           hostType: 'azure',
           url: 'https://dev.azure.com/conf-org/conf-proj/_git/my-repo-name/pullrequest/444',
         },
-      ]);
+      ] as PRMetadata[];
+      mockCodeReviewProvider.getProjectPRs.mockResolvedValue(mockPRs);
 
-      expect(mockGetPullRequestsByProject).toHaveBeenCalledWith('conf-proj', {
-        status: 1,
-      });
-    });
-
-    it('should filter by reviewer if searchType is assigned', async () => {
-      mockConnect.mockResolvedValue({
-        authorizedUser: { id: 'user-guid-123' },
-      });
-      mockGetPullRequestsByProject.mockResolvedValue([]);
-
-      await prReviewerService.getProjectPRs('assigned', settings);
-
-      expect(mockConnect).toHaveBeenCalled();
-      expect(mockGetPullRequestsByProject).toHaveBeenCalledWith('conf-proj', {
-        status: 1,
-        reviewerId: 'user-guid-123',
-      });
-    });
-
-    it('should filter by creator if searchType is created', async () => {
-      mockConnect.mockResolvedValue({
-        authorizedUser: { id: 'user-guid-123' },
-      });
-      mockGetPullRequestsByProject.mockResolvedValue([]);
-
-      await prReviewerService.getProjectPRs('created', settings);
-
-      expect(mockConnect).toHaveBeenCalled();
-      expect(mockGetPullRequestsByProject).toHaveBeenCalledWith('conf-proj', {
-        status: 1,
-        creatorId: 'user-guid-123',
-      });
+      const result = await prReviewerService.getProjectPRs('all', settings);
+      expect(result).toEqual(mockPRs);
+      expect(mockCodeReviewProvider.getProjectPRs).toHaveBeenCalledWith('all');
     });
   });
 
@@ -722,17 +590,6 @@ describe('PRReviewerService', () => {
         '{"type":"general","comment":"Reviewed story"}',
       );
 
-      mockGetPullRequestById.mockResolvedValue({
-        pullRequestId: 123,
-        title: 'Pr Title',
-        description: 'Pr Description',
-        sourceRefName: 'refs/heads/feature-x',
-        targetRefName: 'refs/heads/main',
-        createdBy: { displayName: 'John Doe' },
-        repository: { id: 'repo-123', name: 'my-repo' },
-      });
-      mockGetPullRequestWorkItemRefs.mockResolvedValue([{ id: 'story-123' }]);
-
       const mockIssueTracker = {
         fetchTicket: vi.fn().mockResolvedValue({
           id: 'story-123',
@@ -752,11 +609,14 @@ describe('PRReviewerService', () => {
         }),
       };
 
+      mockCodeReviewProvider.getLinkedTickets.mockResolvedValue(['story-123']);
+
       const customPRReviewerService = new PRReviewerService(
         mockGitService,
         mockCopilotService,
         async () => mockIssueTracker as any,
         async () => mockDocProvider as any,
+        async () => mockCodeReviewProvider as any,
       );
 
       vi.spyOn(customPRReviewerService, 'loadPhasesFromDisk').mockResolvedValue(
@@ -794,9 +654,9 @@ describe('PRReviewerService', () => {
         },
       );
 
-      expect(mockGetPullRequestWorkItemRefs).toHaveBeenCalledWith(
+      expect(mockCodeReviewProvider.getLinkedTickets).toHaveBeenCalledWith(
+        '123',
         'repo-123',
-        123,
       );
       expect(mockIssueTracker.fetchTicket).toHaveBeenCalledWith('story-123');
 
@@ -831,16 +691,7 @@ describe('PRReviewerService', () => {
       const mockFiles = [{ path: 'src/index.ts', status: 'modified' }];
       mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
 
-      mockGetPullRequestById.mockResolvedValue({
-        pullRequestId: 123,
-        title: 'Pr Title',
-        description: 'Pr Description',
-        sourceRefName: 'refs/heads/feature-x',
-        targetRefName: 'refs/heads/main',
-        createdBy: { displayName: 'John Doe' },
-        repository: { id: 'repo-123', name: 'my-repo' },
-      });
-      mockGetPullRequestWorkItemRefs.mockResolvedValue([]);
+      mockCodeReviewProvider.getLinkedTickets.mockResolvedValue([]);
 
       const mockIssueTracker = { fetchTicket: vi.fn() };
       const mockDocProvider = { fetchPage: vi.fn() };
@@ -850,6 +701,7 @@ describe('PRReviewerService', () => {
         mockCopilotService,
         async () => mockIssueTracker as any,
         async () => mockDocProvider as any,
+        async () => mockCodeReviewProvider as any,
       );
 
       vi.spyOn(customPRReviewerService, 'loadPhasesFromDisk').mockResolvedValue(
@@ -956,121 +808,29 @@ describe('PRReviewerService', () => {
       promptComplexity: 'normal',
     };
 
-    it('should successfully post a general comment', async () => {
-      mockGetPullRequestById.mockResolvedValue({
-        repository: { id: 'mock-repo-id' },
-      });
-      mockCreateThread.mockResolvedValue({});
+    it('should successfully post a comment delegating to CodeReviewProvider', async () => {
+      mockCodeReviewProvider.postPRComment.mockResolvedValue(undefined);
+      mockGitService.getRemoteUrl.mockResolvedValue(
+        'https://dev.azure.com/mock-org/mock-project/_git/my-repo',
+      );
+
+      const comment = {
+        type: 'general' as const,
+        comment: 'This is a general comment',
+      };
 
       await prReviewerService.postPRComment(
         '/mock/repo',
         '123',
-        {
-          type: 'general',
-          comment: 'This is a general comment',
-        },
+        comment,
         settings,
       );
 
-      expect(mockGetPullRequestById).toHaveBeenCalledWith(123);
-      expect(mockCreateThread).toHaveBeenCalledWith(
-        {
-          comments: [
-            {
-              parentCommentId: 0,
-              content:
-                'This is a general comment\n' +
-                [
-                  '> Generated with Stitch and GitHub Copilot.',
-                  '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-                ].join('\n'),
-              commentType: 1,
-            },
-          ],
-          status: 1,
-        },
-        'mock-repo-id',
-        123,
-        'mock-project',
-      );
-    });
-
-    it('should successfully post a line comment with threadContext', async () => {
-      mockGetPullRequestById.mockResolvedValue({
-        repository: { id: 'mock-repo-id' },
-      });
-      mockCreateThread.mockResolvedValue({});
-
-      await prReviewerService.postPRComment(
+      expect(mockCodeReviewProvider.postPRComment).toHaveBeenCalledWith(
         '/mock/repo',
         '123',
-        {
-          type: 'line',
-          file: 'src/index.ts',
-          line: 42,
-          comment: 'Fix this line',
-        },
-        settings,
-      );
-
-      expect(mockGetPullRequestById).toHaveBeenCalledWith(123);
-      expect(mockCreateThread).toHaveBeenCalledWith(
-        {
-          comments: [
-            {
-              parentCommentId: 0,
-              content:
-                'Fix this line\n' +
-                [
-                  '> Generated with Stitch and GitHub Copilot.',
-                  '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-                ].join('\n'),
-              commentType: 1,
-            },
-          ],
-          status: 1,
-          threadContext: {
-            filePath: '/src/index.ts',
-            rightFileStart: { line: 42, offset: 1 },
-            rightFileEnd: { line: 43, offset: 1 },
-          },
-        },
-        'mock-repo-id',
-        123,
-        'mock-project',
-      );
-    });
-
-    it('should format Windows file paths with backslashes and ensure starting forward slash when posting a line comment', async () => {
-      mockGetPullRequestById.mockResolvedValue({
-        repository: { id: 'mock-repo-id' },
-      });
-      mockCreateThread.mockResolvedValue({});
-
-      await prReviewerService.postPRComment(
-        '/mock/repo',
-        '123',
-        {
-          type: 'line',
-          file: 'PartySystemApi\\src\\PartySystem.Domain\\Migrations\\20260624014055_Update-Table-OrganisationType-RemoveIdentity.cs',
-          line: 10,
-          comment: 'Fix this migration',
-        },
-        settings,
-      );
-
-      expect(mockCreateThread).toHaveBeenCalledWith(
-        expect.objectContaining({
-          threadContext: {
-            filePath:
-              '/PartySystemApi/src/PartySystem.Domain/Migrations/20260624014055_Update-Table-OrganisationType-RemoveIdentity.cs',
-            rightFileStart: { line: 10, offset: 1 },
-            rightFileEnd: { line: 11, offset: 1 },
-          },
-        }),
-        'mock-repo-id',
-        123,
-        'mock-project',
+        comment,
+        'https://dev.azure.com/mock-org/mock-project/_git/my-repo',
       );
     });
   });
