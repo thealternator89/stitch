@@ -616,6 +616,15 @@ const createWindow = (): void => {
   // and load the index.html of the app.
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
+  // Prevent default reload hotkeys (Cmd/Ctrl+R, Cmd/Ctrl+Shift+R)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isControlOrMeta =
+      process.platform === 'darwin' ? input.meta : input.control;
+    if (isControlOrMeta && input.key.toLowerCase() === 'r') {
+      event.preventDefault();
+    }
+  });
+
   // Open the DevTools.
   // mainWindow.webContents.openDevTools();
 };
