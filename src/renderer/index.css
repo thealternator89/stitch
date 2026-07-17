@@ -691,7 +691,7 @@ tr.is-dragging {
 .usage-toast {
   position: fixed;
   bottom: 48px; /* sits nicely above the footer */
-  right: 24px;
+  left: 24px;
   z-index: 1050;
   width: 320px;
   background: rgba(255, 255, 255, 0.85);
