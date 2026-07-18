@@ -277,9 +277,6 @@ const Settings: React.FC = () => {
             setGitWorktreeEnabled={setGitWorktreeEnabled}
             gitWorktreeBaseDir={gitWorktreeBaseDir}
             setGitWorktreeBaseDir={setGitWorktreeBaseDir}
-            maxParallelism={maxParallelism}
-            setMaxParallelism={setMaxParallelism}
-            cpuCount={cpuCount}
           />
         );
       case 'connectors':
@@ -355,7 +352,13 @@ const Settings: React.FC = () => {
         );
       case 'pr-reviewer':
         return (
-          <PRReviewerSettings personas={personas} setPersonas={setPersonas} />
+          <PRReviewerSettings
+            personas={personas}
+            setPersonas={setPersonas}
+            maxParallelism={maxParallelism}
+            setMaxParallelism={setMaxParallelism}
+            cpuCount={cpuCount}
+          />
         );
       default:
         return null;
