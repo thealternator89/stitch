@@ -466,11 +466,15 @@ const PRReviewer: React.FC = () => {
       const commentText =
         updatedText !== undefined ? updatedText : comment.comment;
 
+      const isEdited =
+        updatedText !== undefined && updatedText !== comment.comment;
+
       await window.electronAPI.postPRComment(repoPath, prIdentifier, {
         type: comment.type,
         file: comment.file,
         line: comment.line,
         comment: commentText,
+        edited: isEdited,
       });
 
       // Mark as posted

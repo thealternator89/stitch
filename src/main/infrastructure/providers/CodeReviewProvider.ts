@@ -34,6 +34,7 @@ export interface CodeReviewProvider {
       file?: string;
       line?: number;
       comment: string;
+      edited?: boolean;
     },
     remoteUrl?: string | null,
   ): Promise<void>;

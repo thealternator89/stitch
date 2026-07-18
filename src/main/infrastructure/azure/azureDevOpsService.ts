@@ -2,7 +2,7 @@ import * as azdev from 'azure-devops-node-api';
 import { IWorkItemTrackingApi } from 'azure-devops-node-api/WorkItemTrackingApi';
 import { IssueTrackerProvider } from '../providers/IssueTrackerProvider';
 import { TicketData } from '../../../types';
-import { ATTRIBUTION_STATEMENT } from '../constants';
+import { getAttributionStatement } from '../constants';
 
 export class AzureDevOpsService implements IssueTrackerProvider {
   private witApi: IWorkItemTrackingApi | null = null;
@@ -43,9 +43,17 @@ export class AzureDevOpsService implements IssueTrackerProvider {
     }
   }
 
-  async addComment(ticketId: string, text: string): Promise<void> {
+  async addComment(
+    ticketId: string,
+    text: string,
+    options?: { edited?: boolean },
+  ): Promise<void> {
     const witApi = await this.getApi();
-    const commentWithAttribution = [text, '', ATTRIBUTION_STATEMENT].join('\n');
+    const commentWithAttribution = [
+      text,
+      '',
+      getAttributionStatement(options?.edited),
+    ].join('\n');
     const document = [
       {
         op: 'add',
@@ -65,6 +73,7 @@ export class AzureDevOpsService implements IssueTrackerProvider {
     type: string,
     parentTicketId: string,
     data: TicketData,
+    options?: { edited?: boolean },
   ): Promise<void> {
     const witApi = await this.getApi();
 
@@ -76,9 +85,10 @@ export class AzureDevOpsService implements IssueTrackerProvider {
     const project = parentWorkItem.fields['System.TeamProject'];
     const parentUrl = parentWorkItem.url;
 
+    const attribution = getAttributionStatement(options?.edited);
     const descriptionWithAttribution = data.description
-      ? [data.description, '', ATTRIBUTION_STATEMENT].join('\n')
-      : ATTRIBUTION_STATEMENT;
+      ? [data.description, '', attribution].join('\n')
+      : attribution;
 
     const document = [
       { op: 'add', path: '/fields/System.Title', value: data.title },

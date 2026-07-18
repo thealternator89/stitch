@@ -1085,6 +1085,7 @@ export class PRReviewerService {
       file?: string;
       line?: number;
       comment: string;
+      edited?: boolean;
     },
     _settings: AppSettings,
   ): Promise<void> {
