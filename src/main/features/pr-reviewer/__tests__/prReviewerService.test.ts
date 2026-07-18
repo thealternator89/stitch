@@ -1901,4 +1901,105 @@ describe('PRReviewerService', () => {
       });
     });
   });
+
+  describe('Persona integration', () => {
+    it('buildPhaseReviewPrompt should inject persona guidelines correctly into the prompt', () => {
+      const prompt = buildPhaseReviewPrompt(
+        [],
+        'My Phase',
+        'Phase Guidelines',
+        'Custom instructions',
+        '',
+        '',
+        [],
+        'Focus on secure coding patterns.',
+      );
+      expect(prompt).toContain(
+        'For this review, you must adhere to the following specific focus guidelines:',
+      );
+      expect(prompt).toContain(
+        '- Guidelines: Focus on secure coding patterns.',
+      );
+    });
+
+    it('reviewPR should fetch the selected persona guidelines and pass them to the prompt', async () => {
+      const settingsWithPersonas = {
+        copilotToken: 'mock-token',
+        copilotModel: 'mock-model',
+        prReviewer: {
+          personas: [
+            {
+              name: 'Security Auditor',
+              content: 'Focus on secure coding patterns.',
+            },
+          ],
+        },
+      };
+
+      const mockFiles = [{ path: 'src/file.ts', status: 'modified' }];
+      mockGitService.getDiffFiles.mockResolvedValueOnce(mockFiles);
+
+      const mockPhases = [
+        {
+          id: 'p1',
+          title: 'DoD',
+          body: 'DoD rules',
+          enabled: true,
+        },
+      ];
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValueOnce(
+        mockPhases,
+      );
+
+      const mockClient = { stop: vi.fn() };
+      const mockSession = {
+        sendAndCollectStream: vi
+          .fn()
+          .mockImplementation((session, prompt, onLine) => {
+            onLine('{"type":"general","comment":"Ok"}');
+            return Promise.resolve({
+              result: 'Ok',
+              usage: {
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheReadTokens: 0,
+                cost: 0,
+              },
+            });
+          }),
+        disconnect: vi.fn(),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+
+      await prReviewerService.reviewPR(
+        '/mock/repo',
+        'main',
+        settingsWithPersonas,
+        {
+          enabledPhaseIds: ['p1'],
+          persona: 'Security Auditor',
+        },
+      );
+
+      const expectedPrompt = buildPhaseReviewPrompt(
+        mockFiles,
+        'DoD',
+        'DoD rules',
+        '',
+        undefined,
+        undefined,
+        undefined,
+        'Focus on secure coding patterns.',
+      );
+
+      expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
+        mockSession,
+        expectedPrompt,
+        undefined,
+      );
+    });
+  });
 });

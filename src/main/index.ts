@@ -461,6 +461,7 @@ ipcMain.handle(
     prDescription,
     prId,
     maxParallelism,
+    persona,
   ) => {
     const settings = await getDecryptedSettings();
     return prReviewerService.reviewPR(repoPath, targetBranch, settings, {
@@ -470,6 +471,7 @@ ipcMain.handle(
       prDescription,
       prId,
       maxParallelism,
+      persona,
       onLine: (line: string) => {
         event.sender.send('pr-reviewer:review-line', line);
       },
@@ -501,6 +503,25 @@ ipcMain.handle(
     const s = await initStore();
     s.set(`repo-paths.${repoName}`, repoPath);
     return true;
+  },
+);
+
+ipcMain.handle('pr-reviewer:get-author-persona', async (event, authorKey) => {
+  const s = await initStore();
+  const safeKey = encodeURIComponent(authorKey).replace(/\./g, '%2E');
+  return s.get(`author-personas.${safeKey}`) || null;
+});
+
+ipcMain.handle(
+  'pr-reviewer:save-author-persona',
+  async (event, authorKey, personaName) => {
+    const s = await initStore();
+    const safeKey = encodeURIComponent(authorKey).replace(/\./g, '%2E');
+    if (personaName && personaName !== 'None') {
+      s.set(`author-personas.${safeKey}`, personaName);
+    } else {
+      s.delete(`author-personas.${safeKey}`);
+    }
   },
 );
 
