@@ -6,7 +6,7 @@ import {
 } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { CodeReviewProvider } from '../providers/CodeReviewProvider';
 import { PRMetadata } from '../../../types';
-import { ATTRIBUTION_STATEMENT } from '../constants';
+import { getAttributionStatement } from '../constants';
 
 export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
   private gitApi: IGitApi | null = null;
@@ -315,6 +315,7 @@ export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
       file?: string;
       line?: number;
       comment: string;
+      edited?: boolean;
     },
     remoteUrl?: string | null,
   ): Promise<void> {
@@ -360,7 +361,7 @@ export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
 
     const repositoryId = prDetails.repository.id;
 
-    const disclaimer = ['', ATTRIBUTION_STATEMENT].join('\n');
+    const disclaimer = ['', getAttributionStatement(comment.edited)].join('\n');
 
     const contentWithDisclaimer = comment.comment + disclaimer;
 

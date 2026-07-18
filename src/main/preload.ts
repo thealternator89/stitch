@@ -51,10 +51,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('story-line', listener);
     };
   },
-  addComment: (ticketId: string, text: string) =>
-    ipcRenderer.invoke('add-comment', ticketId, text),
-  createTicket: (type: string, parentTicketId: string, data: TicketData) =>
-    ipcRenderer.invoke('create-ticket', type, parentTicketId, data),
+  addComment: (
+    ticketId: string,
+    text: string,
+    options?: { edited?: boolean },
+  ) => ipcRenderer.invoke('add-comment', ticketId, text, options),
+  createTicket: (
+    type: string,
+    parentTicketId: string,
+    data: TicketData,
+    options?: { edited?: boolean },
+  ) => ipcRenderer.invoke('create-ticket', type, parentTicketId, data, options),
   checkCopilotAuth: () => ipcRenderer.invoke('check-copilot-auth'),
   checkEnvironment: () => ipcRenderer.invoke('check-environment'),
   installCopilotCli: () => ipcRenderer.invoke('install-copilot-cli'),
@@ -187,6 +194,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       file?: string;
       line?: number;
       comment: string;
+      edited?: boolean;
     },
   ): Promise<void> =>
     ipcRenderer.invoke(

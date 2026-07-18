@@ -544,15 +544,18 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('add-comment', async (event, ticketId, text) => {
+ipcMain.handle('add-comment', async (event, ticketId, text, options) => {
   const service = await getAzureService();
-  return service.addComment(ticketId, text);
+  return service.addComment(ticketId, text, options);
 });
 
-ipcMain.handle('create-ticket', async (event, type, parentTicketId, data) => {
-  const service = await getAzureService();
-  return service.createTicket(type, parentTicketId, data);
-});
+ipcMain.handle(
+  'create-ticket',
+  async (event, type, parentTicketId, data, options) => {
+    const service = await getAzureService();
+    return service.createTicket(type, parentTicketId, data, options);
+  },
+);
 
 // Keep active notifications in memory to prevent garbage collection before click/close events fire
 const activeNotifications = new Set<Notification>();

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AzureDevOpsCodeReviewService } from '../azureDevOpsCodeReviewService';
-import { ATTRIBUTION_STATEMENT } from '../../constants';
+import {
+  ATTRIBUTION_STATEMENT_GENERATED,
+  ATTRIBUTION_STATEMENT_ASSISTED,
+} from '../../constants';
 
 const mockGetPullRequestById = vi.fn();
 const mockGetPullRequestsByProject = vi.fn();
@@ -312,7 +315,44 @@ describe('AzureDevOpsCodeReviewService', () => {
           comments: [
             {
               parentCommentId: 0,
-              content: 'This is a general comment\n' + ATTRIBUTION_STATEMENT,
+              content:
+                'This is a general comment\n' + ATTRIBUTION_STATEMENT_GENERATED,
+              commentType: 1,
+            },
+          ],
+          status: 1,
+        },
+        'mock-repo-id',
+        123,
+        'conf-proj',
+      );
+    });
+
+    it('should successfully post an assisted general comment', async () => {
+      mockGetPullRequestById.mockResolvedValue({
+        repository: { id: 'mock-repo-id' },
+      });
+      mockCreateThread.mockResolvedValue({});
+
+      await service.postPRComment(
+        '/mock/repo',
+        '123',
+        {
+          type: 'general',
+          comment: 'This is a general comment',
+          edited: true,
+        },
+        'https://dev.azure.com/conf-org/conf-proj/_git/my-repo',
+      );
+
+      expect(mockGetPullRequestById).toHaveBeenCalledWith(123);
+      expect(mockCreateThread).toHaveBeenCalledWith(
+        {
+          comments: [
+            {
+              parentCommentId: 0,
+              content:
+                'This is a general comment\n' + ATTRIBUTION_STATEMENT_ASSISTED,
               commentType: 1,
             },
           ],
@@ -348,7 +388,7 @@ describe('AzureDevOpsCodeReviewService', () => {
           comments: [
             {
               parentCommentId: 0,
-              content: 'Fix this line\n' + ATTRIBUTION_STATEMENT,
+              content: 'Fix this line\n' + ATTRIBUTION_STATEMENT_GENERATED,
               commentType: 1,
             },
           ],

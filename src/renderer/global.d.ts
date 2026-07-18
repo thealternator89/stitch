@@ -37,11 +37,16 @@ export interface IElectronAPI {
     modelOverride: string,
   ) => Promise<CopilotResult<string>>;
   onStoryLine: (callback: (line: string) => void) => () => void;
-  addComment: (ticketId: string, text: string) => Promise<void>;
+  addComment: (
+    ticketId: string,
+    text: string,
+    options?: { edited?: boolean },
+  ) => Promise<void>;
   createTicket: (
     type: string,
     parentTicketId: string,
     data: TicketData,
+    options?: { edited?: boolean },
   ) => Promise<void>;
 
   checkCopilotAuth: () => Promise<CopilotAuth>;
@@ -120,6 +125,7 @@ export interface IElectronAPI {
       file?: string;
       line?: number;
       comment: string;
+      edited?: boolean;
     },
   ) => Promise<void>;
   showNotification: (title: string, body: string) => Promise<void>;

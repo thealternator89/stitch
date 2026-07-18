@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AzureDevOpsService } from '../azureDevOpsService';
-import { ATTRIBUTION_STATEMENT } from '../../constants';
+import {
+  ATTRIBUTION_STATEMENT_GENERATED,
+  ATTRIBUTION_STATEMENT_ASSISTED,
+} from '../../constants';
 
 const mockWitApi = {
   getWorkItem: vi.fn(),
@@ -75,7 +78,7 @@ describe('AzureDevOpsService', () => {
   });
 
   describe('addComment', () => {
-    it('should update work item with history/comment comment patches', async () => {
+    it('should update work item with history/comment comment patches (generated)', async () => {
       mockWitApi.updateWorkItem.mockResolvedValueOnce({});
 
       await service.addComment('42', 'This is a test comment');
@@ -86,9 +89,40 @@ describe('AzureDevOpsService', () => {
           {
             op: 'add',
             path: '/fields/System.History',
-            value: ['This is a test comment', '', ATTRIBUTION_STATEMENT].join(
-              '\n',
-            ),
+            value: [
+              'This is a test comment',
+              '',
+              ATTRIBUTION_STATEMENT_GENERATED,
+            ].join('\n'),
+          },
+          {
+            op: 'add',
+            path: '/multilineFieldsFormat/System.History',
+            value: 'Markdown',
+          },
+        ],
+        42,
+      );
+    });
+
+    it('should update work item with history/comment comment patches (assisted)', async () => {
+      mockWitApi.updateWorkItem.mockResolvedValueOnce({});
+
+      await service.addComment('42', 'This is a test comment', {
+        edited: true,
+      });
+
+      expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
+        undefined,
+        [
+          {
+            op: 'add',
+            path: '/fields/System.History',
+            value: [
+              'This is a test comment',
+              '',
+              ATTRIBUTION_STATEMENT_ASSISTED,
+            ].join('\n'),
           },
           {
             op: 'add',
@@ -102,7 +136,7 @@ describe('AzureDevOpsService', () => {
   });
 
   describe('createTicket', () => {
-    it('should fetch parent details and create a child ticket with reverse hierarchy link', async () => {
+    it('should fetch parent details and create a child ticket with reverse hierarchy link (generated)', async () => {
       mockWitApi.getWorkItem.mockResolvedValueOnce({
         id: 10,
         url: 'https://dev.azure.com/myorg/_apis/wit/workItems/10',
@@ -135,7 +169,78 @@ describe('AzureDevOpsService', () => {
             value: [
               'Need to write unit tests for Stitch services',
               '',
-              ATTRIBUTION_STATEMENT,
+              ATTRIBUTION_STATEMENT_GENERATED,
+            ].join('\n'),
+          },
+          {
+            op: 'add',
+            path: '/multilineFieldsFormat/System.Description',
+            value: 'Markdown',
+          },
+          {
+            op: 'add',
+            path: '/relations/-',
+            value: {
+              rel: 'System.LinkTypes.Hierarchy-Reverse',
+              url: 'https://dev.azure.com/myorg/_apis/wit/workItems/10',
+              attributes: { comment: 'Created via Stitch' },
+            },
+          },
+          {
+            op: 'add',
+            path: '/fields/Microsoft.VSTS.Common.AcceptanceCriteria',
+            value: 'Coverage should be high',
+          },
+          {
+            op: 'add',
+            path: '/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria',
+            value: 'Markdown',
+          },
+        ],
+        'MyStitchProject',
+        'Task',
+      );
+    });
+
+    it('should fetch parent details and create a child ticket with reverse hierarchy link (assisted)', async () => {
+      mockWitApi.getWorkItem.mockResolvedValueOnce({
+        id: 10,
+        url: 'https://dev.azure.com/myorg/_apis/wit/workItems/10',
+        fields: {
+          'System.TeamProject': 'MyStitchProject',
+        },
+      });
+
+      mockWitApi.createWorkItem.mockResolvedValueOnce({});
+
+      await service.createTicket(
+        'Task',
+        '10',
+        {
+          id: '',
+          title: 'Write unit tests',
+          description: 'Need to write unit tests for Stitch services',
+          acceptanceCriteria: 'Coverage should be high',
+        },
+        { edited: true },
+      );
+
+      expect(mockWitApi.getWorkItem).toHaveBeenCalledWith(10);
+      expect(mockWitApi.createWorkItem).toHaveBeenCalledWith(
+        undefined,
+        [
+          {
+            op: 'add',
+            path: '/fields/System.Title',
+            value: 'Write unit tests',
+          },
+          {
+            op: 'add',
+            path: '/fields/System.Description',
+            value: [
+              'Need to write unit tests for Stitch services',
+              '',
+              ATTRIBUTION_STATEMENT_ASSISTED,
             ].join('\n'),
           },
           {

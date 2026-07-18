@@ -88,6 +88,7 @@ const TestCaseWriter: React.FC = () => {
   const [testCasesList, setTestCasesList] = useState<TestCase[]>([]);
   const [error, setError] = useState<string>('');
   const [isPosting, setIsPosting] = useState(false);
+  const [testCasesModified, setTestCasesModified] = useState(false);
 
   // Reordering states
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -97,12 +98,14 @@ const TestCaseWriter: React.FC = () => {
     setTestCasesList((prev) =>
       prev.map((tc, idx) => (idx === index ? { ...tc, deleted: true } : tc)),
     );
+    setTestCasesModified(true);
   };
 
   const handleRestore = (index: number) => {
     setTestCasesList((prev) =>
       prev.map((tc, idx) => (idx === index ? { ...tc, deleted: false } : tc)),
     );
+    setTestCasesModified(true);
   };
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -164,7 +167,9 @@ const TestCaseWriter: React.FC = () => {
     try {
       const mdTable = convertToMarkdownTable(testCasesList);
       const text = generateTicketOrCommentText(mdTable);
-      await window.electronAPI.addComment(ticketId, text);
+      await window.electronAPI.addComment(ticketId, text, {
+        edited: testCasesModified,
+      });
       alert('Comment added successfully!');
     } catch (err: unknown) {
       console.error(err);
@@ -182,10 +187,17 @@ const TestCaseWriter: React.FC = () => {
     try {
       const mdTable = convertToMarkdownTable(testCasesList);
       const text = generateTicketOrCommentText(mdTable);
-      await window.electronAPI.createTicket(taskType, ticketId, {
-        title: testTaskTitle,
-        description: text,
-      });
+      await window.electronAPI.createTicket(
+        taskType,
+        ticketId,
+        {
+          title: testTaskTitle,
+          description: text,
+        },
+        {
+          edited: testCasesModified,
+        },
+      );
       alert('Task created successfully!');
     } catch (err: unknown) {
       console.error(err);
@@ -216,6 +228,7 @@ const TestCaseWriter: React.FC = () => {
     setGenerationStarted(true);
     setTestCasesList([]);
     setTicketData(null);
+    setTestCasesModified(false);
 
     // Set up real-time listener for incoming lines
     const unsubscribe = window.electronAPI.onTestCaseLine((line: string) => {
@@ -644,6 +657,7 @@ const TestCaseWriter: React.FC = () => {
                                 );
 
                                 setTestCasesList(reorderedList);
+                                setTestCasesModified(true);
                                 setDraggedIndex(null);
                                 setDragOverIndex(null);
                               }}
