@@ -54,8 +54,8 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
         </div>
 
         <p className="text-muted small mb-4">
-          You can use personas to customise how your code review agents talk and
-          what they focus on.
+          You can use personas to customise how your agents talk and what they
+          focus on.
         </p>
 
         {personas.length === 0 ? (
