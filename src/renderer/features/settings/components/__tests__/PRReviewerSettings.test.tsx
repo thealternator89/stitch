@@ -141,4 +141,30 @@ describe('PRReviewerSettings Component', () => {
     const duplicateErrors = screen.getAllByText('Persona name must be unique.');
     expect(duplicateErrors).toHaveLength(2);
   });
+
+  it('swallows the Enter keypress on the guidelines content input', () => {
+    const mockPersonas: Persona[] = [
+      { name: 'Reviewer A', content: 'Original content' },
+    ];
+    render(
+      <PRReviewerSettings personas={mockPersonas} setPersonas={vi.fn()} />,
+    );
+
+    const contentInput = screen.getByDisplayValue('Original content');
+
+    const preventDefaultSpy = vi.fn();
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, 'preventDefault', {
+      value: preventDefaultSpy,
+      writable: true,
+    });
+
+    contentInput.dispatchEvent(event);
+
+    expect(preventDefaultSpy).toHaveBeenCalled();
+  });
 });

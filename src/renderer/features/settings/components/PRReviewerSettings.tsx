@@ -146,6 +146,11 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
                       onChange={(e) =>
                         handleUpdate(index, 'content', e.target.value)
                       }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                        }
+                      }}
                     />
                     {persona.content.trim() === '' && (
                       <div className="invalid-feedback">
