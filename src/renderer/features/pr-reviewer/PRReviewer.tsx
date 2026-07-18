@@ -1215,18 +1215,6 @@ const PRReviewer: React.FC = () => {
                           </select>
                         </div>
 
-                        {/* Persona Guidelines Alert */}
-                        {selectedPersona !== 'None' && (
-                          <div className="alert alert-info py-2 px-3 border-0 bg-info-subtle text-info-emphasis small mb-3">
-                            <i className="fas fa-info-circle me-1"></i>
-                            <strong>Guidelines:</strong>{' '}
-                            {
-                              personas.find((p) => p.name === selectedPersona)
-                                ?.content
-                            }
-                          </div>
-                        )}
-
                         {/* Custom Review Instructions */}
                         <div className="mb-4 flex-grow-1 d-flex flex-column">
                           <label className="form-label text-muted small fw-semibold">
