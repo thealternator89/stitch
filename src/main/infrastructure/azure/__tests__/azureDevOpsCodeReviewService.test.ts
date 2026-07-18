@@ -312,9 +312,7 @@ describe('AzureDevOpsCodeReviewService', () => {
           comments: [
             {
               parentCommentId: 0,
-              content:
-                'This is a general comment\n' +
-                [ATTRIBUTION_STATEMENT].join('\n'),
+              content: 'This is a general comment\n' + ATTRIBUTION_STATEMENT,
               commentType: 1,
             },
           ],
@@ -350,7 +348,7 @@ describe('AzureDevOpsCodeReviewService', () => {
           comments: [
             {
               parentCommentId: 0,
-              content: 'Fix this line\n' + [ATTRIBUTION_STATEMENT].join('\n'),
+              content: 'Fix this line\n' + ATTRIBUTION_STATEMENT,
               commentType: 1,
             },
           ],
