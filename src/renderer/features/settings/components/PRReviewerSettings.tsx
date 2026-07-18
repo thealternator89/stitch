@@ -51,8 +51,7 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
       <div className="card-body p-4">
         <div className="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
           <h5 className="mb-0">
-            <i className="fas fa-user-tag me-2 text-primary"></i>PR Reviewer
-            Personas
+            <i className="fas fa-user-tag me-2 text-primary"></i>Personas
           </h5>
           <span className="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
             {personas.length} / 5 Personas
@@ -198,8 +197,8 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
         <hr className="my-4" />
 
         <h5 className="mb-4">
-          <i className="fas fa-microchip me-2 text-primary"></i>PR Reviewer
-          Concurrency Settings
+          <i className="fas fa-microchip me-2 text-primary"></i>Concurrency
+          Settings
         </h5>
 
         <div className="mb-2">
