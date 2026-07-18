@@ -233,41 +233,6 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
               )}
             </div>
           )}
-
-          <h5 className="mb-4 mt-4 border-bottom pb-2">
-            <i className="fas fa-bell me-2 text-primary"></i>Notification
-            Settings
-          </h5>
-
-          <div className="mb-2">
-            <p className="text-muted small mb-3">
-              Test native OS notifications to verify they are enabled and
-              working correctly.
-            </p>
-            <button
-              type="button"
-              className="btn btn-outline-primary d-flex align-items-center gap-2"
-              onClick={() => {
-                setTimeout(() => {
-                  window.electronAPI
-                    .showNotification(
-                      'Stitch Test Notification',
-                      'This is a test notification from Stitch! Click here to focus.',
-                    )
-                    .catch((err) => {
-                      console.error('Failed to send test notification:', err);
-                    });
-                }, 3000);
-              }}
-            >
-              <i className="fas fa-paper-plane"></i>
-              Send Test Notification (3s delay)
-            </button>
-            <p className="text-muted small mt-2 mb-0">
-              Click the button, then minimize or focus away from Stitch within 3
-              seconds to test.
-            </p>
-          </div>
         </div>
       </div>
 
