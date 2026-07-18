@@ -54,10 +54,8 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
         </div>
 
         <p className="text-muted small mb-4">
-          Define custom personas that your code review agents can adopt (e.g.
-          Security Auditor, Performance Guru, style-enforcer). Each persona has
-          a unique name (up to 20 characters) and review guidelines (exactly 1
-          line, up to 160 characters).
+          You can use personas to customise how your code review agents talk and
+          what they focus on.
         </p>
 
         {personas.length === 0 ? (
