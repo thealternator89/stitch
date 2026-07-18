@@ -137,7 +137,7 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
                   <tr>
                     <th>Model Name</th>
                     <th>Key</th>
-                    <th style={{ width: '240px' }}>Actions</th>
+                    <th style={{ width: '130px' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -152,40 +152,40 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
                         )}
                       </td>
                       <td>
-                        <code className="text-muted font-monospace">
-                          {model.id}
-                        </code>
-                      </td>
-                      <td>
                         <div className="d-flex align-items-center gap-2">
+                          <code className="text-muted font-monospace">
+                            {model.id}
+                          </code>
                           <button
                             type="button"
-                            className="btn btn-sm btn-outline-secondary py-1 px-2 d-flex align-items-center gap-1"
+                            className="btn btn-link btn-sm p-0 text-secondary d-flex align-items-center"
                             onClick={() => handleCopy(model.id)}
+                            title={
+                              copiedModelId === model.id
+                                ? 'Copied!'
+                                : 'Copy model key'
+                            }
+                            style={{ textDecoration: 'none' }}
                           >
                             {copiedModelId === model.id ? (
-                              <>
-                                <i className="fas fa-check text-success"></i>
-                                <span>Copied</span>
-                              </>
+                              <i className="fas fa-check text-success"></i>
                             ) : (
-                              <>
-                                <i className="fas fa-copy"></i>
-                                <span>Copy</span>
-                              </>
+                              <i className="fas fa-copy"></i>
                             )}
                           </button>
-                          {selectedModel !== model.id && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-primary py-1 px-2 d-flex align-items-center gap-1"
-                              onClick={() => setSelectedModel(model.id)}
-                            >
-                              <i className="fas fa-star"></i>
-                              <span>Set Default</span>
-                            </button>
-                          )}
                         </div>
+                      </td>
+                      <td>
+                        {selectedModel !== model.id && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary py-1 px-2 d-flex align-items-center gap-1"
+                            onClick={() => setSelectedModel(model.id)}
+                          >
+                            <i className="fas fa-star"></i>
+                            <span>Set Default</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
