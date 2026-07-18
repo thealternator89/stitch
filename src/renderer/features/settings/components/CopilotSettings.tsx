@@ -1,5 +1,4 @@
 import React from 'react';
-import ModelDropdown from '../../../components/ModelDropdown';
 import { CopilotAuth, CopilotModel } from '../../../../types';
 
 interface CopilotSettingsProps {
@@ -8,7 +7,6 @@ interface CopilotSettingsProps {
   models: CopilotModel[];
   selectedModel: string;
   setSelectedModel: (val: string) => void;
-  loadingModels: boolean;
   authStatus: CopilotAuth | null;
   checkingAuth: boolean;
   handleCheckAuth: () => void;
@@ -20,11 +18,20 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
   models,
   selectedModel,
   setSelectedModel,
-  loadingModels,
   authStatus,
   checkingAuth,
   handleCheckAuth,
 }) => {
+  const [copiedModelId, setCopiedModelId] = React.useState<string | null>(null);
+
+  const handleCopy = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedModelId(id);
+    setTimeout(() => {
+      setCopiedModelId(null);
+    }, 1500);
+  };
+
   return (
     <div className="card shadow-sm border-0 bg-body-tertiary">
       <div className="card-body p-4">
@@ -32,11 +39,6 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
           <i className="fas fa-robot me-2 text-primary"></i>GitHub Copilot
           Configuration
         </h5>
-
-        <p className="text-muted small mb-4">
-          Configure integration with GitHub Copilot API to enable automated test
-          case and story writing.
-        </p>
 
         <div className="mb-3">
           <label className="form-label fw-semibold">Copilot API Token</label>
@@ -49,21 +51,6 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
           />
           <div className="form-text">
             Your Copilot session or API token for authentication.
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <label className="form-label fw-semibold">Default Model</label>
-          <ModelDropdown
-            models={models}
-            selectedModel={selectedModel}
-            onSelect={setSelectedModel}
-            loading={loadingModels}
-            className="w-50"
-            buttonVariant="outline-secondary"
-          />
-          <div className="form-text mt-1">
-            Choose the language model used by Copilot for text generation tasks.
           </div>
         </div>
 
@@ -138,6 +125,77 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
             </div>
           )}
         </div>
+
+        {models.length > 0 && (
+          <div className="mt-4 border-top pt-4">
+            <h6 className="mb-3 fw-semibold">
+              <i className="fas fa-list me-2 text-primary"></i>Available Models
+            </h6>
+            <div className="table-responsive border rounded bg-body">
+              <table className="table table-hover align-middle mb-0 small">
+                <thead className="table-light">
+                  <tr>
+                    <th>Model Name</th>
+                    <th>Key</th>
+                    <th style={{ width: '130px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map((model) => (
+                    <tr key={model.id}>
+                      <td className="fw-semibold text-body">{model.name}</td>
+                      <td>
+                        <div className="d-flex align-items-center gap-2">
+                          <code className="text-muted font-monospace">
+                            {model.id}
+                          </code>
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm p-0 text-secondary d-flex align-items-center"
+                            onClick={() => handleCopy(model.id)}
+                            title={
+                              copiedModelId === model.id
+                                ? 'Copied!'
+                                : 'Copy model key'
+                            }
+                            style={{ textDecoration: 'none' }}
+                          >
+                            {copiedModelId === model.id ? (
+                              <i className="fas fa-check text-success"></i>
+                            ) : (
+                              <i className="fas fa-copy"></i>
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                      <td>
+                        {selectedModel === model.id ? (
+                          <span className="badge bg-success-subtle text-success border border-success-subtle py-1.5 px-2 fw-semibold">
+                            <i className="fas fa-check-circle me-1"></i>Default
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary py-1 px-2 d-flex align-items-center gap-1"
+                            onClick={() => setSelectedModel(model.id)}
+                          >
+                            <i className="fas fa-star"></i>
+                            <span>Set Default</span>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-text mt-2">
+              Use these keys in your phase markdown files under the{' '}
+              <code>model</code> frontmatter property to override the model for
+              specific review phases.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

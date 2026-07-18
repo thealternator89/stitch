@@ -149,6 +149,7 @@ export interface ReviewPhase {
   body: string;
   template?: string;
   templateError?: string;
+  model?: string;
 }
 
 export interface CopilotUsage {

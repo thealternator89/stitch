@@ -32,8 +32,7 @@ const Settings: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [authStatus, setAuthStatus] = useState<CopilotAuth | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(false);
-  const { models, selectedModel, setSelectedModel, loadingModels } =
-    useCopilotModels();
+  const { models, selectedModel, setSelectedModel } = useCopilotModels();
 
   const [activeTab, setActiveTab] = useState<
     'general' | 'connectors' | 'copilot' | 'prompts'
@@ -263,7 +262,6 @@ const Settings: React.FC = () => {
             models={models}
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
-            loadingModels={loadingModels}
             authStatus={authStatus}
             checkingAuth={checkingAuth}
             handleCheckAuth={handleCheckAuth}

@@ -45,6 +45,7 @@ Stitch:
 | `group`    | `string`   | Categorizes the phase under a group in the UI.                                                            | `"Ungrouped"`                                |
 | `include`  | `string`   | Glob pattern (parsed by `picomatch`) specifying which files must be in the PR diff for this phase to run. | None (runs on all files)                     |
 | `exclude`  | `string`   | Glob pattern specifying files that should be ignored during this phase.                                   | None                                         |
+| `model`    | `string`   | Model key override (e.g., `gpt-4o`, `gemini-1.5-flash`) to execute this specific phase with.              | None (uses review-level default model)       |
 | `attach`   | `string[]` | List of data sources to attach to the prompt context. Supported: `["description"]` or `["story"]`.        | None                                         |
 | `template` | `string`   | The filename of a template inside `~/.stitch/pr-reviewer/templates/` to wrap this phase's guidelines.     | None                                         |
 
@@ -63,6 +64,15 @@ migration rules on frontend React code).
 
 If no files in the PR match the `include` glob (or if all matching files are
 filtered out by the `exclude` glob), the phase will be skipped entirely.
+
+---
+
+## Phase Model Overrides (`model`)
+
+By default, all phases are executed using the default model configured for the review. If a specific phase requires a different model (for instance, a more capable model for complex logical validation, or a faster/cheaper model for simple style checks), you can override it using the `model` frontmatter property.
+
+- **Available Models**: The model key specified must be currently available. You can view all available model keys at the bottom of the **GitHub Copilot** settings page.
+- **Handling Unavailable Models**: If a model is not found in the list of available models, Stitch will display a danger badge indicating `"Model not available"` on that phase in the UI. The checkbox for that phase will be unchecked and disabled, and the phase will be excluded from the review run.
 
 ---
 
