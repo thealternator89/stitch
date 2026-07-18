@@ -88,36 +88,14 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
                   key={index}
                   className="p-3 border rounded bg-body shadow-sm position-relative"
                 >
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <span className="fw-semibold text-muted small">
-                      Persona #{index + 1}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-outline-danger btn-sm border-0"
-                      onClick={() => handleDelete(index)}
-                      title="Delete Persona"
-                    >
-                      <i className="fas fa-trash-can"></i>
-                    </button>
-                  </div>
-
-                  <div className="row g-3">
-                    <div className="col-md-4">
-                      <div className="d-flex justify-content-between mb-1">
-                        <label className="form-label small fw-semibold mb-0">
-                          Name
-                        </label>
-                        <span className="text-muted small font-monospace">
-                          {persona.name.length}/20
-                        </span>
-                      </div>
+                  <div className="d-flex justify-content-between align-items-center mb-3 gap-3">
+                    <div className="flex-grow-1">
                       <input
                         type="text"
                         className={`form-control form-control-sm ${
                           showNameError ? 'is-invalid' : ''
                         }`}
-                        placeholder="e.g. Security Specialist"
+                        placeholder="Persona Name"
                         value={persona.name}
                         maxLength={20}
                         onChange={(e) =>
@@ -135,34 +113,45 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
                         </div>
                       )}
                     </div>
-
-                    <div className="col-md-8">
-                      <div className="d-flex justify-content-between mb-1">
-                        <label className="form-label small fw-semibold mb-0">
-                          Guidelines (Content)
-                        </label>
-                        <span className="text-muted small font-monospace">
-                          {persona.content.length}/160
-                        </span>
-                      </div>
-                      <input
-                        type="text"
-                        className={`form-control form-control-sm ${
-                          showContentError ? 'is-invalid' : ''
-                        }`}
-                        placeholder="e.g. Focus on SQL injection, XSS, and authorization checks."
-                        value={persona.content}
-                        maxLength={160}
-                        onChange={(e) =>
-                          handleUpdate(index, 'content', e.target.value)
-                        }
-                      />
-                      {persona.content.trim() === '' && (
-                        <div className="invalid-feedback">
-                          Guidelines are required.
-                        </div>
-                      )}
+                    <div className="text-muted small font-monospace flex-shrink-0">
+                      {persona.name.length}/20
                     </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline-danger btn-sm border-0 flex-shrink-0"
+                      onClick={() => handleDelete(index)}
+                      title="Delete Persona"
+                    >
+                      <i className="fas fa-trash-can"></i>
+                    </button>
+                  </div>
+
+                  <div className="w-100">
+                    <div className="d-flex justify-content-between mb-1">
+                      <label className="form-label small fw-semibold mb-0">
+                        Guidelines (Content)
+                      </label>
+                      <span className="text-muted small font-monospace">
+                        {persona.content.length}/160
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      className={`form-control form-control-sm ${
+                        showContentError ? 'is-invalid' : ''
+                      }`}
+                      placeholder="e.g. Focus on SQL injection, XSS, and authorization checks."
+                      value={persona.content}
+                      maxLength={160}
+                      onChange={(e) =>
+                        handleUpdate(index, 'content', e.target.value)
+                      }
+                    />
+                    {persona.content.trim() === '' && (
+                      <div className="invalid-feedback">
+                        Guidelines are required.
+                      </div>
+                    )}
                   </div>
                 </div>
               );
