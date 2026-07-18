@@ -143,14 +143,7 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
                 <tbody>
                   {models.map((model) => (
                     <tr key={model.id}>
-                      <td className="fw-semibold text-body">
-                        {model.name}
-                        {selectedModel === model.id && (
-                          <span className="badge bg-success-subtle text-success border border-success-subtle ms-2 py-1 px-2 fw-semibold">
-                            <i className="fas fa-check-circle me-1"></i>Default
-                          </span>
-                        )}
-                      </td>
+                      <td className="fw-semibold text-body">{model.name}</td>
                       <td>
                         <div className="d-flex align-items-center gap-2">
                           <code className="text-muted font-monospace">
@@ -176,7 +169,11 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
                         </div>
                       </td>
                       <td>
-                        {selectedModel !== model.id && (
+                        {selectedModel === model.id ? (
+                          <span className="badge bg-success-subtle text-success border border-success-subtle py-1.5 px-2 fw-semibold">
+                            <i className="fas fa-check-circle me-1"></i>Default
+                          </span>
+                        ) : (
                           <button
                             type="button"
                             className="btn btn-sm btn-outline-primary py-1 px-2 d-flex align-items-center gap-1"
