@@ -25,6 +25,16 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
   checkingAuth,
   handleCheckAuth,
 }) => {
+  const [copiedModelId, setCopiedModelId] = React.useState<string | null>(null);
+
+  const handleCopy = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedModelId(id);
+    setTimeout(() => {
+      setCopiedModelId(null);
+    }, 1500);
+  };
+
   return (
     <div className="card shadow-sm border-0 bg-body-tertiary">
       <div className="card-body p-4">
@@ -138,6 +148,62 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
             </div>
           )}
         </div>
+
+        {models.length > 0 && (
+          <div className="mt-4 border-top pt-4">
+            <h6 className="mb-3 fw-semibold">
+              <i className="fas fa-list me-2 text-primary"></i>Available Model
+              Keys
+            </h6>
+            <div className="table-responsive border rounded bg-body">
+              <table className="table table-hover align-middle mb-0 small">
+                <thead className="table-light">
+                  <tr>
+                    <th>Model Name</th>
+                    <th>Key</th>
+                    <th style={{ width: '120px' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map((model) => (
+                    <tr key={model.id}>
+                      <td className="fw-semibold text-body">{model.name}</td>
+                      <td>
+                        <code className="text-muted font-monospace">
+                          {model.id}
+                        </code>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary py-1 px-2 d-flex align-items-center gap-1"
+                          onClick={() => handleCopy(model.id)}
+                        >
+                          {copiedModelId === model.id ? (
+                            <>
+                              <i className="fas fa-check text-success"></i>
+                              <span>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-copy"></i>
+                              <span>Copy</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-text mt-2">
+              Use these keys in your phase markdown files under the{' '}
+              <code>model</code> frontmatter property to override the model for
+              specific review phases.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
