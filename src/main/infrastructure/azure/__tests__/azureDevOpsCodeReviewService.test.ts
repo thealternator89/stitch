@@ -125,7 +125,10 @@ describe('AzureDevOpsCodeReviewService', () => {
         description: 'Pr Description',
         sourceRefName: 'refs/heads/feature-x',
         targetRefName: 'refs/heads/main',
-        createdBy: { displayName: 'John Doe' },
+        createdBy: {
+          displayName: 'John Doe',
+          uniqueName: 'john.doe@company.com',
+        },
         repository: { id: 'repo-123', name: 'my-repo' },
       });
 
@@ -143,6 +146,7 @@ describe('AzureDevOpsCodeReviewService', () => {
         sourceBranch: 'feature-x',
         targetBranch: 'main',
         author: 'John Doe',
+        authorUniqueName: 'john.doe@company.com',
         repositoryName: 'my-repo',
         repositoryId: 'repo-123',
         hostType: 'azure',
@@ -214,7 +218,10 @@ describe('AzureDevOpsCodeReviewService', () => {
           description: 'PR Description',
           sourceRefName: 'refs/heads/feature-x',
           targetRefName: 'refs/heads/main',
-          createdBy: { displayName: 'John Author' },
+          createdBy: {
+            displayName: 'John Author',
+            uniqueName: 'john.author@company.com',
+          },
           repository: { name: 'my-repo-name' },
         },
       ]);
@@ -228,6 +235,7 @@ describe('AzureDevOpsCodeReviewService', () => {
           sourceBranch: 'feature-x',
           targetBranch: 'main',
           author: 'John Author',
+          authorUniqueName: 'john.author@company.com',
           repositoryName: 'my-repo-name',
           hostType: 'azure',
           url: 'https://dev.azure.com/conf-org/conf-proj/_git/my-repo-name/pullrequest/444',

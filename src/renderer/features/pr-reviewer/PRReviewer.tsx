@@ -178,6 +178,16 @@ const PRReviewer: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // If the selected persona is no longer in the list of personas, reset to None
+    if (selectedPersona !== 'None' && personas.length > 0) {
+      const exists = personas.some((p) => p.name === selectedPersona);
+      if (!exists) {
+        setSelectedPersona('None');
+      }
+    }
+  }, [personas, selectedPersona]);
+
+  useEffect(() => {
     if (loadingModels || models.length === 0 || phases.length === 0) return;
     const hasAnyMissing = phases.some((p) => {
       if (!p.model) return false;
@@ -279,6 +289,7 @@ const PRReviewer: React.FC = () => {
     setIsPostingComment({});
     setIsHeaderCollapsed(false);
     setHasReviewed(false);
+    setSelectedPersona('None');
 
     // Fetch local path history for this repository name
     try {
@@ -290,6 +301,34 @@ const PRReviewer: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to get repo path history:', err);
+    }
+
+    // Load author persona association
+    const authorKey = pr.authorUniqueName || pr.author;
+    if (authorKey) {
+      try {
+        const savedPersona =
+          await window.electronAPI.getAuthorPersona(authorKey);
+        if (savedPersona) {
+          setSelectedPersona(savedPersona);
+        }
+      } catch (err) {
+        console.error('Failed to get author persona:', err);
+      }
+    }
+  };
+
+  const handlePersonaChange = async (value: string) => {
+    setSelectedPersona(value);
+    if (selectedPR) {
+      const authorKey = selectedPR.authorUniqueName || selectedPR.author;
+      if (authorKey) {
+        try {
+          await window.electronAPI.saveAuthorPersona(authorKey, value);
+        } catch (err) {
+          console.error('Failed to save author persona:', err);
+        }
+      }
     }
   };
 
@@ -1203,7 +1242,9 @@ const PRReviewer: React.FC = () => {
                           <select
                             className="form-select form-select-sm"
                             value={selectedPersona}
-                            onChange={(e) => setSelectedPersona(e.target.value)}
+                            onChange={(e) =>
+                              handlePersonaChange(e.target.value)
+                            }
                             disabled={isReviewing}
                           >
                             <option value="None">None (Default)</option>

@@ -506,6 +506,25 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle('pr-reviewer:get-author-persona', async (event, authorKey) => {
+  const s = await initStore();
+  const safeKey = encodeURIComponent(authorKey);
+  return s.get(`author-personas.${safeKey}`) || null;
+});
+
+ipcMain.handle(
+  'pr-reviewer:save-author-persona',
+  async (event, authorKey, personaName) => {
+    const s = await initStore();
+    const safeKey = encodeURIComponent(authorKey);
+    if (personaName && personaName !== 'None') {
+      s.set(`author-personas.${safeKey}`, personaName);
+    } else {
+      s.delete(`author-personas.${safeKey}`);
+    }
+  },
+);
+
 ipcMain.handle(
   'pr-reviewer:verify-repo-path',
   async (event, repoPath: string) => {

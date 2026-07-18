@@ -140,6 +140,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       repoName,
       repoPath,
     ),
+  getAuthorPersona: (authorKey: string): Promise<string | null> =>
+    ipcRenderer.invoke('pr-reviewer:get-author-persona', authorKey),
+  saveAuthorPersona: (authorKey: string, personaName: string): Promise<void> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:save-author-persona',
+      authorKey,
+      personaName,
+    ),
   verifyRepoPath: (
     repoPath: string,
   ): Promise<{

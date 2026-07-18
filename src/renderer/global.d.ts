@@ -90,6 +90,8 @@ export interface IElectronAPI {
   ) => Promise<PRMetadata[]>;
   getRepoPathHistory: (repoName: string) => Promise<string | null>;
   saveRepoPathHistory: (repoName: string, repoPath: string) => Promise<boolean>;
+  getAuthorPersona: (authorKey: string) => Promise<string | null>;
+  saveAuthorPersona: (authorKey: string, personaName: string) => Promise<void>;
   verifyRepoPath: (repoPath: string) => Promise<{
     isGitRepo: boolean;
     path: string;
