@@ -2,6 +2,7 @@ import * as azdev from 'azure-devops-node-api';
 import { IWorkItemTrackingApi } from 'azure-devops-node-api/WorkItemTrackingApi';
 import { IssueTrackerProvider } from '../providers/IssueTrackerProvider';
 import { TicketData } from '../../../types';
+import { ATTRIBUTION_STATEMENT } from '../constants';
 
 export class AzureDevOpsService implements IssueTrackerProvider {
   private witApi: IWorkItemTrackingApi | null = null;
@@ -44,11 +45,12 @@ export class AzureDevOpsService implements IssueTrackerProvider {
 
   async addComment(ticketId: string, text: string): Promise<void> {
     const witApi = await this.getApi();
+    const commentWithAttribution = [text, '', ATTRIBUTION_STATEMENT].join('\n');
     const document = [
       {
         op: 'add',
         path: '/fields/System.History',
-        value: text,
+        value: commentWithAttribution,
       },
       {
         op: 'add',
@@ -74,12 +76,16 @@ export class AzureDevOpsService implements IssueTrackerProvider {
     const project = parentWorkItem.fields['System.TeamProject'];
     const parentUrl = parentWorkItem.url;
 
+    const descriptionWithAttribution = data.description
+      ? [data.description, '', ATTRIBUTION_STATEMENT].join('\n')
+      : ATTRIBUTION_STATEMENT;
+
     const document = [
       { op: 'add', path: '/fields/System.Title', value: data.title },
       {
         op: 'add',
         path: '/fields/System.Description',
-        value: data.description,
+        value: descriptionWithAttribution,
       },
       {
         op: 'add',

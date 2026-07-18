@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AzureDevOpsCodeReviewService } from '../azureDevOpsCodeReviewService';
+import { ATTRIBUTION_STATEMENT } from '../../constants';
 
 const mockGetPullRequestById = vi.fn();
 const mockGetPullRequestsByProject = vi.fn();
@@ -311,12 +312,7 @@ describe('AzureDevOpsCodeReviewService', () => {
           comments: [
             {
               parentCommentId: 0,
-              content:
-                'This is a general comment\n' +
-                [
-                  '> Generated with Stitch and GitHub Copilot.',
-                  '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-                ].join('\n'),
+              content: 'This is a general comment\n' + ATTRIBUTION_STATEMENT,
               commentType: 1,
             },
           ],
@@ -352,12 +348,7 @@ describe('AzureDevOpsCodeReviewService', () => {
           comments: [
             {
               parentCommentId: 0,
-              content:
-                'Fix this line\n' +
-                [
-                  '> Generated with Stitch and GitHub Copilot.',
-                  '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-                ].join('\n'),
+              content: 'Fix this line\n' + ATTRIBUTION_STATEMENT,
               commentType: 1,
             },
           ],

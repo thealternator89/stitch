@@ -376,14 +376,7 @@ const StoryElaborator: React.FC = () => {
     if (!planMarkdown) return;
     setIsPosting(true);
     try {
-      const disclaimer = [
-        '> Generated with Stitch and GitHub Copilot.',
-        '> Like any AI generated content, mistakes and hallucinations can occur. Please review before relying on it.',
-      ].join('\n');
-      await window.electronAPI.addComment(
-        ticketId,
-        planMarkdown + '\n\n' + disclaimer,
-      );
+      await window.electronAPI.addComment(ticketId, planMarkdown);
       alert('Plan added to the ticket comment successfully!');
     } catch (err: unknown) {
       console.error(err);
