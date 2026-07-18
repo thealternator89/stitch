@@ -415,7 +415,7 @@ const Settings: React.FC = () => {
               className={`settings-nav-item ${activeTab === 'pr-reviewer' ? 'active' : ''}`}
               onClick={() => setActiveTab('pr-reviewer')}
             >
-              <i className="fas fa-user-tag"></i>
+              <i className="fas fa-code-pull-request"></i>
               PR Reviewer
             </button>
           </div>
