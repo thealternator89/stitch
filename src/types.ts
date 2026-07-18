@@ -48,7 +48,15 @@ export type AppSettings = {
       general?: string;
     };
   };
+  prReviewer?: {
+    personas?: Persona[];
+  };
 };
+
+export interface Persona {
+  name: string;
+  content: string;
+}
 
 export interface TicketData {
   id?: string;

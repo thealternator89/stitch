@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useCopilotModels } from '../../../hooks/useCopilotModels';
 import PageLayout from '../../../components/PageLayout';
-import { CopilotAuth } from '../../../../types';
+import { CopilotAuth, Persona } from '../../../../types';
 
 import GeneralSettings from './GeneralSettings';
 import ConnectorsSettings from './ConnectorsSettings';
 import CopilotSettings from './CopilotSettings';
 import PromptSettings from './PromptSettings';
+import PRReviewerSettings from './PRReviewerSettings';
 
 const Settings: React.FC = () => {
   const [version, setVersion] = useState<number>(1);
@@ -35,8 +36,10 @@ const Settings: React.FC = () => {
   const { models, selectedModel, setSelectedModel } = useCopilotModels();
 
   const [activeTab, setActiveTab] = useState<
-    'general' | 'connectors' | 'copilot' | 'prompts'
+    'general' | 'connectors' | 'copilot' | 'prompts' | 'pr-reviewer'
   >('general');
+
+  const [personas, setPersonas] = useState<Persona[]>([]);
 
   // Story Writer Custom Prompts
   const [storyGeneral, setStoryGeneral] = useState('');
@@ -115,6 +118,9 @@ const Settings: React.FC = () => {
           setTestCaseExpectedResult(tc.expectedResult || '');
 
           setStoryElaboratorGeneral(elaborator.general || '');
+
+          const prReviewer = settings.prReviewer || {};
+          setPersonas(prReviewer.personas || []);
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -126,6 +132,51 @@ const Settings: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Validate personas
+      if (personas.length > 5) {
+        setStatusMessage('Error: You can configure up to 5 personas.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      const nameSet = new Set<string>();
+      for (let i = 0; i < personas.length; i++) {
+        const p = personas[i];
+        const name = p.name.trim();
+        const content = p.content.trim();
+        if (!name) {
+          setStatusMessage(`Error: Persona #${i + 1} has an empty name.`);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        if (name.length > 20) {
+          setStatusMessage(
+            `Error: Persona "${name}" name exceeds 20 characters.`,
+          );
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        if (nameSet.has(name.toLowerCase())) {
+          setStatusMessage(
+            `Error: Persona name "${name}" is a duplicate. Names must be unique.`,
+          );
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        nameSet.add(name.toLowerCase());
+        if (!content) {
+          setStatusMessage(`Error: Persona "${name}" has empty guidelines.`);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        if (content.length > 160) {
+          setStatusMessage(
+            `Error: Persona "${name}" guidelines exceed 160 characters.`,
+          );
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+      }
+
       await window.electronAPI.saveSettings({
         version: version,
         featureType: featureType,
@@ -174,6 +225,9 @@ const Settings: React.FC = () => {
           storyElaborator: {
             general: storyElaboratorGeneral,
           },
+        },
+        prReviewer: {
+          personas: personas,
         },
       });
       setStatusMessage('Settings saved successfully!');
@@ -294,6 +348,10 @@ const Settings: React.FC = () => {
             setStoryElaboratorGeneral={setStoryElaboratorGeneral}
           />
         );
+      case 'pr-reviewer':
+        return (
+          <PRReviewerSettings personas={personas} setPersonas={setPersonas} />
+        );
       default:
         return null;
     }
@@ -343,6 +401,14 @@ const Settings: React.FC = () => {
             >
               <i className="fas fa-wand-magic-sparkles"></i>
               Prompts
+            </button>
+            <button
+              type="button"
+              className={`settings-nav-item ${activeTab === 'pr-reviewer' ? 'active' : ''}`}
+              onClick={() => setActiveTab('pr-reviewer')}
+            >
+              <i className="fas fa-user-tag"></i>
+              PR Reviewer
             </button>
           </div>
 
