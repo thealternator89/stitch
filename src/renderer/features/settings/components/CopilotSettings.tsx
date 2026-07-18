@@ -43,11 +43,6 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
           Configuration
         </h5>
 
-        <p className="text-muted small mb-4">
-          Configure integration with GitHub Copilot API to enable automated test
-          case and story writing.
-        </p>
-
         <div className="mb-3">
           <label className="form-label fw-semibold">Copilot API Token</label>
           <input
