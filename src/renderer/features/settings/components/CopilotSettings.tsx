@@ -137,7 +137,7 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
                   <tr>
                     <th>Model Name</th>
                     <th>Key</th>
-                    <th style={{ width: '130px' }}>Action</th>
+                    <th style={{ width: '130px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
