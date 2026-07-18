@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../components/PageLayout';
 import ModelDropdown from '../../components/ModelDropdown';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
-import { PRMetadata, ReviewPhase, CopilotUsage } from '../../../types';
+import { PRMetadata, ReviewPhase, CopilotUsage, Persona } from '../../../types';
 import UsageStatsToast from '../../components/UsageStatsToast';
 
 interface ReviewComment {
@@ -49,6 +49,8 @@ const PRReviewer: React.FC = () => {
   const [lastStatusTime, setLastStatusTime] = useState<Date | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
   const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [selectedPersona, setSelectedPersona] = useState<string>('None');
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
   const [collapsedComments, setCollapsedComments] = useState<
@@ -172,7 +174,7 @@ const PRReviewer: React.FC = () => {
 
   useEffect(() => {
     loadPhases();
-    loadParallelismSettings();
+    loadSettingsData();
   }, []);
 
   useEffect(() => {
@@ -202,23 +204,26 @@ const PRReviewer: React.FC = () => {
     }
   }, [models, loadingModels, phases]);
 
-  const loadParallelismSettings = async () => {
+  const loadSettingsData = async () => {
     try {
       const cpus = await window.electronAPI.getCpuCount();
       setCpuCount(cpus);
 
       const settings = await window.electronAPI.getSettings();
-      if (settings && settings.maxParallelism !== undefined) {
-        setMaxParallelism(settings.maxParallelism);
-      } else {
-        if (cpus < 4) {
-          setMaxParallelism(1);
+      if (settings) {
+        setPersonas(settings.prReviewer?.personas || []);
+        if (settings.maxParallelism !== undefined) {
+          setMaxParallelism(settings.maxParallelism);
         } else {
-          setMaxParallelism(Math.max(1, Math.floor(cpus / 2)));
+          if (cpus < 4) {
+            setMaxParallelism(1);
+          } else {
+            setMaxParallelism(Math.max(1, Math.floor(cpus / 2)));
+          }
         }
       }
     } catch (err) {
-      console.error('Failed to load parallelism settings:', err);
+      console.error('Failed to load settings data:', err);
     }
   };
 
@@ -462,6 +467,7 @@ const PRReviewer: React.FC = () => {
         selectedPR.description,
         selectedPR.id,
         maxParallelism,
+        selectedPersona,
       );
       if (res && res.usage) {
         setUsageStats(res.usage);
@@ -1189,6 +1195,38 @@ const PRReviewer: React.FC = () => {
                           )}
                         </div>
 
+                        {/* Persona Selector */}
+                        <div className="mb-3">
+                          <label className="form-label text-muted small fw-semibold">
+                            Review Persona (Optional)
+                          </label>
+                          <select
+                            className="form-select form-select-sm"
+                            value={selectedPersona}
+                            onChange={(e) => setSelectedPersona(e.target.value)}
+                            disabled={isReviewing}
+                          >
+                            <option value="None">None (Default)</option>
+                            {personas.map((p) => (
+                              <option key={p.name} value={p.name}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Persona Guidelines Alert */}
+                        {selectedPersona !== 'None' && (
+                          <div className="alert alert-info py-2 px-3 border-0 bg-info-subtle text-info-emphasis small mb-3">
+                            <i className="fas fa-info-circle me-1"></i>
+                            <strong>Guidelines:</strong>{' '}
+                            {
+                              personas.find((p) => p.name === selectedPersona)
+                                ?.content
+                            }
+                          </div>
+                        )}
+
                         {/* Custom Review Instructions */}
                         <div className="mb-4 flex-grow-1 d-flex flex-column">
                           <label className="form-label text-muted small fw-semibold">
@@ -1196,8 +1234,8 @@ const PRReviewer: React.FC = () => {
                           </label>
                           <textarea
                             className="form-control flex-grow-1"
-                            rows={6}
-                            style={{ minHeight: '120px', resize: 'none' }}
+                            rows={3}
+                            style={{ minHeight: '80px', resize: 'none' }}
                             placeholder="E.g., Focus on security, look out for proper error handling, verify database queries, etc."
                             value={customInstructions}
                             onChange={(e) =>

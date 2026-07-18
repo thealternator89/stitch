@@ -27,6 +27,7 @@ export function buildPhaseReviewPrompt(
   prDescription = '',
   storyContent = '',
   knownDocs?: { id: string; title: string }[],
+  personaGuidelines = '',
 ): string {
   const filesListStr = files
     .map((file) => `- ${file.path} (${file.status})`)
@@ -40,7 +41,17 @@ export function buildPhaseReviewPrompt(
     docsInstructions = `\n\nYou have identified the following documentation links in the linked story. You can request the content of any of these documents using the "request_documentation" tool with the corresponding document ID:\n${docsList}\n`;
   }
 
+  let personaInstruction = '';
+  if (personaGuidelines) {
+    personaInstruction = `\nFor this review, you must adhere to the following specific focus guidelines:
+- Guidelines: ${personaGuidelines}
+
+Make sure your tone, review style, and feedback reflect these focus guidelines.
+`;
+  }
+
   return `You are an expert software engineer and code reviewer.
+${personaInstruction}
 Your task is to review the changes in the repository for the phase: "${phaseTitle}".
 
 The following files have been modified/added/deleted in this Pull Request and are relevant to this phase:
@@ -610,12 +621,23 @@ export class PRReviewerService {
       prId?: string;
       onLine?: (line: string) => void;
       maxParallelism?: number;
+      persona?: string;
     } = {},
   ): Promise<CopilotResult<string>> {
     if (!options.enabledPhaseIds || options.enabledPhaseIds.length === 0) {
       throw new Error(
         'No review phases selected. Please select at least one phase to start the review.',
       );
+    }
+
+    let personaGuidelines = '';
+    if (options.persona && options.persona !== 'None') {
+      const found = settings.prReviewer?.personas?.find(
+        (p) => p.name === options.persona,
+      );
+      if (found) {
+        personaGuidelines = found.content;
+      }
     }
 
     let blockerId: number | null = null;
@@ -946,6 +968,7 @@ export class PRReviewerService {
             attachDescription ? fullDescription : undefined,
             attachStory ? linkedStoriesContent : undefined,
             attachStory ? knownDocs : undefined,
+            personaGuidelines,
           );
 
           const onToolCallback = (

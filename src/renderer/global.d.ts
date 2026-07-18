@@ -115,6 +115,7 @@ export interface IElectronAPI {
     prDescription?: string,
     prId?: string,
     maxParallelism?: number,
+    persona?: string,
   ) => Promise<CopilotResult<string>>;
   onPRReviewLine: (callback: (line: string) => void) => () => void;
   postPRComment: (
