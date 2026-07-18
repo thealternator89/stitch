@@ -756,6 +756,45 @@ describe('PRReviewerService', () => {
       );
       expect(mockCopilotService.createClientAndSession).not.toHaveBeenCalled();
     });
+
+    it('should use model override configured on phase rather than review-wide modelOverride', async () => {
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue([
+        {
+          id: '020-phase-with-model.md',
+          title: 'Custom Model Phase',
+          body: 'Custom model guidelines',
+          model: 'gemini-2.0-flash',
+        },
+      ]);
+
+      const mockFiles = [{ path: 'src/index.ts', status: 'modified' }];
+      mockGitService.getDiffFiles.mockResolvedValue(mockFiles);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValue(
+        '{"type":"general","comment":"LGTM"}',
+      );
+
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        modelOverride: 'gpt-4',
+        enabledPhaseIds: ['020-phase-with-model.md'],
+      });
+
+      expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
+        'mock-token',
+        'gemini-2.0-flash',
+        { workingDirectory: '/mock/repo' },
+      );
+    });
   });
 
   describe('extractFileContextSync', () => {
@@ -1259,6 +1298,25 @@ describe('PRReviewerService', () => {
       expect(result[3].id).toBe('030-python.md');
 
       expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+
+    it('should load phase and extract Model frontmatter if specified', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        return !filePath.toString().endsWith('config.json');
+      });
+      vi.spyOn(fs, 'readdirSync').mockReturnValue([
+        '010-model-override.md',
+      ] as any);
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+        return '---\ntitle: Model Override Phase\nmodel: gpt-4o\n---\nSome body';
+      });
+
+      const result = await prReviewerService.loadPhasesFromDisk();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('010-model-override.md');
+      expect(result[0].model).toBe('gpt-4o');
     });
   });
 

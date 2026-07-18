@@ -291,6 +291,9 @@ export class PRReviewerService {
           const attach = Array.isArray(parsed.frontmatter.attach)
             ? parsed.frontmatter.attach[0]
             : parsed.frontmatter.attach;
+          const model = Array.isArray(parsed.frontmatter.model)
+            ? parsed.frontmatter.model[0]
+            : parsed.frontmatter.model;
 
           phases.push({
             id: file,
@@ -302,6 +305,7 @@ export class PRReviewerService {
             body,
             template: templateName,
             templateError,
+            model: model ? String(model) : undefined,
           });
         } catch (err) {
           console.error(`Failed to read/parse phase file ${file}:`, err);
@@ -908,7 +912,7 @@ export class PRReviewerService {
           try {
             clientAndSession = await this.copilotService.createClientAndSession(
               settings.copilotToken,
-              options.modelOverride,
+              phase.model || options.modelOverride,
               sessionOpts,
             );
           } catch (err) {

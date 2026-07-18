@@ -75,6 +75,14 @@ const PRReviewer: React.FC = () => {
   const [phases, setPhases] = useState<LocalReviewPhase[]>([]);
   const [isLoadingPhases, setIsLoadingPhases] = useState(false);
 
+  const checkIsModelMissing = (phase: ReviewPhase) => {
+    if (!phase.model) return false;
+    return (
+      !loadingModels &&
+      !models.some((m) => m.id.toLowerCase() === phase.model!.toLowerCase())
+    );
+  };
+
   const groupedPhases = useMemo(() => {
     const groups: {
       name: string;
@@ -96,7 +104,11 @@ const PRReviewer: React.FC = () => {
     setPhases((prev) =>
       prev.map((p) => {
         if ((p.group || 'Ungrouped') === groupName) {
-          return { ...p, enabled: checked };
+          const modelMissing =
+            p.model &&
+            !loadingModels &&
+            !models.some((m) => m.id.toLowerCase() === p.model!.toLowerCase());
+          return { ...p, enabled: modelMissing ? false : checked };
         }
         return p;
       }),
@@ -106,9 +118,14 @@ const PRReviewer: React.FC = () => {
   const togglePhase = (originalIndex: number, checked: boolean) => {
     setPhases((prev) => {
       const copy = [...prev];
+      const p = copy[originalIndex];
+      const modelMissing =
+        p.model &&
+        !loadingModels &&
+        !models.some((m) => m.id.toLowerCase() === p.model!.toLowerCase());
       copy[originalIndex] = {
-        ...copy[originalIndex],
-        enabled: checked,
+        ...p,
+        enabled: modelMissing ? false : checked,
       };
       return copy;
     });
@@ -157,6 +174,33 @@ const PRReviewer: React.FC = () => {
     loadPhases();
     loadParallelismSettings();
   }, []);
+
+  useEffect(() => {
+    if (loadingModels || models.length === 0 || phases.length === 0) return;
+    const hasAnyMissing = phases.some((p) => {
+      if (!p.model) return false;
+      const hasModel = models.some(
+        (m) => m.id.toLowerCase() === p.model!.toLowerCase(),
+      );
+      return !hasModel && p.enabled;
+    });
+
+    if (hasAnyMissing) {
+      setPhases((prev) =>
+        prev.map((p) => {
+          if (p.model) {
+            const hasModel = models.some(
+              (m) => m.id.toLowerCase() === p.model!.toLowerCase(),
+            );
+            if (!hasModel && p.enabled) {
+              return { ...p, enabled: false };
+            }
+          }
+          return p;
+        }),
+      );
+    }
+  }, [models, loadingModels, phases]);
 
   const loadParallelismSettings = async () => {
     try {
@@ -813,11 +857,14 @@ const PRReviewer: React.FC = () => {
                           style={{ maxHeight: '250px', overflowY: 'auto' }}
                         >
                           {groupedPhases.map((group) => {
-                            const allChecked = group.phases.every(
-                              (p) => p.phase.enabled,
+                            const selectablePhases = group.phases.filter(
+                              (p) => !checkIsModelMissing(p.phase),
                             );
+                            const allChecked =
+                              selectablePhases.length > 0 &&
+                              selectablePhases.every((p) => p.phase.enabled);
                             const someChecked =
-                              group.phases.some((p) => p.phase.enabled) &&
+                              selectablePhases.some((p) => p.phase.enabled) &&
                               !allChecked;
 
                             return (
@@ -828,6 +875,7 @@ const PRReviewer: React.FC = () => {
                                     type="checkbox"
                                     id={`group-check-${group.name}`}
                                     checked={allChecked}
+                                    disabled={selectablePhases.length === 0}
                                     ref={(el) => {
                                       if (el) {
                                         el.indeterminate = someChecked;
@@ -846,43 +894,78 @@ const PRReviewer: React.FC = () => {
                                 </div>
                                 <div className="ms-4 border-start ps-3 py-1">
                                   {group.phases.map(
-                                    ({ phase, originalIndex }) => (
-                                      <div
-                                        key={phase.id}
-                                        className="form-check mb-1"
-                                      >
-                                        <input
-                                          className="form-check-input"
-                                          type="checkbox"
-                                          id={`phase-check-${phase.id}`}
-                                          checked={phase.enabled}
-                                          onChange={(e) =>
-                                            togglePhase(
-                                              originalIndex,
-                                              e.target.checked,
-                                            )
-                                          }
-                                        />
-                                        <label
-                                          className="form-check-label small text-body-secondary"
-                                          htmlFor={`phase-check-${phase.id}`}
+                                    ({ phase, originalIndex }) => {
+                                      const modelMissing =
+                                        checkIsModelMissing(phase);
+                                      const phaseModel = phase.model;
+                                      const matchedModel = phaseModel
+                                        ? models.find(
+                                            (m) =>
+                                              m.id.toLowerCase() ===
+                                              phaseModel.toLowerCase(),
+                                          )
+                                        : null;
+
+                                      return (
+                                        <div
+                                          key={phase.id}
+                                          className="form-check mb-1"
                                         >
-                                          {phase.title}{' '}
-                                          <span className="text-muted font-monospace tiny-text ms-1">
-                                            ({phase.id})
-                                          </span>
-                                          {phase.templateError && (
-                                            <span
-                                              className="text-danger ms-2"
-                                              title={phase.templateError}
-                                              style={{ cursor: 'help' }}
-                                            >
-                                              <i className="fas fa-exclamation-circle"></i>
+                                          <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id={`phase-check-${phase.id}`}
+                                            checked={
+                                              !modelMissing && phase.enabled
+                                            }
+                                            disabled={modelMissing}
+                                            onChange={(e) =>
+                                              togglePhase(
+                                                originalIndex,
+                                                e.target.checked,
+                                              )
+                                            }
+                                          />
+                                          <label
+                                            className={`form-check-label small text-body-secondary ${
+                                              modelMissing
+                                                ? 'text-muted opacity-50'
+                                                : ''
+                                            }`}
+                                            htmlFor={`phase-check-${phase.id}`}
+                                          >
+                                            {phase.title}{' '}
+                                            <span className="text-muted font-monospace tiny-text ms-1">
+                                              ({phase.id})
                                             </span>
-                                          )}
-                                        </label>
-                                      </div>
-                                    ),
+                                            {phase.templateError && (
+                                              <span
+                                                className="text-danger ms-2"
+                                                title={phase.templateError}
+                                                style={{ cursor: 'help' }}
+                                              >
+                                                <i className="fas fa-exclamation-circle"></i>
+                                              </span>
+                                            )}
+                                            {phaseModel && matchedModel && (
+                                              <span className="badge bg-secondary-subtle text-secondary-emphasis ms-2 font-monospace small">
+                                                {matchedModel.name}
+                                              </span>
+                                            )}
+                                            {phaseModel && modelMissing && (
+                                              <span
+                                                className="badge bg-danger-subtle text-danger border border-danger-subtle ms-2 font-monospace small"
+                                                title="Model not available"
+                                                style={{ cursor: 'help' }}
+                                              >
+                                                <i className="fas fa-times me-1"></i>
+                                                {phaseModel}
+                                              </span>
+                                            )}
+                                          </label>
+                                        </div>
+                                      );
+                                    },
                                   )}
                                 </div>
                               </div>
