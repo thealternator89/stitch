@@ -1,5 +1,4 @@
 import React from 'react';
-import ModelDropdown from '../../../components/ModelDropdown';
 import { CopilotAuth, CopilotModel } from '../../../../types';
 
 interface CopilotSettingsProps {
@@ -8,7 +7,6 @@ interface CopilotSettingsProps {
   models: CopilotModel[];
   selectedModel: string;
   setSelectedModel: (val: string) => void;
-  loadingModels: boolean;
   authStatus: CopilotAuth | null;
   checkingAuth: boolean;
   handleCheckAuth: () => void;
@@ -20,7 +18,6 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
   models,
   selectedModel,
   setSelectedModel,
-  loadingModels,
   authStatus,
   checkingAuth,
   handleCheckAuth,
@@ -54,21 +51,6 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
           />
           <div className="form-text">
             Your Copilot session or API token for authentication.
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <label className="form-label fw-semibold">Default Model</label>
-          <ModelDropdown
-            models={models}
-            selectedModel={selectedModel}
-            onSelect={setSelectedModel}
-            loading={loadingModels}
-            className="w-50"
-            buttonVariant="outline-secondary"
-          />
-          <div className="form-text mt-1">
-            Choose the language model used by Copilot for text generation tasks.
           </div>
         </div>
 
@@ -147,8 +129,7 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
         {models.length > 0 && (
           <div className="mt-4 border-top pt-4">
             <h6 className="mb-3 fw-semibold">
-              <i className="fas fa-list me-2 text-primary"></i>Available Model
-              Keys
+              <i className="fas fa-list me-2 text-primary"></i>Available Models
             </h6>
             <div className="table-responsive border rounded bg-body">
               <table className="table table-hover align-middle mb-0 small">
@@ -156,7 +137,7 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
                   <tr>
                     <th>Model Name</th>
                     <th>Key</th>
-                    <th style={{ width: '120px' }}>Action</th>
+                    <th style={{ width: '240px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -169,23 +150,40 @@ const CopilotSettings: React.FC<CopilotSettingsProps> = ({
                         </code>
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-secondary py-1 px-2 d-flex align-items-center gap-1"
-                          onClick={() => handleCopy(model.id)}
-                        >
-                          {copiedModelId === model.id ? (
-                            <>
-                              <i className="fas fa-check text-success"></i>
-                              <span>Copied</span>
-                            </>
+                        <div className="d-flex align-items-center gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary py-1 px-2 d-flex align-items-center gap-1"
+                            onClick={() => handleCopy(model.id)}
+                          >
+                            {copiedModelId === model.id ? (
+                              <>
+                                <i className="fas fa-check text-success"></i>
+                                <span>Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <i className="fas fa-copy"></i>
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                          {selectedModel === model.id ? (
+                            <span className="badge bg-success-subtle text-success border border-success-subtle py-1.5 px-2 d-flex align-items-center gap-1 fw-semibold">
+                              <i className="fas fa-check-circle"></i>
+                              <span>Default</span>
+                            </span>
                           ) : (
-                            <>
-                              <i className="fas fa-copy"></i>
-                              <span>Copy</span>
-                            </>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary py-1 px-2 d-flex align-items-center gap-1"
+                              onClick={() => setSelectedModel(model.id)}
+                            >
+                              <i className="fas fa-star"></i>
+                              <span>Set Default</span>
+                            </button>
                           )}
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
