@@ -383,7 +383,7 @@ const Settings: React.FC = () => {
               className={`settings-nav-item ${activeTab === 'general' ? 'active' : ''}`}
               onClick={() => setActiveTab('general')}
             >
-              <i className="fas fa-palette"></i>
+              <i className="fas fa-sliders"></i>
               General
             </button>
             <button
