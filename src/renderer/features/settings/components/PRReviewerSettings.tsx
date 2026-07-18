@@ -80,7 +80,9 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
           <div className="d-flex flex-column gap-3 mb-4">
             {personas.map((persona, index) => {
               const nameDup = isNameDuplicate(persona.name, index);
-              const showNameError = persona.name.trim() === '' || nameDup;
+              const isNameNone = persona.name.trim().toLowerCase() === 'none';
+              const showNameError =
+                persona.name.trim() === '' || nameDup || isNameNone;
               const showContentError = persona.content.trim() === '';
 
               return (
@@ -110,6 +112,11 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
                       {nameDup && (
                         <div className="invalid-feedback">
                           Persona name must be unique.
+                        </div>
+                      )}
+                      {isNameNone && (
+                        <div className="invalid-feedback">
+                          "None" is a reserved name.
                         </div>
                       )}
                     </div>

@@ -148,6 +148,11 @@ const Settings: React.FC = () => {
           window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
+        if (name.toLowerCase() === 'none') {
+          setStatusMessage(`Error: "None" is a reserved name for personas.`);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
         if (name.length > 20) {
           setStatusMessage(
             `Error: Persona "${name}" name exceeds 20 characters.`,

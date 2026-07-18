@@ -142,6 +142,19 @@ describe('PRReviewerSettings Component', () => {
     expect(duplicateErrors).toHaveLength(2);
   });
 
+  it('shows validation errors for reserved name None', () => {
+    const mockPersonas: Persona[] = [
+      { name: 'None', content: 'Some guidelines' },
+      { name: 'none', content: 'Other guidelines' },
+    ];
+    render(
+      <PRReviewerSettings personas={mockPersonas} setPersonas={vi.fn()} />,
+    );
+
+    const noneErrors = screen.getAllByText('"None" is a reserved name.');
+    expect(noneErrors).toHaveLength(2);
+  });
+
   it('swallows the Enter keypress on the guidelines content input', () => {
     const mockPersonas: Persona[] = [
       { name: 'Reviewer A', content: 'Original content' },
