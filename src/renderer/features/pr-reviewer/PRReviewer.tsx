@@ -282,7 +282,21 @@ const PRReviewer: React.FC = () => {
   };
 
   const handleSelectPR = async (pr: PRMetadata) => {
-    setSelectedPR(pr);
+    let fullPR = pr;
+    if (!pr.sourceBranch || !pr.targetBranch) {
+      try {
+        const details = await window.electronAPI.getPRDetails(
+          '',
+          pr.url || pr.id,
+        );
+        if (details) {
+          fullPR = details;
+        }
+      } catch (err) {
+        console.error('Failed to fetch full PR details:', err);
+      }
+    }
+    setSelectedPR(fullPR);
     setRepoPath('');
     setRepoPathModified(false);
     setCommitSha('');
