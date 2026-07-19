@@ -42,6 +42,7 @@ const StoryElaborator: React.FC = () => {
   const [repoPath, setRepoPath] = useState('');
   const [context, setContext] = useState('');
   const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
+  const [issueSource, setIssueSource] = useState('azureDevOps');
   const [branch, setBranch] = useState('develop');
 
   // Session States
@@ -124,6 +125,7 @@ const StoryElaborator: React.FC = () => {
       try {
         const settings = await window.electronAPI.getSettings();
         setGitWorktreeEnabled(settings.gitWorktreeEnabled || false);
+        setIssueSource(settings.sources?.issues || 'azureDevOps');
       } catch (err) {
         console.error('Failed to load settings in StoryElaborator:', err);
       }
@@ -432,7 +434,8 @@ const StoryElaborator: React.FC = () => {
               {/* Ticket Search */}
               <div className="mb-3 position-relative" ref={searchContainerRef}>
                 <label className="form-label fw-medium text-secondary">
-                  Ticket Search (Azure DevOps)
+                  Ticket Search (
+                  {issueSource === 'github' ? 'GitHub' : 'Azure DevOps'})
                 </label>
                 <div className="input-group">
                   <span className="input-group-text bg-body-secondary border-2 border-end-0">
