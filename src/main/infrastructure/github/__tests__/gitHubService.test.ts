@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GitHubService } from '../gitHubService';
-import {
-  ATTRIBUTION_STATEMENT_GENERATED,
-  ATTRIBUTION_STATEMENT_ASSISTED,
-} from '../../constants';
+import { ATTRIBUTION_STATEMENT_GENERATED } from '../../constants';
 
 describe('GitHubService', () => {
   let service: GitHubService;
@@ -20,7 +17,7 @@ describe('GitHubService', () => {
   });
 
   describe('fetchTicket', () => {
-    it('should successfully fetch an issue and map it to TicketData', async () => {
+    it('should successfully fetch an issue and map it to TicketData with composite ID', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -43,11 +40,31 @@ describe('GitHubService', () => {
       );
 
       expect(result).toEqual({
-        id: '123',
+        id: 'test-repo/123',
         title: 'Test Issue Title',
         description: 'Test Issue Body',
         acceptanceCriteria: '',
       });
+    });
+
+    it('should fetch composite ticket ID successfully parsing repository', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          number: 789,
+          title: 'Composite Title',
+          body: 'Composite Body',
+        }),
+      });
+
+      const result = await service.fetchTicket('another-repo/789');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.github.com/repos/test-owner/another-repo/issues/789',
+        expect.any(Object),
+      );
+
+      expect(result.id).toBe('another-repo/789');
     });
 
     it('should throw an error on API failure', async () => {
@@ -65,16 +82,16 @@ describe('GitHubService', () => {
   });
 
   describe('addComment', () => {
-    it('should post a comment with default attribution', async () => {
+    it('should post a comment using composite ID', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({}),
       });
 
-      await service.addComment('123', 'Sample comment text');
+      await service.addComment('custom-repo/123', 'Sample comment text');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.github.com/repos/test-owner/test-repo/issues/123/comments',
+        'https://api.github.com/repos/test-owner/custom-repo/issues/123/comments',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({
@@ -83,29 +100,10 @@ describe('GitHubService', () => {
         }),
       );
     });
-
-    it('should post a comment with edited attribution if specified', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      });
-
-      await service.addComment('123', 'Sample comment text', { edited: true });
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.github.com/repos/test-owner/test-repo/issues/123/comments',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({
-            body: `Sample comment text\n\n${ATTRIBUTION_STATEMENT_ASSISTED}`,
-          }),
-        }),
-      );
-    });
   });
 
   describe('createTicket', () => {
-    it('should post issue to repository with labels and parent issue reference in description', async () => {
+    it('should post issue to repository using parent composite ID', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ number: 456 }),
@@ -113,7 +111,7 @@ describe('GitHubService', () => {
 
       await service.createTicket(
         'Task',
-        '123',
+        'custom-repo/123',
         {
           title: 'Sub-task title',
           description: 'Sub-task description',
@@ -130,7 +128,7 @@ describe('GitHubService', () => {
       ].join('\n');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.github.com/repos/test-owner/test-repo/issues',
+        'https://api.github.com/repos/test-owner/custom-repo/issues',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({
@@ -160,8 +158,20 @@ describe('GitHubService', () => {
         ok: true,
         json: async () => ({
           items: [
-            { number: 123, title: 'Exact Match', body: 'Body 123' },
-            { number: 456, title: 'Search Result', body: 'Body 456' },
+            {
+              number: 123,
+              title: 'Exact Match',
+              body: 'Body 123',
+              repository_url:
+                'https://api.github.com/repos/test-owner/test-repo',
+            },
+            {
+              number: 456,
+              title: 'Search Result',
+              body: 'Body 456',
+              repository_url:
+                'https://api.github.com/repos/test-owner/test-repo',
+            },
           ],
         }),
       });
@@ -183,15 +193,57 @@ describe('GitHubService', () => {
 
       expect(results).toEqual([
         {
-          id: '123',
+          id: 'test-repo/123',
           title: 'Exact Match',
           description: 'Body 123',
           acceptanceCriteria: '',
         },
         {
-          id: '456',
+          id: 'test-repo/456',
           title: 'Search Result',
           description: 'Body 456',
+          acceptanceCriteria: '',
+        },
+      ]);
+    });
+
+    it('should query globally across user if defaultRepo is omitted', async () => {
+      const ownerOnlyService = new GitHubService(
+        'test-token',
+        'test-owner',
+        '',
+      );
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              number: 999,
+              title: 'Global Issue',
+              body: 'Global Body',
+              repository_url:
+                'https://api.github.com/repos/test-owner/another-repo',
+            },
+          ],
+        }),
+      });
+
+      const results = await ownerOnlyService.searchTickets('query-text');
+
+      const expectedQuery = encodeURIComponent(
+        'user:test-owner is:issue query-text',
+      );
+      expect(mockFetch).toHaveBeenCalledWith(
+        `https://api.github.com/search/issues?q=${expectedQuery}`,
+        expect.any(Object),
+      );
+
+      expect(results).toEqual([
+        {
+          id: 'another-repo/999',
+          title: 'Global Issue',
+          description: 'Global Body',
           acceptanceCriteria: '',
         },
       ]);

@@ -32,18 +32,45 @@ export class GitHubService implements IssueTrackerProvider {
     return response.json();
   }
 
-  async fetchTicket(ticketId: string): Promise<TicketData> {
-    if (!this.defaultOwner || !this.defaultRepo) {
+  private parseTicketId(ticketId: string): {
+    owner: string;
+    repo: string;
+    number: string;
+  } {
+    const trimmed = ticketId.trim();
+    if (trimmed.includes('/')) {
+      const parts = trimmed.split('/');
+      if (parts.length === 3) {
+        return { owner: parts[0], repo: parts[1], number: parts[2] };
+      } else if (parts.length === 2) {
+        return { owner: this.defaultOwner, repo: parts[0], number: parts[1] };
+      }
+    }
+    if (!this.defaultOwner) {
       throw new Error(
-        'Default GitHub Owner and Repository must be configured in settings to fetch tickets.',
+        'GitHub Owner/Organization must be configured in settings.',
       );
     }
+    if (!this.defaultRepo) {
+      throw new Error(
+        `Repository name must be specified or included in the ticket ID (e.g. "repo-name/123") because no default repository is configured.`,
+      );
+    }
+    return {
+      owner: this.defaultOwner,
+      repo: this.defaultRepo,
+      number: trimmed,
+    };
+  }
+
+  async fetchTicket(ticketId: string): Promise<TicketData> {
+    const { owner, repo, number } = this.parseTicketId(ticketId);
     try {
       const issue = await this.request(
-        `/repos/${this.defaultOwner}/${this.defaultRepo}/issues/${ticketId}`,
+        `/repos/${owner}/${repo}/issues/${number}`,
       );
       return {
-        id: issue.number.toString(),
+        id: `${repo}/${issue.number}`,
         title: issue.title || '',
         description: issue.body || '',
         acceptanceCriteria: '',
@@ -59,22 +86,15 @@ export class GitHubService implements IssueTrackerProvider {
     text: string,
     options?: { edited?: boolean },
   ): Promise<void> {
-    if (!this.defaultOwner || !this.defaultRepo) {
-      throw new Error(
-        'Default GitHub Owner and Repository must be configured in settings to add comments.',
-      );
-    }
+    const { owner, repo, number } = this.parseTicketId(ticketId);
     const body = [text, '', getAttributionStatement(options?.edited)].join(
       '\n',
     );
-    await this.request(
-      `/repos/${this.defaultOwner}/${this.defaultRepo}/issues/${ticketId}/comments`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ body }),
-        headers: { 'Content-Type': 'application/json' },
-      },
-    );
+    await this.request(`/repos/${owner}/${repo}/issues/${number}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   async createTicket(
@@ -83,45 +103,39 @@ export class GitHubService implements IssueTrackerProvider {
     data: TicketData,
     options?: { edited?: boolean },
   ): Promise<void> {
-    if (!this.defaultOwner || !this.defaultRepo) {
-      throw new Error(
-        'Default GitHub Owner and Repository must be configured in settings to create tickets.',
-      );
-    }
+    const { owner, repo, number } = this.parseTicketId(parentTicketId);
     const attribution = getAttributionStatement(options?.edited);
     const body = [
       data.description || '',
       '',
       attribution,
       '',
-      `Parent Issue: #${parentTicketId}`,
+      `Parent Issue: #${number}`,
     ].join('\n');
 
-    await this.request(
-      `/repos/${this.defaultOwner}/${this.defaultRepo}/issues`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          title: data.title,
-          body,
-          labels: [type],
-        }),
-        headers: { 'Content-Type': 'application/json' },
-      },
-    );
+    await this.request(`/repos/${owner}/${repo}/issues`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: data.title,
+        body,
+        labels: [type],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   async searchTickets(query: string, type?: string): Promise<TicketData[]> {
-    if (!this.defaultOwner || !this.defaultRepo) {
+    if (!this.defaultOwner) {
       throw new Error(
-        'Default GitHub Owner and Repository must be configured in settings to search tickets.',
+        'GitHub Owner/Organization must be configured in settings to search tickets.',
       );
     }
     const cleanQuery = query.trim();
+    const isCompositeId = /^[^/]+\/\d+$/.test(cleanQuery);
     const isNumber = /^\d+$/.test(cleanQuery);
     const results: TicketData[] = [];
 
-    if (isNumber) {
+    if (isNumber || isCompositeId) {
       try {
         const exactMatch = await this.fetchTicket(cleanQuery);
         results.push(exactMatch);
@@ -131,7 +145,10 @@ export class GitHubService implements IssueTrackerProvider {
     }
 
     try {
-      let q = `repo:${this.defaultOwner}/${this.defaultRepo} is:issue ${cleanQuery}`;
+      let q = `user:${this.defaultOwner} is:issue ${cleanQuery}`;
+      if (this.defaultRepo) {
+        q = `repo:${this.defaultOwner}/${this.defaultRepo} is:issue ${cleanQuery}`;
+      }
       if (type) {
         q += ` label:"${type}"`;
       }
@@ -139,12 +156,19 @@ export class GitHubService implements IssueTrackerProvider {
         `/search/issues?q=${encodeURIComponent(q)}`,
       );
       const items = searchResponse.items || [];
+      const getRepoName = (repoUrl: string) => {
+        const parts = repoUrl.split('/');
+        return parts[parts.length - 1] || '';
+      };
+
       for (const item of items) {
-        if (results.some((r) => r.id === item.number.toString())) {
+        const repoName = getRepoName(item.repository_url);
+        const compositeId = `${repoName}/${item.number}`;
+        if (results.some((r) => r.id === compositeId)) {
           continue;
         }
         results.push({
-          id: item.number.toString(),
+          id: compositeId,
           title: item.title || '',
           description: item.body || '',
           acceptanceCriteria: '',
