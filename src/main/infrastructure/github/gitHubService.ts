@@ -42,6 +42,11 @@ export class GitHubService implements IssueTrackerProvider {
       if (parts.length === 3) {
         return { owner: parts[0], repo: parts[1], number: parts[2] };
       } else if (parts.length === 2) {
+        if (!this.defaultOwner) {
+          throw new Error(
+            'GitHub Owner/Organization must be configured in settings to parse two-part ticket IDs (e.g. "repo-name/123").',
+          );
+        }
         return { owner: this.defaultOwner, repo: parts[0], number: parts[1] };
       }
     }

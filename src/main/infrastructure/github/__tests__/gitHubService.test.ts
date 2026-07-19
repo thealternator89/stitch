@@ -79,6 +79,15 @@ describe('GitHubService', () => {
         'GitHub API error (404): Issue not found',
       );
     });
+
+    it('should throw when defaultOwner is missing and 2-part ticket ID is parsed', async () => {
+      const ownerlessService = new GitHubService('test-token', '');
+      await expect(
+        ownerlessService.fetchTicket('another-repo/789'),
+      ).rejects.toThrow(
+        'GitHub Owner/Organization must be configured in settings to parse two-part ticket IDs',
+      );
+    });
   });
 
   describe('addComment', () => {
