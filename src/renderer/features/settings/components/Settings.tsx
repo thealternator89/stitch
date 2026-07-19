@@ -25,6 +25,8 @@ const Settings: React.FC = () => {
   const [issuesSource, setIssuesSource] = useState('azureDevOps');
   const [codeSource, setCodeSource] = useState('azureDevOps');
   const [docsSource, setDocsSource] = useState('atlassian');
+  const [githubToken, setGithubToken] = useState('');
+  const [githubOwner, setGithubOwner] = useState('');
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto');
   const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
   const [gitWorktreeBaseDir, setGitWorktreeBaseDir] = useState('');
@@ -68,15 +70,28 @@ const Settings: React.FC = () => {
         const settings = await window.electronAPI.getSettings();
         if (settings) {
           setVersion(settings.version || 1);
-          setFeatureType(settings.featureType || 'Feature');
-          setStoryType(settings.storyType || 'Product Backlog Item');
-          setTaskType(settings.taskType || 'Task');
+          setFeatureType(
+            settings.featureType !== undefined
+              ? settings.featureType
+              : 'Feature',
+          );
+          setStoryType(
+            settings.storyType !== undefined
+              ? settings.storyType
+              : 'Product Backlog Item',
+          );
+          setTaskType(
+            settings.taskType !== undefined ? settings.taskType : 'Task',
+          );
           setTestTaskTitle(settings.testTaskTitle || 'Testing');
           const azureConn = settings.connectors?.azureDevOps;
           const atlassianConn = settings.connectors?.atlassian;
+          const githubConn = settings.connectors?.github;
           setAzureOrg(azureConn?.org || '');
           setAzureProject(azureConn?.project || '');
           setAzurePat(azureConn?.pat || '');
+          setGithubToken(githubConn?.token || '');
+          setGithubOwner(githubConn?.owner || '');
           setCopilotToken(settings.copilotToken || '');
           setConfluenceUrl(atlassianConn?.url || '');
           setConfluenceUser(atlassianConn?.username || '');
@@ -205,6 +220,10 @@ const Settings: React.FC = () => {
             project: azureProject,
             pat: azurePat,
           },
+          github: {
+            token: githubToken,
+            owner: githubOwner,
+          },
         },
         sources: {
           issues: issuesSource,
@@ -302,6 +321,10 @@ const Settings: React.FC = () => {
             setConfluenceUser={setConfluenceUser}
             confluenceToken={confluenceToken}
             setConfluenceToken={setConfluenceToken}
+            githubToken={githubToken}
+            setGithubToken={setGithubToken}
+            githubOwner={githubOwner}
+            setGithubOwner={setGithubOwner}
             issuesSource={issuesSource}
             setIssuesSource={setIssuesSource}
             codeSource={codeSource}

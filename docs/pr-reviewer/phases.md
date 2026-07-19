@@ -83,11 +83,11 @@ checking if the code changes meet the PR requirements or user story), you can co
 attachment sources:
 
 - **`description`**: Stitch will fetch the full pull request description via the Azure
-  DevOps API and append it to the reviewer's prompt context, allowing the LLM to
+  DevOps or GitHub API and append it to the reviewer's prompt context, allowing the LLM to
   compare the changes against the stated goals of the PR.
-- **`story`**: Stitch will fetch the stories/work items linked to the pull request in Azure DevOps.
-  - The contents (Title, Description, and Acceptance Criteria) of the linked stories are appended to the prompt context.
-  - Any documentation/Confluence links within the stories are automatically extracted and listed.
+- **`story`**: Stitch will fetch the stories/work items / issues linked to the pull request in Azure DevOps or GitHub.
+  - The contents (Title, Description, and Acceptance Criteria) of the linked stories / issues are appended to the prompt context.
+  - Any documentation/Confluence links within the stories / issues are automatically extracted and listed.
   - The `request_documentation` tool is registered with Copilot during this phase, enabling the LLM to request and read the full contents of these documentation pages as needed.
   - If `attach: story` is set but there are no linked stories associated with the PR, this phase will be skipped automatically.
 

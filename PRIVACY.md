@@ -16,6 +16,7 @@ Stitch communicates only with services that you explicitly configure and choose 
 These integrations include:
 
 - **Azure DevOps:** When configured, Stitch connects to Azure DevOps to access and manage your organization's projects, work items, and related resources.
+- **GitHub:** When configured, Stitch connects to GitHub to access and manage your repositories, issues, and pull requests.
 - **Confluence:** When configured, Stitch connects to Confluence to read, create, and update documentation and wiki content.
 - **GitHub Copilot:** AI features use the official GitHub Copilot tooling and APIs. When you invoke an AI-powered feature, Stitch sends your prompt to GitHub Copilot and, where required for the requested task, may provide relevant portions of your local codebase as context. Code is shared only when necessary for the feature to function or when explicitly requested by you (for example, during pull request reviews). The handling of any data sent to GitHub Copilot is governed by GitHub's privacy policy and terms of service.
 

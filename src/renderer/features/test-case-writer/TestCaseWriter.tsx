@@ -56,16 +56,18 @@ const TestCaseWriter: React.FC = () => {
   const [taskType, setTaskType] = useState('Task');
   const [testTaskTitle, setTestTaskTitle] = useState('Testing');
   const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
+  const [issueSource, setIssueSource] = useState('azureDevOps');
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         const settings = await window.electronAPI.getSettings();
         if (settings) {
-          if (settings.taskType) {
+          setIssueSource(settings.sources?.issues || 'azureDevOps');
+          if (settings.taskType !== undefined) {
             setTaskType(settings.taskType);
           }
-          if (settings.testTaskTitle) {
+          if (settings.testTaskTitle !== undefined) {
             setTestTaskTitle(settings.testTaskTitle);
           }
         }
@@ -315,7 +317,8 @@ const TestCaseWriter: React.FC = () => {
 
               <div className="mb-3 position-relative" ref={searchContainerRef}>
                 <label className="form-label fw-medium text-secondary">
-                  Ticket Search (Azure DevOps)
+                  Ticket Search (
+                  {issueSource === 'github' ? 'GitHub' : 'Azure DevOps'})
                 </label>
                 <div className="input-group">
                   <span className="input-group-text bg-body-secondary border-2 border-end-0">

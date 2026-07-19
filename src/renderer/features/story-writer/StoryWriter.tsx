@@ -21,16 +21,18 @@ const StoryWriter: React.FC = () => {
   const [featureType, setFeatureType] = useState('Feature');
   const [storyType, setStoryType] = useState('Product Backlog Item');
   const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
+  const [issueSource, setIssueSource] = useState('azureDevOps');
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         const settings = await window.electronAPI.getSettings();
         if (settings) {
-          if (settings.featureType) {
+          setIssueSource(settings.sources?.issues || 'azureDevOps');
+          if (settings.featureType !== undefined) {
             setFeatureType(settings.featureType);
           }
-          if (settings.storyType) {
+          if (settings.storyType !== undefined) {
             setStoryType(settings.storyType);
           }
         }
@@ -432,7 +434,8 @@ const StoryWriter: React.FC = () => {
                 ref={featureSearchContainerRef}
               >
                 <label className="form-label fw-medium text-secondary">
-                  Feature ID / Search (Azure DevOps)
+                  Feature ID / Search (
+                  {issueSource === 'github' ? 'GitHub' : 'Azure DevOps'})
                 </label>
                 <div className="input-group">
                   <span className="input-group-text bg-body-secondary border-2 border-end-0">

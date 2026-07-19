@@ -37,6 +37,7 @@ const PRReviewer: React.FC = () => {
 
   // Manual PR URL / ID input
   const [manualPrUrlOrId, setManualPrUrlOrId] = useState('');
+  const [codeSource, setCodeSource] = useState('azureDevOps');
 
   // Checkout result
   const [commitSha, setCommitSha] = useState('');
@@ -221,6 +222,7 @@ const PRReviewer: React.FC = () => {
 
       const settings = await window.electronAPI.getSettings();
       if (settings) {
+        setCodeSource(settings.sources?.code || 'azureDevOps');
         setPersonas(settings.prReviewer?.personas || []);
         if (settings.maxParallelism !== undefined) {
           setMaxParallelism(settings.maxParallelism);
@@ -280,7 +282,21 @@ const PRReviewer: React.FC = () => {
   };
 
   const handleSelectPR = async (pr: PRMetadata) => {
-    setSelectedPR(pr);
+    let fullPR = pr;
+    if (!pr.sourceBranch || !pr.targetBranch) {
+      try {
+        const details = await window.electronAPI.getPRDetails(
+          '',
+          pr.url || pr.id,
+        );
+        if (details) {
+          fullPR = details;
+        }
+      } catch (err) {
+        console.error('Failed to fetch full PR details:', err);
+      }
+    }
+    setSelectedPR(fullPR);
     setRepoPath('');
     setRepoPathModified(false);
     setCommitSha('');
@@ -718,12 +734,17 @@ const PRReviewer: React.FC = () => {
                     <form onSubmit={handleManualPRSubmit} className="mt-2">
                       <div className="mb-3">
                         <label className="form-label text-muted small fw-semibold">
-                          Azure DevOps PR URL or ID
+                          {codeSource === 'github' ? 'GitHub' : 'Azure DevOps'}{' '}
+                          PR URL or ID
                         </label>
                         <input
                           type="text"
                           className="form-control"
-                          placeholder="https://dev.azure.com/.../pullrequest/123 or just PR ID"
+                          placeholder={
+                            codeSource === 'github'
+                              ? 'https://github.com/.../pull/123 or just PR ID'
+                              : 'https://dev.azure.com/.../pullrequest/123 or just PR ID'
+                          }
                           value={manualPrUrlOrId}
                           onChange={(e) => setManualPrUrlOrId(e.target.value)}
                         />
@@ -760,7 +781,11 @@ const PRReviewer: React.FC = () => {
                           <div className="text-center py-5 text-muted">
                             <span className="spinner-border spinner-border-sm mb-2"></span>
                             <p className="small mb-0">
-                              Querying Azure DevOps...
+                              Querying{' '}
+                              {codeSource === 'github'
+                                ? 'GitHub'
+                                : 'Azure DevOps'}
+                              ...
                             </p>
                           </div>
                         ) : filteredPRs.length === 0 ? (

@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('search-tickets', query, type),
   getAzureWorkItemTypes: (org: string, pat: string, project: string) =>
     ipcRenderer.invoke('get-azure-work-item-types', org, pat, project),
+
   generateTestCases: (
     ticketData: TicketData,
     context: string,
