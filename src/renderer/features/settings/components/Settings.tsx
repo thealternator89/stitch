@@ -27,7 +27,6 @@ const Settings: React.FC = () => {
   const [docsSource, setDocsSource] = useState('atlassian');
   const [githubToken, setGithubToken] = useState('');
   const [githubOwner, setGithubOwner] = useState('');
-  const [githubRepo, setGithubRepo] = useState('');
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto');
   const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
   const [gitWorktreeBaseDir, setGitWorktreeBaseDir] = useState('');
@@ -71,9 +70,19 @@ const Settings: React.FC = () => {
         const settings = await window.electronAPI.getSettings();
         if (settings) {
           setVersion(settings.version || 1);
-          setFeatureType(settings.featureType || 'Feature');
-          setStoryType(settings.storyType || 'Product Backlog Item');
-          setTaskType(settings.taskType || 'Task');
+          setFeatureType(
+            settings.featureType !== undefined
+              ? settings.featureType
+              : 'Feature',
+          );
+          setStoryType(
+            settings.storyType !== undefined
+              ? settings.storyType
+              : 'Product Backlog Item',
+          );
+          setTaskType(
+            settings.taskType !== undefined ? settings.taskType : 'Task',
+          );
           setTestTaskTitle(settings.testTaskTitle || 'Testing');
           const azureConn = settings.connectors?.azureDevOps;
           const atlassianConn = settings.connectors?.atlassian;
@@ -83,7 +92,6 @@ const Settings: React.FC = () => {
           setAzurePat(azureConn?.pat || '');
           setGithubToken(githubConn?.token || '');
           setGithubOwner(githubConn?.owner || '');
-          setGithubRepo(githubConn?.repo || '');
           setCopilotToken(settings.copilotToken || '');
           setConfluenceUrl(atlassianConn?.url || '');
           setConfluenceUser(atlassianConn?.username || '');
@@ -215,7 +223,6 @@ const Settings: React.FC = () => {
           github: {
             token: githubToken,
             owner: githubOwner,
-            repo: githubRepo,
           },
         },
         sources: {
@@ -318,8 +325,6 @@ const Settings: React.FC = () => {
             setGithubToken={setGithubToken}
             githubOwner={githubOwner}
             setGithubOwner={setGithubOwner}
-            githubRepo={githubRepo}
-            setGithubRepo={setGithubRepo}
             issuesSource={issuesSource}
             setIssuesSource={setIssuesSource}
             codeSource={codeSource}

@@ -11,11 +11,7 @@ describe('GitHubCodeReviewService', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch);
-    service = new GitHubCodeReviewService(
-      'test-token',
-      'test-owner',
-      'test-repo',
-    );
+    service = new GitHubCodeReviewService('test-token', 'test-owner');
   });
 
   afterEach(() => {
@@ -149,27 +145,30 @@ describe('GitHubCodeReviewService', () => {
         json: async () => ({ login: 'octocat' }),
       });
 
-      // 2. mock get open pull requests
+      // 2. mock get search results (reviewer)
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => [
-          {
-            number: 1,
-            title: 'PR One',
-            head: { ref: 'b1' },
-            base: { repo: { id: 100 } },
-            user: { login: 'someuser' },
-            requested_reviewers: [{ login: 'octocat' }],
-          },
-          {
-            number: 2,
-            title: 'PR Two',
-            head: { ref: 'b2' },
-            base: { repo: { id: 100 } },
-            user: { login: 'octocat' },
-            requested_reviewers: [],
-          },
-        ],
+        json: async () => ({
+          items: [
+            {
+              number: 1,
+              title: 'PR One',
+              body: 'Test body',
+              html_url: 'https://github.com/test-owner/test-repo/pull/1',
+              repository_url:
+                'https://api.github.com/repos/test-owner/test-repo',
+              user: { login: 'someuser' },
+            },
+          ],
+        }),
+      });
+
+      // 3. mock get search results (assignee)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [],
+        }),
       });
 
       const prs = await service.getProjectPRs('assigned');
@@ -178,11 +177,10 @@ describe('GitHubCodeReviewService', () => {
       expect(prs[0].id).toBe('1');
     });
 
-    it('should query GitHub search endpoint when defaultRepo is not configured', async () => {
+    it('should query GitHub search endpoint', async () => {
       const ownerOnlyService = new GitHubCodeReviewService(
         'test-token',
         'test-owner',
-        '',
       );
 
       // 1. mock get authenticated user
@@ -252,7 +250,9 @@ describe('GitHubCodeReviewService', () => {
         }),
       });
 
-      const tickets = await service.getLinkedTickets('456');
+      const tickets = await service.getLinkedTickets(
+        'https://github.com/test-owner/test-repo/pull/456',
+      );
 
       expect(tickets).toEqual(['987', '654']);
     });
@@ -265,11 +265,15 @@ describe('GitHubCodeReviewService', () => {
         json: async () => ({}),
       });
 
-      await service.postPRComment('path', '456', {
-        type: 'general',
-        comment: 'Great changes!',
-        edited: false,
-      });
+      await service.postPRComment(
+        'path',
+        'https://github.com/test-owner/test-repo/pull/456',
+        {
+          type: 'general',
+          comment: 'Great changes!',
+          edited: false,
+        },
+      );
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.github.com/repos/test-owner/test-repo/issues/456/comments',
@@ -297,13 +301,17 @@ describe('GitHubCodeReviewService', () => {
         json: async () => ({}),
       });
 
-      await service.postPRComment('path', '456', {
-        type: 'line',
-        file: '/src/main.ts',
-        line: 12,
-        comment: 'Nice clean code',
-        edited: true,
-      });
+      await service.postPRComment(
+        'path',
+        'https://github.com/test-owner/test-repo/pull/456',
+        {
+          type: 'line',
+          file: '/src/main.ts',
+          line: 12,
+          comment: 'Nice clean code',
+          edited: true,
+        },
+      );
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.github.com/repos/test-owner/test-repo/pulls/456/comments',

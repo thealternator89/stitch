@@ -6,7 +6,6 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
   constructor(
     private token: string,
     private defaultOwner: string,
-    private defaultRepo: string,
   ) {}
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,7 +90,7 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
   ): Promise<PRMetadata> {
     let prNumber = parseInt(prUrlOrId);
     let owner = this.defaultOwner;
-    let repoName = this.defaultRepo;
+    let repoName: string | undefined = undefined;
 
     const parsedUrl = this.parsePRUrl(prUrlOrId);
     if (parsedUrl) {
@@ -161,101 +160,63 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
         myLogin = user?.login || '';
       }
 
-      if (this.defaultRepo) {
-        const prs = await this.request(
-          `/repos/${this.defaultOwner}/${this.defaultRepo}/pulls?state=open`,
+      let q = `user:${this.defaultOwner} is:pr is:open`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let items: any[] = [];
+
+      if (searchType === 'created') {
+        q += ` author:${myLogin}`;
+        const res = await this.request(
+          `/search/issues?q=${encodeURIComponent(q)}`,
         );
+        items = res.items || [];
+      } else if (searchType === 'assigned') {
+        const qReviewer = `${q} review-requested:${myLogin}`;
+        const qAssignee = `${q} assignee:${myLogin}`;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: PRMetadata[] = prs.map((pr: any) => ({
-          id: pr.number.toString(),
-          title: pr.title || '',
-          description: pr.body || '',
-          sourceBranch: pr.head?.ref || '',
-          targetBranch: pr.base?.ref || '',
-          author: pr.user?.login || '',
-          authorUniqueName: pr.user?.login || '',
-          repositoryName: this.defaultRepo,
-          repositoryId: pr.base?.repo?.id?.toString() || '',
-          hostType: 'github',
-          url: pr.html_url,
-        }));
+        const [resReviewer, resAssignee] = await Promise.all([
+          this.request(`/search/issues?q=${encodeURIComponent(qReviewer)}`),
+          this.request(`/search/issues?q=${encodeURIComponent(qAssignee)}`),
+        ]);
 
-        if (searchType === 'created') {
-          return mapped.filter((pr) => pr.author === myLogin);
-        } else if (searchType === 'assigned') {
-          return mapped.filter((pr, index) => {
-            const rawPr = prs[index];
-            const isReviewer = rawPr.requested_reviewers?.some(
-              (r: { login: string }) => r.login === myLogin,
-            );
-            const isAssignee = rawPr.assignees?.some(
-              (a: { login: string }) => a.login === myLogin,
-            );
-            return isReviewer || isAssignee;
-          });
-        }
-
-        return mapped;
-      } else {
-        let q = `user:${this.defaultOwner} is:pr is:open`;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let items: any[] = [];
-
-        if (searchType === 'created') {
-          q += ` author:${myLogin}`;
-          const res = await this.request(
-            `/search/issues?q=${encodeURIComponent(q)}`,
-          );
-          items = res.items || [];
-        } else if (searchType === 'assigned') {
-          const qReviewer = `${q} review-requested:${myLogin}`;
-          const qAssignee = `${q} assignee:${myLogin}`;
-
-          const [resReviewer, resAssignee] = await Promise.all([
-            this.request(`/search/issues?q=${encodeURIComponent(qReviewer)}`),
-            this.request(`/search/issues?q=${encodeURIComponent(qAssignee)}`),
-          ]);
-
-          const combined = [
-            ...(resReviewer.items || []),
-            ...(resAssignee.items || []),
-          ];
-          const seen = new Set<string>();
-          for (const item of combined) {
-            const key = `${item.repository_url}/${item.number}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              items.push(item);
-            }
+        const combined = [
+          ...(resReviewer.items || []),
+          ...(resAssignee.items || []),
+        ];
+        const seen = new Set<string>();
+        for (const item of combined) {
+          const key = `${item.repository_url}/${item.number}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            items.push(item);
           }
-        } else {
-          const res = await this.request(
-            `/search/issues?q=${encodeURIComponent(q)}`,
-          );
-          items = res.items || [];
         }
-
-        const getRepoName = (repoUrl: string) => {
-          const parts = repoUrl.split('/');
-          return parts[parts.length - 1] || '';
-        };
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return items.map((item: any) => ({
-          id: item.number.toString(),
-          title: item.title || '',
-          description: item.body || '',
-          sourceBranch: '',
-          targetBranch: '',
-          author: item.user?.login || '',
-          authorUniqueName: item.user?.login || '',
-          repositoryName: getRepoName(item.repository_url),
-          repositoryId: '',
-          hostType: 'github',
-          url: item.html_url,
-        }));
+      } else {
+        const res = await this.request(
+          `/search/issues?q=${encodeURIComponent(q)}`,
+        );
+        items = res.items || [];
       }
+
+      const getRepoName = (repoUrl: string) => {
+        const parts = repoUrl.split('/');
+        return parts[parts.length - 1] || '';
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return items.map((item: any) => ({
+        id: item.number.toString(),
+        title: item.title || '',
+        description: item.body || '',
+        sourceBranch: '',
+        targetBranch: '',
+        author: item.user?.login || '',
+        authorUniqueName: item.user?.login || '',
+        repositoryName: getRepoName(item.repository_url),
+        repositoryId: '',
+        hostType: 'github',
+        url: item.html_url,
+      }));
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to query PRs from GitHub: ${errMsg}`, {
@@ -265,15 +226,29 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
   }
 
   async getLinkedTickets(
-    prId: string,
+    prUrlOrId: string,
     _repositoryId?: string,
   ): Promise<string[]> {
-    const owner = this.defaultOwner;
-    const repoName = this.defaultRepo;
+    let prNumber = parseInt(prUrlOrId);
+    let owner = this.defaultOwner;
+    let repoName: string | undefined = undefined;
+
+    const parsedUrl = this.parsePRUrl(prUrlOrId);
+    if (parsedUrl) {
+      prNumber = parsedUrl.prNumber;
+      owner = parsedUrl.org;
+      repoName = parsedUrl.repoName;
+    }
+
+    if (!owner || !repoName) {
+      throw new Error(
+        'GitHub Owner and Repository name are required to fetch linked tickets.',
+      );
+    }
 
     try {
       const pr = await this.request(
-        `/repos/${owner}/${repoName}/pulls/${prId}`,
+        `/repos/${owner}/${repoName}/pulls/${prNumber}`,
       );
       const body = pr.body || '';
       const ticketIds: string[] = [];
@@ -285,7 +260,7 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
       return Array.from(new Set(ticketIds));
     } catch (error: unknown) {
       console.warn(
-        `Failed to fetch/parse linked tickets for PR #${prId}:`,
+        `Failed to fetch/parse linked tickets for PR #${prUrlOrId}:`,
         error,
       );
       return [];
@@ -306,7 +281,7 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
   ): Promise<void> {
     let prNumber = parseInt(prUrlOrId);
     let owner = this.defaultOwner;
-    let repoName = this.defaultRepo;
+    let repoName: string | undefined = undefined;
 
     const parsedUrl = this.parsePRUrl(prUrlOrId);
     if (parsedUrl) {

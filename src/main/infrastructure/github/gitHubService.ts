@@ -6,7 +6,6 @@ export class GitHubService implements IssueTrackerProvider {
   constructor(
     private token: string,
     private defaultOwner: string,
-    private defaultRepo: string,
   ) {}
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,16 +50,9 @@ export class GitHubService implements IssueTrackerProvider {
         'GitHub Owner/Organization must be configured in settings.',
       );
     }
-    if (!this.defaultRepo) {
-      throw new Error(
-        `Repository name must be specified or included in the ticket ID (e.g. "repo-name/123") because no default repository is configured.`,
-      );
-    }
-    return {
-      owner: this.defaultOwner,
-      repo: this.defaultRepo,
-      number: trimmed,
-    };
+    throw new Error(
+      `Repository name must be specified or included in the ticket ID (e.g. "repo-name/123") because no default repository is configured.`,
+    );
   }
 
   async fetchTicket(ticketId: string): Promise<TicketData> {
@@ -113,12 +105,13 @@ export class GitHubService implements IssueTrackerProvider {
       `Parent Issue: #${number}`,
     ].join('\n');
 
+    const labels = type ? [type] : [];
     await this.request(`/repos/${owner}/${repo}/issues`, {
       method: 'POST',
       body: JSON.stringify({
         title: data.title,
         body,
-        labels: [type],
+        labels,
       }),
       headers: { 'Content-Type': 'application/json' },
     });
@@ -146,9 +139,6 @@ export class GitHubService implements IssueTrackerProvider {
 
     try {
       let q = `user:${this.defaultOwner} is:issue ${cleanQuery}`;
-      if (this.defaultRepo) {
-        q = `repo:${this.defaultOwner}/${this.defaultRepo} is:issue ${cleanQuery}`;
-      }
       if (type) {
         q += ` label:"${type}"`;
       }

@@ -8,7 +8,7 @@ describe('GitHubService', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch);
-    service = new GitHubService('test-token', 'test-owner', 'test-repo');
+    service = new GitHubService('test-token', 'test-owner');
   });
 
   afterEach(() => {
@@ -27,7 +27,7 @@ describe('GitHubService', () => {
         }),
       });
 
-      const result = await service.fetchTicket('123');
+      const result = await service.fetchTicket('test-repo/123');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.github.com/repos/test-owner/test-repo/issues/123',
@@ -75,7 +75,7 @@ describe('GitHubService', () => {
         text: async () => 'Issue not found',
       });
 
-      await expect(service.fetchTicket('123')).rejects.toThrow(
+      await expect(service.fetchTicket('test-repo/123')).rejects.toThrow(
         'GitHub API error (404): Issue not found',
       );
     });
@@ -139,6 +139,43 @@ describe('GitHubService', () => {
         }),
       );
     });
+
+    it('should not apply labels if type is empty string', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ number: 456 }),
+      });
+
+      await service.createTicket(
+        '',
+        'custom-repo/123',
+        {
+          title: 'Sub-task title',
+          description: 'Sub-task description',
+        },
+        { edited: false },
+      );
+
+      const expectedBody = [
+        'Sub-task description',
+        '',
+        ATTRIBUTION_STATEMENT_GENERATED,
+        '',
+        'Parent Issue: #123',
+      ].join('\n');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.github.com/repos/test-owner/custom-repo/issues',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            title: 'Sub-task title',
+            body: expectedBody,
+            labels: [],
+          }),
+        }),
+      );
+    });
   });
 
   describe('searchTickets', () => {
@@ -176,7 +213,7 @@ describe('GitHubService', () => {
         }),
       });
 
-      const results = await service.searchTickets('123', 'Feature');
+      const results = await service.searchTickets('test-repo/123', 'Feature');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.github.com/repos/test-owner/test-repo/issues/123',
@@ -184,7 +221,7 @@ describe('GitHubService', () => {
       );
 
       const expectedQuery = encodeURIComponent(
-        'repo:test-owner/test-repo is:issue 123 label:"Feature"',
+        'user:test-owner is:issue test-repo/123 label:"Feature"',
       );
       expect(mockFetch).toHaveBeenCalledWith(
         `https://api.github.com/search/issues?q=${expectedQuery}`,
@@ -207,12 +244,8 @@ describe('GitHubService', () => {
       ]);
     });
 
-    it('should query globally across user if defaultRepo is omitted', async () => {
-      const ownerOnlyService = new GitHubService(
-        'test-token',
-        'test-owner',
-        '',
-      );
+    it('should query globally across user', async () => {
+      const ownerOnlyService = new GitHubService('test-token', 'test-owner');
 
       mockFetch.mockResolvedValueOnce({
         ok: true,

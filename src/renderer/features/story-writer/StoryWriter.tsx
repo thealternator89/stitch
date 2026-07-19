@@ -29,10 +29,10 @@ const StoryWriter: React.FC = () => {
         const settings = await window.electronAPI.getSettings();
         if (settings) {
           setIssueSource(settings.sources?.issues || 'azureDevOps');
-          if (settings.featureType) {
+          if (settings.featureType !== undefined) {
             setFeatureType(settings.featureType);
           }
-          if (settings.storyType) {
+          if (settings.storyType !== undefined) {
             setStoryType(settings.storyType);
           }
         }

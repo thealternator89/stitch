@@ -200,15 +200,10 @@ async function getCodeReviewProvider(): Promise<CodeReviewProvider> {
       const githubConn = sanitized.connectors?.github;
       const token = githubConn?.token;
       const defaultOwner = githubConn?.owner || '';
-      const defaultRepo = githubConn?.repo || '';
       if (!token) {
         throw new Error('GitHub settings token is missing.');
       }
-      codeReviewService = new GitHubCodeReviewService(
-        token,
-        defaultOwner,
-        defaultRepo,
-      );
+      codeReviewService = new GitHubCodeReviewService(token, defaultOwner);
     } else {
       const azureConn = sanitized.connectors?.azureDevOps;
       const org = azureConn?.org;
@@ -237,11 +232,10 @@ async function getIssueTrackerService(): Promise<IssueTrackerProvider> {
       const githubConn = sanitized.connectors?.github;
       const token = githubConn?.token;
       const defaultOwner = githubConn?.owner || '';
-      const defaultRepo = githubConn?.repo || '';
       if (!token) {
         throw new Error('GitHub settings token is missing.');
       }
-      issueTrackerService = new GitHubService(token, defaultOwner, defaultRepo);
+      issueTrackerService = new GitHubService(token, defaultOwner);
     } else {
       const azureConn = sanitized.connectors?.azureDevOps;
       const org = azureConn?.org;

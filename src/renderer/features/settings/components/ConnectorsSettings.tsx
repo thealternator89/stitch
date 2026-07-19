@@ -31,8 +31,6 @@ interface ConnectorsSettingsProps {
   setGithubToken: (val: string) => void;
   githubOwner: string;
   setGithubOwner: (val: string) => void;
-  githubRepo: string;
-  setGithubRepo: (val: string) => void;
 
   // Sources State & Setters
   issuesSource: string;
@@ -68,8 +66,6 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
   setGithubToken,
   githubOwner,
   setGithubOwner,
-  githubRepo,
-  setGithubRepo,
   issuesSource,
   setIssuesSource,
   codeSource,
@@ -142,13 +138,11 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
   const [showGithubModal, setShowGithubModal] = useState(false);
   const [localGithubToken, setLocalGithubToken] = useState(githubToken);
   const [localGithubOwner, setLocalGithubOwner] = useState(githubOwner);
-  const [localGithubRepo, setLocalGithubRepo] = useState(githubRepo);
 
   useEffect(() => {
     setLocalGithubToken(githubToken);
     setLocalGithubOwner(githubOwner);
-    setLocalGithubRepo(githubRepo);
-  }, [githubToken, githubOwner, githubRepo]);
+  }, [githubToken, githubOwner]);
 
   const fetchWorkItemTypes = async () => {
     if (!localAzureOrg || !localAzurePat || !localAzureProject) {
@@ -231,21 +225,24 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
   const handleOpenGithubModal = () => {
     setLocalGithubToken(githubToken);
     setLocalGithubOwner(githubOwner);
-    setLocalGithubRepo(githubRepo);
+    setLocalFeatureType(featureType);
+    setLocalStoryType(storyType);
+    setLocalTaskType(taskType);
     setShowGithubModal(true);
   };
 
   const handleSaveGithub = () => {
     setGithubToken(localGithubToken);
     setGithubOwner(localGithubOwner);
-    setGithubRepo(localGithubRepo);
+    setFeatureType(localFeatureType);
+    setStoryType(localStoryType);
+    setTaskType(localTaskType);
     setShowGithubModal(false);
   };
 
   const handleDisconnectGithub = () => {
     setGithubToken('');
     setGithubOwner('');
-    setGithubRepo('');
   };
 
   return (
@@ -469,11 +466,6 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                           {githubOwner && (
                             <div className="text-truncate">
                               <strong>Default Owner:</strong> {githubOwner}
-                            </div>
-                          )}
-                          {githubRepo && (
-                            <div className="text-truncate">
-                              <strong>Default Repo:</strong> {githubRepo}
                             </div>
                           )}
                         </div>
@@ -1010,18 +1002,55 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                   </div>
                 </div>
 
-                <div className="row mb-3 align-items-center">
-                  <label className="col-sm-4 form-label fw-semibold small mb-0">
-                    Default Repository (Optional)
-                  </label>
-                  <div className="col-sm-8">
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. Hello-World"
-                      value={localGithubRepo}
-                      onChange={(e) => setLocalGithubRepo(e.target.value)}
-                    />
+                {/* GitHub Labels inside Modal */}
+                <div className="border-top pt-3 mt-4 mb-3">
+                  <h6 className="fw-bold mb-3">Labels Mapping</h6>
+
+                  <div className="mt-2">
+                    <div className="row mb-2 align-items-center">
+                      <label className="col-sm-4 form-label small mb-0">
+                        Feature Label
+                      </label>
+                      <div className="col-sm-8">
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="feature"
+                          value={localFeatureType}
+                          onChange={(e) => setLocalFeatureType(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="row mb-2 align-items-center">
+                      <label className="col-sm-4 form-label small mb-0">
+                        Story Label
+                      </label>
+                      <div className="col-sm-8">
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="story"
+                          value={localStoryType}
+                          onChange={(e) => setLocalStoryType(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="row mb-2 align-items-center">
+                      <label className="col-sm-4 form-label small mb-0">
+                        Task Label
+                      </label>
+                      <div className="col-sm-8">
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="task"
+                          value={localTaskType}
+                          onChange={(e) => setLocalTaskType(e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

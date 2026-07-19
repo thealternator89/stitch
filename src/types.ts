@@ -18,7 +18,6 @@ export type AppSettings = {
     github?: {
       token?: string;
       owner?: string;
-      repo?: string;
     };
     [key: string]: Record<string, string | undefined> | undefined;
   };
