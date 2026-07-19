@@ -4,11 +4,17 @@ import { Persona } from '../../../../types';
 interface PRReviewerSettingsProps {
   personas: Persona[];
   setPersonas: (personas: Persona[]) => void;
+  maxParallelism: number;
+  setMaxParallelism: (limit: number) => void;
+  cpuCount: number;
 }
 
 const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
   personas,
   setPersonas,
+  maxParallelism,
+  setMaxParallelism,
+  cpuCount,
 }) => {
   const handleAdd = () => {
     if (personas.length >= 5) return;
@@ -45,8 +51,7 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
       <div className="card-body p-4">
         <div className="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
           <h5 className="mb-0">
-            <i className="fas fa-user-tag me-2 text-primary"></i>PR Reviewer
-            Personas
+            <i className="fas fa-user-tag me-2 text-primary"></i>Personas
           </h5>
           <span className="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
             {personas.length} / 5 Personas
@@ -188,6 +193,54 @@ const PRReviewerSettings: React.FC<PRReviewerSettingsProps> = ({
             Maximum limit of 5 personas reached.
           </div>
         )}
+
+        <hr className="my-4" />
+
+        <h5 className="mb-4">
+          <i className="fas fa-microchip me-2 text-primary"></i>Concurrency
+          Settings
+        </h5>
+
+        <div className="mb-2">
+          <label className="form-label d-block fw-semibold text-muted small uppercase tracking-wider mb-2">
+            Default Review Agent Parallelism
+          </label>
+          <p className="text-muted small mb-3">
+            Configure how many parallel GitHub Copilot agents can run reviews
+            concurrently.
+          </p>
+          {cpuCount < 4 ? (
+            <div className="alert alert-info py-2 px-3 shadow-sm border-0 bg-info-subtle text-info-emphasis small d-flex align-items-center gap-2">
+              <i className="fas fa-circle-info"></i>
+              <span>
+                Parallelism is locked to <strong>1</strong> because your system
+                has <strong>{cpuCount} CPU cores</strong> (fewer than 4 required
+                for parallel agents).
+              </span>
+            </div>
+          ) : (
+            <div>
+              <div className="d-flex align-items-center gap-3">
+                <input
+                  type="range"
+                  className="form-range flex-grow-0"
+                  min="1"
+                  max={cpuCount - 2}
+                  value={maxParallelism}
+                  onChange={(e) => setMaxParallelism(parseInt(e.target.value))}
+                  style={{ maxWidth: '300px' }}
+                />
+                <span className="badge bg-primary fs-6 px-3 py-2">
+                  {maxParallelism} Worker{maxParallelism > 1 ? 's' : ''}
+                </span>
+              </div>
+              <p className="text-muted small mt-2 mb-0">
+                Allowing between 1 and {cpuCount - 2} parallel agents (Total CPU
+                cores: {cpuCount}).
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

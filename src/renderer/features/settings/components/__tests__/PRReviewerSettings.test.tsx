@@ -8,7 +8,15 @@ import { Persona } from '../../../../../types';
 
 describe('PRReviewerSettings Component', () => {
   it('renders empty state correctly', () => {
-    render(<PRReviewerSettings personas={[]} setPersonas={vi.fn()} />);
+    render(
+      <PRReviewerSettings
+        personas={[]}
+        setPersonas={vi.fn()}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
+      />,
+    );
 
     expect(screen.getByText(/No Personas Configured/i)).toBeInTheDocument();
     expect(
@@ -18,7 +26,15 @@ describe('PRReviewerSettings Component', () => {
 
   it('triggers setPersonas when Add Persona button is clicked', () => {
     const setPersonasMock = vi.fn();
-    render(<PRReviewerSettings personas={[]} setPersonas={setPersonasMock} />);
+    render(
+      <PRReviewerSettings
+        personas={[]}
+        setPersonas={setPersonasMock}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
+      />,
+    );
 
     const addButton = screen.getByRole('button', { name: /Add Persona/i });
     fireEvent.click(addButton);
@@ -36,7 +52,13 @@ describe('PRReviewerSettings Component', () => {
     ];
 
     render(
-      <PRReviewerSettings personas={mockPersonas} setPersonas={vi.fn()} />,
+      <PRReviewerSettings
+        personas={mockPersonas}
+        setPersonas={vi.fn()}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
+      />,
     );
 
     expect(screen.getByDisplayValue('Security Auditor')).toBeInTheDocument();
@@ -62,6 +84,9 @@ describe('PRReviewerSettings Component', () => {
       <PRReviewerSettings
         personas={mockPersonas}
         setPersonas={setPersonasMock}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
       />,
     );
 
@@ -91,6 +116,9 @@ describe('PRReviewerSettings Component', () => {
       <PRReviewerSettings
         personas={mockPersonas}
         setPersonas={setPersonasMock}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
       />,
     );
 
@@ -114,6 +142,9 @@ describe('PRReviewerSettings Component', () => {
       <PRReviewerSettings
         personas={mockPersonas}
         setPersonas={setPersonasMock}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
       />,
     );
 
@@ -132,7 +163,13 @@ describe('PRReviewerSettings Component', () => {
     ];
 
     render(
-      <PRReviewerSettings personas={mockPersonas} setPersonas={vi.fn()} />,
+      <PRReviewerSettings
+        personas={mockPersonas}
+        setPersonas={vi.fn()}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
+      />,
     );
 
     // First persona has empty content
@@ -148,7 +185,13 @@ describe('PRReviewerSettings Component', () => {
       { name: 'none', content: 'Other guidelines' },
     ];
     render(
-      <PRReviewerSettings personas={mockPersonas} setPersonas={vi.fn()} />,
+      <PRReviewerSettings
+        personas={mockPersonas}
+        setPersonas={vi.fn()}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
+      />,
     );
 
     const noneErrors = screen.getAllByText('"None" is a reserved name.');
@@ -160,7 +203,13 @@ describe('PRReviewerSettings Component', () => {
       { name: 'Reviewer A', content: 'Original content' },
     ];
     render(
-      <PRReviewerSettings personas={mockPersonas} setPersonas={vi.fn()} />,
+      <PRReviewerSettings
+        personas={mockPersonas}
+        setPersonas={vi.fn()}
+        maxParallelism={2}
+        setMaxParallelism={vi.fn()}
+        cpuCount={4}
+      />,
     );
 
     const contentInput = screen.getByDisplayValue('Original content');
@@ -179,5 +228,56 @@ describe('PRReviewerSettings Component', () => {
     contentInput.dispatchEvent(event);
 
     expect(preventDefaultSpy).toHaveBeenCalled();
+  });
+
+  it('renders concurrency settings correctly when cpuCount < 4', () => {
+    render(
+      <PRReviewerSettings
+        personas={[]}
+        setPersonas={vi.fn()}
+        maxParallelism={1}
+        setMaxParallelism={vi.fn()}
+        cpuCount={2}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === 'SPAN' &&
+          (element?.textContent?.includes('Parallelism is locked to 1') ??
+            false),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('renders concurrency settings correctly when cpuCount >= 4', () => {
+    const setMaxParallelismMock = vi.fn();
+    render(
+      <PRReviewerSettings
+        personas={[]}
+        setPersonas={vi.fn()}
+        maxParallelism={2}
+        setMaxParallelism={setMaxParallelismMock}
+        cpuCount={8}
+      />,
+    );
+
+    expect(
+      screen.queryByText(/Parallelism is locked to 1/i),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('2 Workers')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Allowing between 1 and 6 parallel agents/i),
+    ).toBeInTheDocument();
+
+    const slider = screen.getByRole('slider');
+    expect(slider).toBeInTheDocument();
+    expect(slider).toHaveAttribute('min', '1');
+    expect(slider).toHaveAttribute('max', '6');
+    expect(slider).toHaveValue('2');
+
+    fireEvent.change(slider, { target: { value: '4' } });
+    expect(setMaxParallelismMock).toHaveBeenCalledWith(4);
   });
 });

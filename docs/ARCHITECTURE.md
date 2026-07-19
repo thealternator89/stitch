@@ -98,7 +98,7 @@ locally on the machine.
   - If a repository directory path is provided to the Story Elaborator, the Copilot session is created with `workingDirectory` set to that directory, giving the model first-party tool capability (e.g., browsing files, reading code, searching with grep). The model is instructed to write the plan to a file in the workspace (e.g. `implementation_plan.md`) using its tools.
   - If no repository directory is provided, the session is created with `availableTools: []` (empty array) and without workspace bounds, confining the model's operation to the ticket's text context only.
   - **PR Reviewer Parallelism & Worker Pool**:
-    - Review phases run in parallel using an asynchronous worker pool. The `maxWorkers` count is configured by a slider in the General Settings (bounded by the CPU count) or defaults to `Math.max(1, Math.floor(numCPUs / 2))`.
+    - Review phases run in parallel using an asynchronous worker pool. The `maxWorkers` count is configured by a slider in the PR Reviewer Settings (bounded by the CPU count) or defaults to `Math.max(1, Math.floor(numCPUs / 2))`.
     - **Crucial Dependency**: Parallel review execution requires Git Worktree Support to be enabled. Without worktree isolation, concurrent checkouts and file operations in a single repository would create race conditions and git conflicts. Parallelism is automatically locked to 1 if Git Worktree is disabled.
   - **Git Worktree Isolation**:
     - When Git Worktree Support is enabled, Stitch creates separate, temporary git worktree checkouts under a user-configured base directory (`gitWorktreeBaseDir`).

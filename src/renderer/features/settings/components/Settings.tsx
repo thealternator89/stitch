@@ -277,9 +277,6 @@ const Settings: React.FC = () => {
             setGitWorktreeEnabled={setGitWorktreeEnabled}
             gitWorktreeBaseDir={gitWorktreeBaseDir}
             setGitWorktreeBaseDir={setGitWorktreeBaseDir}
-            maxParallelism={maxParallelism}
-            setMaxParallelism={setMaxParallelism}
-            cpuCount={cpuCount}
           />
         );
       case 'connectors':
@@ -355,7 +352,13 @@ const Settings: React.FC = () => {
         );
       case 'pr-reviewer':
         return (
-          <PRReviewerSettings personas={personas} setPersonas={setPersonas} />
+          <PRReviewerSettings
+            personas={personas}
+            setPersonas={setPersonas}
+            maxParallelism={maxParallelism}
+            setMaxParallelism={setMaxParallelism}
+            cpuCount={cpuCount}
+          />
         );
       default:
         return null;
@@ -380,7 +383,7 @@ const Settings: React.FC = () => {
               className={`settings-nav-item ${activeTab === 'general' ? 'active' : ''}`}
               onClick={() => setActiveTab('general')}
             >
-              <i className="fas fa-palette"></i>
+              <i className="fas fa-sliders"></i>
               General
             </button>
             <button
@@ -412,7 +415,7 @@ const Settings: React.FC = () => {
               className={`settings-nav-item ${activeTab === 'pr-reviewer' ? 'active' : ''}`}
               onClick={() => setActiveTab('pr-reviewer')}
             >
-              <i className="fas fa-user-tag"></i>
+              <i className="fas fa-code-pull-request"></i>
               PR Reviewer
             </button>
           </div>
