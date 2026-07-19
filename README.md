@@ -4,7 +4,7 @@
 
 Stitch is an AI-powered desktop assistant designed for senior engineers, along
 with technical business analysts and product owners. It bridges the gap between
-your local codebase, Azure DevOps, Confluence documentation, and GitHub Copilot
+your local codebase, Azure DevOps / GitHub, Confluence documentation, and GitHub Copilot
 to automate tedious project tasks, plan implementation paths, and perform deep,
 context-aware code reviews.
 
@@ -14,7 +14,7 @@ automate reviews without losing focus or context.
 
 ## Key Benefits
 
-- **Stop Context Switching**: Search and pull tickets from Azure DevOps, fetch
+- **Stop Context Switching**: Search and pull tickets from Azure DevOps or GitHub, fetch
   page context from Confluence, and read/write implementation details directly
   from/to your local git repository—all from a single, unified interface.
 - **AI-Powered Code Reviews on Your Terms**: Automate your code review process
@@ -26,7 +26,7 @@ automate reviews without losing focus or context.
   into your repo.
 - **Accelerate Planning and Testing**: Generate comprehensive user stories and
   test cases from tickets in seconds, then instantly push them back to Azure
-  DevOps as stories or child tasks.
+  DevOps or GitHub as stories or child tasks/sub-issues.
 
 ## Core Features
 
@@ -49,19 +49,19 @@ automate reviews without losing focus or context.
   - Optionally attaches full pull request descriptions for richer target and
     requirement context.
   - **Linked Work Item & Documentation Context**: Optionally attaches linked
-    Azure DevOps user stories/work items. This automatically extracts Confluence
+    Azure DevOps or GitHub user stories/issues. This automatically extracts Confluence
     documentation links and equips the Copilot session with a custom
     `request_documentation` tool to fetch and read their contents.
   - Displays real-time streaming status logs, phase success indicators, general
     review feedback, and line-specific comments enriched with local code
     context.
-  - Publishes review feedback directly to Azure DevOps as active, line-anchored
-    discussion threads.
+  - Publishes review feedback directly to Azure DevOps or GitHub as active, line-anchored
+    discussion threads/comments.
   - For configuration details, see
     [docs/pr-reviewer/README.md](./docs/pr-reviewer/README.md).
 - **Story Elaborator (Interactive planning)**:
   - Interactive, multi-turn dialog with GitHub Copilot to analyze an Azure
-    DevOps work item and elaborate it into a detailed markdown implementation
+    DevOps or GitHub ticket and elaborate it into a detailed markdown implementation
     plan.
   - **Git Worktree Isolation & Branch Selection**: Automatically fetches the
     latest target branch reference from origin and spins up an isolated git
@@ -84,16 +84,16 @@ automate reviews without losing focus or context.
   - Interactive Q&A chat interface with quick-select suggested answer pill
     buttons.
   - Streams real-time logging status updates from the Copilot session.
-  - Option to post the final plan as an Azure DevOps comment.
+  - Option to post the final plan as an Azure DevOps or GitHub comment.
 - **Test Case Writer (Automatic test case generation)**:
-  - Integration with **Azure DevOps Search** via an autocomplete dropdown,
-    supporting debounced queries to search work items by matching title or ID
+  - Integration with **Azure DevOps / GitHub Search** via an autocomplete dropdown,
+    supporting debounced queries to search work items/issues by matching title or ID
     text, with automatic prioritized exact-ID fetching.
   - **Basic Test Case Editing**: Includes a drag-and-drop table for reordering
     generated rows, a visual indicator during generation, and the ability to
     delete and restore test cases directly inside the application.
-  - Ability to seamlessly write generated test cases back to Azure DevOps as
-    **Comments** or new **Child Tasks** (created as linked 'Task' items with an
+  - Ability to seamlessly write generated test cases back to Azure DevOps or GitHub as
+    **Comments** or new **Child Tasks / Sub-issues** (created as linked 'Task' or sub-issue items with an
     AI disclaimer).
   - Integration with **GitHub Copilot SDK** to automatically generate
     comprehensive test cases based on ticket context, with the ability to
@@ -105,13 +105,13 @@ automate reviews without losing focus or context.
   - Integration with **Confluence Page Search** via an autocomplete dropdown,
     supporting debounced queries to search space pages by matching title or Page
     ID.
-  - **Feature ID Autocomplete Search**: Quickly search Azure DevOps Features with
-    automatic project and type filtering, moving configuration to Settings.
+  - **Feature ID Autocomplete Search**: Quickly search Azure DevOps or GitHub Features with
+    automatic project/type/label filtering, moving configuration to Settings.
   - Prompts **GitHub Copilot SDK** to generate structured JSON containing user
     stories with Titles, Descriptions, and Acceptance Criteria, using your
     **chosen AI model**.
   - Ability to selectively choose generated stories and write them back to Azure
-    DevOps as new **Stories** linked under a specific
+    DevOps or GitHub as new **Stories / Issues** linked under a specific
     Feature.
 - **Persistent Settings & Prompt Customization**:
   - **Prompt Customization**: Fine-tune the base and detail prompt templates
@@ -119,7 +119,7 @@ automate reviews without losing focus or context.
     Elaborator**. Includes an integrated **Prompt Complexity Check** powered by
     Copilot to validate templates, estimate token complexity, detect rule
     contradictions, and catch safety issues.
-  - Securely store Azure DevOps credentials, Confluence tokens, and project
+  - Securely store Azure DevOps or GitHub credentials, Confluence tokens, and project
     configurations locally. Select a default Copilot model and actively check
     the status of local GitHub Copilot CLI authentication.
   - **Copilot CLI Authentication Status Checks**: Monitors GitHub Copilot connection
@@ -138,7 +138,7 @@ automate reviews without losing focus or context.
   [FontAwesome 6](https://fontawesome.com/)
 - **Navigation:** [React Router Dom](https://reactrouter.com/)
 - **APIs & Integration**:
-  - `azure-devops-node-api`: For interacting with Azure DevOps REST APIs.
+  - **Azure DevOps & GitHub REST APIs**: `azure-devops-node-api` for Azure DevOps, and native `fetch` calls for GitHub.
   - `@github/copilot-sdk`: For AI-powered generation via GitHub Copilot.
   - **Confluence REST API**: Utilizing internal fetches for reading Atlassian
     Cloud content via Basic Auth using API Tokens.
@@ -158,8 +158,7 @@ automate reviews without losing focus or context.
     interactive setup wizard will install it automatically using your system's
     Node and NPM. If an active authentication session is missing, an interactive
     modal will guide you through authentication commands.
-- **Azure DevOps PAT**: A Personal Access Token with "Work Items: Read & Write"
-  permissions.
+- **Azure DevOps / GitHub PAT**: A Personal Access Token (PAT) with read/write access to work items/issues and pull requests.
 - **Confluence API Token**: An Atlassian API Token generated from your profile
   settings (to be paired with your login email) for basic authentication.
 

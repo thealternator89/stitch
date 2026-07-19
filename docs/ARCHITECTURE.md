@@ -8,7 +8,7 @@ main (Node.js) process from the renderer (Chromium) process.
 - **Main Process (`src/main/index.ts`):**
   - Manages application lifecycle and implements a custom, hidden title bar for
     better native integration across OS platforms.
-  - Handles sensitive API integrations (Azure DevOps, GitHub Copilot).
+  - Handles sensitive API integrations (Azure DevOps, GitHub, GitHub Copilot).
   - Manages persistent state using `electron-store`.
   - Ensures proper resource cleanup (e.g., Copilot sessions) on application
     quit.
@@ -27,10 +27,10 @@ main (Node.js) process from the renderer (Chromium) process.
 
 ## Configuration Management
 
-We use `electron-store` to persist user settings (like Azure DevOps PATs)
+We use `electron-store` to persist user settings (like Azure DevOps or GitHub PATs)
 locally on the machine.
 
-- **Encryption:** Sensitive credentials (`azurePat`, `copilotToken`, `confluenceToken`) are encrypted using Electron's native `safeStorage` API before being written to disk. They are decrypted on-the-fly when read by the main process. If `safeStorage` is unavailable (e.g., in headless or testing environments), it falls back gracefully to plain-text storage.
+- **Encryption:** Sensitive credentials (`azurePat`, `githubToken`, `copilotToken`, `confluenceToken`) are encrypted using Electron's native `safeStorage` API before being written to disk. They are decrypted on-the-fly when read by the main process. If `safeStorage` is unavailable (e.g., in headless or testing environments), it falls back gracefully to plain-text storage.
 - **IPC Access:** The renderer fetches and saves settings through the
   `get-settings` and `save-settings` IPC handlers.
 
@@ -49,6 +49,18 @@ locally on the machine.
   - Fetches details of a specific Pull Request (`gitApi.getPullRequestById`) or lists active pull requests for the project (`gitApi.getPullRequestsByProject`).
   - Fetches work item references linked to a Pull Request (`gitApi.getPullRequestWorkItemRefs`) to attach user stories as additional code review context.
   - Posts code review findings (both general and line-specific comments) to the PR as new active comment threads (`gitApi.createThread`) targeting precise file paths and line offsets with an AI disclaimer.
+
+### GitHub
+
+- **Library:** Uses native `fetch` calling GitHub REST API (v3).
+- **Method:** Uses Personal Access Tokens (PAT).
+- **Scope:**
+  - Fetches issue details (number, title, body) and supports owner-level issue searching via Search API, including exact ID match and label filtering.
+  - Pushes AI-generated content as comments on issues and pull requests.
+  - Creates new child issues in the same repository as the parent issue, automatically linking them as sub-issues.
+  - Fetches details of pull requests and active pull requests across the configured owner/org.
+  - Extracts linked issue references from PR descriptions to attach them as additional review context.
+  - Posts general and line-anchored review comments directly to the pull request.
 
 ### Confluence
 
@@ -119,7 +131,7 @@ To prevent tool-specific logic, UI files, prompts, and backend coordination from
 
 1. **Symmetrical Feature Slices**: Feature directories under `src/main/features/` and `src/renderer/features/` encapsulate domain-specific code (e.g. `story-writer`, `test-case-writer`, `story-elaborator`, `pr-reviewer`, `settings`, `menu`).
 2. **Containment of Prompts**: Rather than using a single centralized prompt file, prompts are contained inside their respective main process feature slices (e.g., `storyWriterPrompts.ts`). The prompt validation logic (`checkPromptComplexity`) is centralized inside the `settings` feature slice (`promptComplexityService.ts`) which imports prompt templates from the individual slices to validate complexity.
-3. **Decoupled Infrastructure**: Shared, low-level integration services (like `AzureDevOpsService`, `ConfluenceService`, `CodeReviewProvider` implementations, and `CopilotService` connection lifecycle management) reside inside `src/main/infrastructure/`. Feature services leverage these services via constructor dependency injection, keeping tool logic fully decoupled from infrastructure.
+3. **Decoupled Infrastructure**: Shared, low-level integration services (like `AzureDevOpsService`, `GitHubService`, `ConfluenceService`, `CodeReviewProvider` implementations, and `CopilotService` connection lifecycle management) reside inside `src/main/infrastructure/`. Feature services leverage these services via constructor dependency injection, keeping tool logic fully decoupled from infrastructure.
 
 ### Hybrid ESM/CommonJS Approach
 
@@ -140,9 +152,9 @@ support modern ESM-only libraries like `electron-store` and
 - `save-settings`: Updates and persists configuration.
 - `get-version-status`: Returns the application version update status, used to display the "Updated" toast notification.
 - `open-external`: Opens a URL in the default browser.
-- `fetch-ticket`: Retrieves work item data from Azure DevOps.
+- `fetch-ticket`: Retrieves work item / issue data from Azure DevOps or GitHub.
 - `fetch-confluence-page`: Retrieves documentation content from Confluence.
-- `search-tickets`: Queries work items on Azure DevOps by ID or title text. Supports DevOps type filtering (e.g. searching specifically for parent features).
+- `search-tickets`: Queries work items on Azure DevOps or issues on GitHub by ID or title text. Supports work item type / label filtering.
 - `search-confluence-pages`: Queries pages on Confluence by ID or title text using CQL.
 - `generate-test-cases`: Interfaces with Copilot to produce Markdown test
   plans. Streams output line-by-line via `test-case-line` IPC events and resolves once concluded. Supports `modelOverride`.
@@ -153,8 +165,8 @@ support modern ESM-only libraries like `electron-store` and
 - `install-copilot-cli`: Performs the automated local installation of `@github/copilot` in the application data directory.
 - `list-copilot-models`: Retrieves available GitHub Copilot models.
 - `check-prompt-complexity`: Runs Copilot-based complexity and safety validation on user-customized prompt templates.
-- `add-comment`: Pushes text as a comment onto an Azure DevOps work item.
-- `create-ticket`: Creates a new work item (Story or Task) in Azure DevOps linked to a parent.
+- `add-comment`: Pushes text as a comment onto an Azure DevOps work item or GitHub issue.
+- `create-ticket`: Creates a new work item (Story or Task) in Azure DevOps or issue in GitHub linked to a parent.
 - `select-directory`: Triggers Electron's native `dialog.showOpenDialog` to allow user directory selection.
 - `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, configured with ticket details, branch selection, and workspace context. Streams lines via `elaboration-line`.
 - `send-elaboration-answer`: Sends subsequent replies/responses to the ongoing story elaboration session.
