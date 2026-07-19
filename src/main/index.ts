@@ -11,6 +11,8 @@ import {
 } from 'electron';
 import { AzureDevOpsService } from './infrastructure/azure/azureDevOpsService';
 import { AzureDevOpsCodeReviewService } from './infrastructure/azure/azureDevOpsCodeReviewService';
+import { GitHubService } from './infrastructure/github/gitHubService';
+import { GitHubCodeReviewService } from './infrastructure/github/gitHubCodeReviewService';
 import { CopilotService } from './infrastructure/copilot/copilotService';
 import { ConfluenceService } from './infrastructure/confluence/confluenceService';
 import { AppSettings } from '../types';
@@ -60,9 +62,9 @@ async function initStore() {
 }
 
 // Global service instances
-let azureService: IssueTrackerProvider | null = null;
+let issueTrackerService: IssueTrackerProvider | null = null;
 let confluenceService: DocumentationProvider | null = null;
-let codeReviewProvider: CodeReviewProvider | null = null;
+let codeReviewService: CodeReviewProvider | null = null;
 const copilotService = new CopilotService();
 const gitService = new GitService();
 const storyWriterService = new StoryWriterService(copilotService);
@@ -84,7 +86,7 @@ const prReviewerService = new PRReviewerService(
   copilotService,
   async () => {
     try {
-      return await getAzureService();
+      return await getIssueTrackerService();
     } catch {
       return null;
     }
@@ -181,55 +183,85 @@ ipcMain.handle('save-settings', async (event, settings: AppSettings) => {
   nativeTheme.themeSource = theme === 'auto' ? 'system' : theme;
 
   // Invalidate services so they get re-created on the next fetch with new credentials
-  azureService = null;
+  issueTrackerService = null;
   confluenceService = null;
-  codeReviewProvider = null;
+  codeReviewService = null;
 
   return { success: true };
 });
 
 async function getCodeReviewProvider(): Promise<CodeReviewProvider> {
-  if (!codeReviewProvider) {
+  if (!codeReviewService) {
     const settings = await getDecryptedSettings();
     const sanitized = trimProperties(settings) as AppSettings;
-    const azureConn = sanitized.connectors?.azureDevOps;
-    const org = azureConn?.org;
-    const pat = azureConn?.pat;
-    const project = azureConn?.project;
-    if (!org || !pat) {
-      throw new Error('Azure DevOps settings are missing.');
+    const source = sanitized.sources?.code || 'azureDevOps';
+
+    if (source === 'github') {
+      const githubConn = sanitized.connectors?.github;
+      const token = githubConn?.token;
+      const defaultOwner = githubConn?.owner || '';
+      const defaultRepo = githubConn?.repo || '';
+      if (!token) {
+        throw new Error('GitHub settings token is missing.');
+      }
+      codeReviewService = new GitHubCodeReviewService(
+        token,
+        defaultOwner,
+        defaultRepo,
+      );
+    } else {
+      const azureConn = sanitized.connectors?.azureDevOps;
+      const org = azureConn?.org;
+      const pat = azureConn?.pat;
+      const project = azureConn?.project;
+      if (!org || !pat) {
+        throw new Error('Azure DevOps settings are missing.');
+      }
+      codeReviewService = new AzureDevOpsCodeReviewService(
+        org,
+        pat,
+        project || '',
+      );
     }
-    codeReviewProvider = new AzureDevOpsCodeReviewService(
-      org,
-      pat,
-      project || '',
-    );
   }
-  return codeReviewProvider;
+  return codeReviewService;
 }
 
-async function getAzureService(): Promise<IssueTrackerProvider> {
-  if (!azureService) {
+async function getIssueTrackerService(): Promise<IssueTrackerProvider> {
+  if (!issueTrackerService) {
     const settings = await getDecryptedSettings();
     const sanitized = trimProperties(settings) as AppSettings;
-    const azureConn = sanitized.connectors?.azureDevOps;
-    const org = azureConn?.org;
-    const pat = azureConn?.pat;
-    if (!org || !pat) {
-      throw new Error('Azure DevOps settings are missing.');
+    const source = sanitized.sources?.issues || 'azureDevOps';
+
+    if (source === 'github') {
+      const githubConn = sanitized.connectors?.github;
+      const token = githubConn?.token;
+      const defaultOwner = githubConn?.owner || '';
+      const defaultRepo = githubConn?.repo || '';
+      if (!token) {
+        throw new Error('GitHub settings token is missing.');
+      }
+      issueTrackerService = new GitHubService(token, defaultOwner, defaultRepo);
+    } else {
+      const azureConn = sanitized.connectors?.azureDevOps;
+      const org = azureConn?.org;
+      const pat = azureConn?.pat;
+      if (!org || !pat) {
+        throw new Error('Azure DevOps settings are missing.');
+      }
+      issueTrackerService = new AzureDevOpsService(org, pat);
     }
-    azureService = new AzureDevOpsService(org, pat);
   }
-  return azureService;
+  return issueTrackerService;
 }
 
 ipcMain.handle('fetch-ticket', async (event, ticketId) => {
-  const service = await getAzureService();
+  const service = await getIssueTrackerService();
   return service.fetchTicket(ticketId);
 });
 
 ipcMain.handle('search-tickets', async (event, query, type) => {
-  const service = await getAzureService();
+  const service = await getIssueTrackerService();
   return service.searchTickets(query, type);
 });
 
@@ -566,14 +598,14 @@ ipcMain.handle(
 );
 
 ipcMain.handle('add-comment', async (event, ticketId, text, options) => {
-  const service = await getAzureService();
+  const service = await getIssueTrackerService();
   return service.addComment(ticketId, text, options);
 });
 
 ipcMain.handle(
   'create-ticket',
   async (event, type, parentTicketId, data, options) => {
-    const service = await getAzureService();
+    const service = await getIssueTrackerService();
     return service.createTicket(type, parentTicketId, data, options);
   },
 );

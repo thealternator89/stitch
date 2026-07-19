@@ -25,6 +25,9 @@ const Settings: React.FC = () => {
   const [issuesSource, setIssuesSource] = useState('azureDevOps');
   const [codeSource, setCodeSource] = useState('azureDevOps');
   const [docsSource, setDocsSource] = useState('atlassian');
+  const [githubToken, setGithubToken] = useState('');
+  const [githubOwner, setGithubOwner] = useState('');
+  const [githubRepo, setGithubRepo] = useState('');
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto');
   const [gitWorktreeEnabled, setGitWorktreeEnabled] = useState(false);
   const [gitWorktreeBaseDir, setGitWorktreeBaseDir] = useState('');
@@ -74,9 +77,13 @@ const Settings: React.FC = () => {
           setTestTaskTitle(settings.testTaskTitle || 'Testing');
           const azureConn = settings.connectors?.azureDevOps;
           const atlassianConn = settings.connectors?.atlassian;
+          const githubConn = settings.connectors?.github;
           setAzureOrg(azureConn?.org || '');
           setAzureProject(azureConn?.project || '');
           setAzurePat(azureConn?.pat || '');
+          setGithubToken(githubConn?.token || '');
+          setGithubOwner(githubConn?.owner || '');
+          setGithubRepo(githubConn?.repo || '');
           setCopilotToken(settings.copilotToken || '');
           setConfluenceUrl(atlassianConn?.url || '');
           setConfluenceUser(atlassianConn?.username || '');
@@ -205,6 +212,11 @@ const Settings: React.FC = () => {
             project: azureProject,
             pat: azurePat,
           },
+          github: {
+            token: githubToken,
+            owner: githubOwner,
+            repo: githubRepo,
+          },
         },
         sources: {
           issues: issuesSource,
@@ -302,6 +314,12 @@ const Settings: React.FC = () => {
             setConfluenceUser={setConfluenceUser}
             confluenceToken={confluenceToken}
             setConfluenceToken={setConfluenceToken}
+            githubToken={githubToken}
+            setGithubToken={setGithubToken}
+            githubOwner={githubOwner}
+            setGithubOwner={setGithubOwner}
+            githubRepo={githubRepo}
+            setGithubRepo={setGithubRepo}
             issuesSource={issuesSource}
             setIssuesSource={setIssuesSource}
             codeSource={codeSource}

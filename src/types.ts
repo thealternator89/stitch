@@ -15,6 +15,11 @@ export type AppSettings = {
       project?: string;
       pat?: string;
     };
+    github?: {
+      token?: string;
+      owner?: string;
+      repo?: string;
+    };
     [key: string]: Record<string, string | undefined> | undefined;
   };
   sources?: {
@@ -130,7 +135,7 @@ export interface PRMetadata {
   authorUniqueName?: string;
   repositoryName: string;
   repositoryId?: string;
-  hostType: 'azure' | 'unknown';
+  hostType: 'azure' | 'github' | 'unknown';
   url?: string;
 }
 

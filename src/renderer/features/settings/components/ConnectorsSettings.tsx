@@ -26,6 +26,14 @@ interface ConnectorsSettingsProps {
   confluenceToken: string;
   setConfluenceToken: (val: string) => void;
 
+  // GitHub State & Setters
+  githubToken: string;
+  setGithubToken: (val: string) => void;
+  githubOwner: string;
+  setGithubOwner: (val: string) => void;
+  githubRepo: string;
+  setGithubRepo: (val: string) => void;
+
   // Sources State & Setters
   issuesSource: string;
   setIssuesSource: (val: string) => void;
@@ -56,6 +64,12 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
   setConfluenceUser,
   confluenceToken,
   setConfluenceToken,
+  githubToken,
+  setGithubToken,
+  githubOwner,
+  setGithubOwner,
+  githubRepo,
+  setGithubRepo,
   issuesSource,
   setIssuesSource,
   codeSource,
@@ -123,6 +137,18 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
   // Is Connector Configured?
   const isAzureConfigured = azureOrg && azurePat;
   const isConfluenceConfigured = confluenceUrl && confluenceToken;
+  const isGithubConfigured = githubToken;
+
+  const [showGithubModal, setShowGithubModal] = useState(false);
+  const [localGithubToken, setLocalGithubToken] = useState(githubToken);
+  const [localGithubOwner, setLocalGithubOwner] = useState(githubOwner);
+  const [localGithubRepo, setLocalGithubRepo] = useState(githubRepo);
+
+  useEffect(() => {
+    setLocalGithubToken(githubToken);
+    setLocalGithubOwner(githubOwner);
+    setLocalGithubRepo(githubRepo);
+  }, [githubToken, githubOwner, githubRepo]);
 
   const fetchWorkItemTypes = async () => {
     if (!localAzureOrg || !localAzurePat || !localAzureProject) {
@@ -200,6 +226,26 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
     setConfluenceUrl('');
     setConfluenceUser('');
     setConfluenceToken('');
+  };
+
+  const handleOpenGithubModal = () => {
+    setLocalGithubToken(githubToken);
+    setLocalGithubOwner(githubOwner);
+    setLocalGithubRepo(githubRepo);
+    setShowGithubModal(true);
+  };
+
+  const handleSaveGithub = () => {
+    setGithubToken(localGithubToken);
+    setGithubOwner(localGithubOwner);
+    setGithubRepo(localGithubRepo);
+    setShowGithubModal(false);
+  };
+
+  const handleDisconnectGithub = () => {
+    setGithubToken('');
+    setGithubOwner('');
+    setGithubRepo('');
   };
 
   return (
@@ -384,27 +430,87 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
               </div>
             </div>
 
-            {/* GitHub Connector Card (Coming Soon) */}
-            <div className="col-12 opacity-75">
-              <div className="card border border-dashed bg-body-tertiary">
+            {/* GitHub Connector Card */}
+            <div className="col-12">
+              <div className="card border bg-light-subtle">
                 <div className="card-body d-flex align-items-center justify-content-between py-3">
-                  <div className="d-flex align-items-center gap-3">
+                  {/* Left side: Icon & Details */}
+                  <div className="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
                     <div
-                      className="d-flex align-items-center justify-content-center rounded bg-body text-muted"
+                      className="d-flex align-items-center justify-content-center rounded bg-primary-subtle text-primary"
                       style={{ width: '45px', height: '45px', flexShrink: 0 }}
                     >
                       <i className="fab fa-github fa-lg"></i>
                     </div>
-                    <div>
+                    <div
+                      className="flex-grow-1 min-w-0"
+                      style={{ maxWidth: '500px' }}
+                    >
                       <div className="d-flex align-items-center gap-2 mb-1">
-                        <h6 className="mb-0 fw-semibold text-muted">GitHub</h6>
+                        <h6 className="mb-0 fw-bold">GitHub</h6>
+                        {isGithubConfigured ? (
+                          <span
+                            className="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Connected
+                          </span>
+                        ) : (
+                          <span
+                            className="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0.5"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Not Connected
+                          </span>
+                        )}
                       </div>
+                      {isGithubConfigured && (
+                        <div className="text-muted small mt-1">
+                          {githubOwner && (
+                            <div className="text-truncate">
+                              <strong>Default Owner:</strong> {githubOwner}
+                            </div>
+                          )}
+                          {githubRepo && (
+                            <div className="text-truncate">
+                              <strong>Default Repo:</strong> {githubRepo}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="ms-3">
-                    <span className="badge bg-secondary-subtle text-secondary px-2 py-1 small">
-                      Coming Soon
-                    </span>
+
+                  {/* Right side: Action Buttons */}
+                  <div className="d-flex gap-2 align-items-center ms-3">
+                    {isGithubConfigured ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary btn-sm px-3"
+                          onClick={handleOpenGithubModal}
+                          title="Edit GitHub Connection"
+                        >
+                          <i className="fas fa-edit"></i>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger btn-sm px-3"
+                          onClick={handleDisconnectGithub}
+                          title="Disconnect GitHub"
+                        >
+                          <i className="fas fa-unlink"></i>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm px-4"
+                        onClick={handleOpenGithubModal}
+                      >
+                        <i className="fas fa-link me-1"></i> Connect
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -467,6 +573,9 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                   <option value="azureDevOps" disabled={!isAzureConfigured}>
                     Azure DevOps {!isAzureConfigured ? ' (Unconfigured)' : ''}
                   </option>
+                  <option value="github" disabled={!isGithubConfigured}>
+                    GitHub {!isGithubConfigured ? ' (Unconfigured)' : ''}
+                  </option>
                 </select>
               </div>
             </div>
@@ -485,6 +594,9 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                   <option value="">None</option>
                   <option value="azureDevOps" disabled={!isAzureConfigured}>
                     Azure DevOps {!isAzureConfigured ? ' (Unconfigured)' : ''}
+                  </option>
+                  <option value="github" disabled={!isGithubConfigured}>
+                    GitHub {!isGithubConfigured ? ' (Unconfigured)' : ''}
                   </option>
                 </select>
               </div>
@@ -837,6 +949,95 @@ const ConnectorsSettings: React.FC<ConnectorsSettingsProps> = ({
                   type="button"
                   className="btn btn-primary btn-sm px-4"
                   onClick={handleSaveConfluence}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* GitHub Portal Modal */}
+      {showGithubModal &&
+        createPortal(
+          <div className="env-error-overlay" style={{ zIndex: 3000 }}>
+            <div
+              className="near-full-modal text-start"
+              style={{ width: '500px', padding: '30px' }}
+            >
+              <button
+                type="button"
+                className="btn-close position-absolute"
+                style={{ top: '20px', right: '20px' }}
+                onClick={() => setShowGithubModal(false)}
+                aria-label="Close"
+              ></button>
+
+              <h5 className="mb-4 fw-bold">
+                <i className="fab fa-github text-primary me-2"></i>Configure
+                GitHub
+              </h5>
+
+              <div className="mt-2">
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    Personal Access Token (PAT)
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={localGithubToken}
+                      onChange={(e) => setLocalGithubToken(e.target.value)}
+                      placeholder="ghp_••••••••••••••••••••••••••••••••••••"
+                    />
+                  </div>
+                </div>
+
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    Default Owner / Org (Optional)
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. octocat"
+                      value={localGithubOwner}
+                      onChange={(e) => setLocalGithubOwner(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="row mb-3 align-items-center">
+                  <label className="col-sm-4 form-label fw-semibold small mb-0">
+                    Default Repository (Optional)
+                  </label>
+                  <div className="col-sm-8">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. Hello-World"
+                      value={localGithubRepo}
+                      onChange={(e) => setLocalGithubRepo(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm px-4"
+                  onClick={() => setShowGithubModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm px-4"
+                  onClick={handleSaveGithub}
                 >
                   Apply
                 </button>
