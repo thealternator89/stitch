@@ -106,7 +106,7 @@ export class GitHubService implements IssueTrackerProvider {
     ].join('\n');
 
     const labels = type ? [type] : [];
-    await this.request(`/repos/${owner}/${repo}/issues`, {
+    const createdIssue = await this.request(`/repos/${owner}/${repo}/issues`, {
       method: 'POST',
       body: JSON.stringify({
         title: data.title,
@@ -115,6 +115,26 @@ export class GitHubService implements IssueTrackerProvider {
       }),
       headers: { 'Content-Type': 'application/json' },
     });
+
+    if (createdIssue && createdIssue.id) {
+      try {
+        await this.request(
+          `/repos/${owner}/${repo}/issues/${number}/sub_issues`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              sub_issue_id: createdIssue.id,
+            }),
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      } catch (err) {
+        console.error(
+          'Failed to link created issue as sub-issue on GitHub:',
+          err,
+        );
+      }
+    }
   }
 
   async searchTickets(query: string, type?: string): Promise<TicketData[]> {

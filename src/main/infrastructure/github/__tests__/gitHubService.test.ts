@@ -103,10 +103,14 @@ describe('GitHubService', () => {
   });
 
   describe('createTicket', () => {
-    it('should post issue to repository using parent composite ID', async () => {
+    it('should post issue to repository using parent composite ID and link as sub-issue', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ number: 456 }),
+        json: async () => ({ number: 456, id: 9999 }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
       });
 
       await service.createTicket(
@@ -138,12 +142,26 @@ describe('GitHubService', () => {
           }),
         }),
       );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.github.com/repos/test-owner/custom-repo/issues/123/sub_issues',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            sub_issue_id: 9999,
+          }),
+        }),
+      );
     });
 
     it('should not apply labels if type is empty string', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ number: 456 }),
+        json: async () => ({ number: 456, id: 9999 }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
       });
 
       await service.createTicket(
@@ -174,6 +192,11 @@ describe('GitHubService', () => {
             labels: [],
           }),
         }),
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.github.com/repos/test-owner/custom-repo/issues/123/sub_issues',
+        expect.any(Object),
       );
     });
   });
