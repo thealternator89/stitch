@@ -14,3 +14,7 @@ updates:
       react-packages:
         patterns:
           - "react*"
+      electron-fuses-packages:
+        patterns:
+          - "@electron-forge/plugin-fuses"
+          - "@electron/fuses"
