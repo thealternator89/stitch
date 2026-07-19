@@ -177,6 +177,70 @@ describe('GitHubCodeReviewService', () => {
       expect(prs).toHaveLength(1);
       expect(prs[0].id).toBe('1');
     });
+
+    it('should query GitHub search endpoint when defaultRepo is not configured', async () => {
+      const ownerOnlyService = new GitHubCodeReviewService(
+        'test-token',
+        'test-owner',
+        '',
+      );
+
+      // 1. mock get authenticated user
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ login: 'octocat' }),
+      });
+
+      // 2. mock get search results (reviewer)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              number: 456,
+              title: 'Owner-wide PR',
+              body: 'Test body',
+              html_url: 'https://github.com/test-owner/repo-a/pull/456',
+              repository_url: 'https://api.github.com/repos/test-owner/repo-a',
+              user: { login: 'some-user' },
+            },
+          ],
+        }),
+      });
+
+      // 3. mock get search results (assignee)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [],
+        }),
+      });
+
+      const prs = await ownerOnlyService.getProjectPRs('assigned');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.github.com/search/issues?q=' +
+          encodeURIComponent(
+            'user:test-owner is:pr is:open review-requested:octocat',
+          ),
+        expect.any(Object),
+      );
+
+      expect(prs).toHaveLength(1);
+      expect(prs[0]).toEqual({
+        id: '456',
+        title: 'Owner-wide PR',
+        description: 'Test body',
+        sourceBranch: '',
+        targetBranch: '',
+        author: 'some-user',
+        authorUniqueName: 'some-user',
+        repositoryName: 'repo-a',
+        repositoryId: '',
+        hostType: 'github',
+        url: 'https://github.com/test-owner/repo-a/pull/456',
+      });
+    });
   });
 
   describe('getLinkedTickets', () => {

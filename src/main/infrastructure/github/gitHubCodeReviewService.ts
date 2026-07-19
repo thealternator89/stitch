@@ -148,9 +148,9 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
   async getProjectPRs(
     searchType: 'assigned' | 'created' | 'all',
   ): Promise<PRMetadata[]> {
-    if (!this.defaultOwner || !this.defaultRepo) {
+    if (!this.defaultOwner) {
       throw new Error(
-        'Default GitHub Owner and Repository must be configured in settings to fetch project PRs.',
+        'GitHub Owner/Organization must be configured in settings to fetch project PRs.',
       );
     }
 
@@ -161,41 +161,101 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
         myLogin = user?.login || '';
       }
 
-      const prs = await this.request(
-        `/repos/${this.defaultOwner}/${this.defaultRepo}/pulls?state=open`,
-      );
+      if (this.defaultRepo) {
+        const prs = await this.request(
+          `/repos/${this.defaultOwner}/${this.defaultRepo}/pulls?state=open`,
+        );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mapped: PRMetadata[] = prs.map((pr: any) => ({
-        id: pr.number.toString(),
-        title: pr.title || '',
-        description: pr.body || '',
-        sourceBranch: pr.head?.ref || '',
-        targetBranch: pr.base?.ref || '',
-        author: pr.user?.login || '',
-        authorUniqueName: pr.user?.login || '',
-        repositoryName: this.defaultRepo,
-        repositoryId: pr.base?.repo?.id?.toString() || '',
-        hostType: 'github',
-        url: pr.html_url,
-      }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: PRMetadata[] = prs.map((pr: any) => ({
+          id: pr.number.toString(),
+          title: pr.title || '',
+          description: pr.body || '',
+          sourceBranch: pr.head?.ref || '',
+          targetBranch: pr.base?.ref || '',
+          author: pr.user?.login || '',
+          authorUniqueName: pr.user?.login || '',
+          repositoryName: this.defaultRepo,
+          repositoryId: pr.base?.repo?.id?.toString() || '',
+          hostType: 'github',
+          url: pr.html_url,
+        }));
 
-      if (searchType === 'created') {
-        return mapped.filter((pr) => pr.author === myLogin);
-      } else if (searchType === 'assigned') {
-        return mapped.filter((pr, index) => {
-          const rawPr = prs[index];
-          const isReviewer = rawPr.requested_reviewers?.some(
-            (r: { login: string }) => r.login === myLogin,
+        if (searchType === 'created') {
+          return mapped.filter((pr) => pr.author === myLogin);
+        } else if (searchType === 'assigned') {
+          return mapped.filter((pr, index) => {
+            const rawPr = prs[index];
+            const isReviewer = rawPr.requested_reviewers?.some(
+              (r: { login: string }) => r.login === myLogin,
+            );
+            const isAssignee = rawPr.assignees?.some(
+              (a: { login: string }) => a.login === myLogin,
+            );
+            return isReviewer || isAssignee;
+          });
+        }
+
+        return mapped;
+      } else {
+        let q = `user:${this.defaultOwner} is:pr is:open`;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let items: any[] = [];
+
+        if (searchType === 'created') {
+          q += ` author:${myLogin}`;
+          const res = await this.request(
+            `/search/issues?q=${encodeURIComponent(q)}`,
           );
-          const isAssignee = rawPr.assignees?.some(
-            (a: { login: string }) => a.login === myLogin,
+          items = res.items || [];
+        } else if (searchType === 'assigned') {
+          const qReviewer = `${q} review-requested:${myLogin}`;
+          const qAssignee = `${q} assignee:${myLogin}`;
+
+          const [resReviewer, resAssignee] = await Promise.all([
+            this.request(`/search/issues?q=${encodeURIComponent(qReviewer)}`),
+            this.request(`/search/issues?q=${encodeURIComponent(qAssignee)}`),
+          ]);
+
+          const combined = [
+            ...(resReviewer.items || []),
+            ...(resAssignee.items || []),
+          ];
+          const seen = new Set<string>();
+          for (const item of combined) {
+            const key = `${item.repository_url}/${item.number}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              items.push(item);
+            }
+          }
+        } else {
+          const res = await this.request(
+            `/search/issues?q=${encodeURIComponent(q)}`,
           );
-          return isReviewer || isAssignee;
-        });
+          items = res.items || [];
+        }
+
+        const getRepoName = (repoUrl: string) => {
+          const parts = repoUrl.split('/');
+          return parts[parts.length - 1] || '';
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return items.map((item: any) => ({
+          id: item.number.toString(),
+          title: item.title || '',
+          description: item.body || '',
+          sourceBranch: '',
+          targetBranch: '',
+          author: item.user?.login || '',
+          authorUniqueName: item.user?.login || '',
+          repositoryName: getRepoName(item.repository_url),
+          repositoryId: '',
+          hostType: 'github',
+          url: item.html_url,
+        }));
       }
-
-      return mapped;
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to query PRs from GitHub: ${errMsg}`, {
