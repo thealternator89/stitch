@@ -5,19 +5,14 @@ import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../components/PageLayout';
 import ModelDropdown from '../../components/ModelDropdown';
 import { useCopilotModels } from '../../hooks/useCopilotModels';
-import { PRMetadata, ReviewPhase, CopilotUsage, Persona } from '../../../types';
+import {
+  PRMetadata,
+  ReviewPhase,
+  CopilotUsage,
+  Persona,
+  ReviewComment,
+} from '../../../types';
 import UsageStatsToast from '../../components/UsageStatsToast';
-
-interface ReviewComment {
-  type: 'general' | 'line';
-  file?: string;
-  line?: number;
-  context?: number;
-  comment: string;
-  codeLines?: { line: number; text: string; isTarget: boolean }[];
-  posted?: boolean;
-  phase?: string;
-}
 
 const PRReviewer: React.FC = () => {
   const navigate = useNavigate();
@@ -45,6 +40,14 @@ const PRReviewer: React.FC = () => {
 
   // Review states
   const [comments, setComments] = useState<ReviewComment[]>([]);
+  const [critiquedComments, setCritiquedComments] = useState<ReviewComment[]>(
+    [],
+  );
+  const [hasCritiqued, setHasCritiqued] = useState(false);
+  const [isCritiquing, setIsCritiquing] = useState(false);
+  const [commentViewMode, setCommentViewMode] = useState<
+    'critiqued' | 'unvalidated'
+  >('critiqued');
   const [isReviewing, setIsReviewing] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [lastStatusTime, setLastStatusTime] = useState<Date | null>(null);
@@ -55,7 +58,7 @@ const PRReviewer: React.FC = () => {
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
   const [collapsedComments, setCollapsedComments] = useState<
-    Record<number, boolean>
+    Record<string | number, boolean>
   >({});
   const [isPostingComment, setIsPostingComment] = useState<
     Record<number, boolean>
@@ -172,6 +175,23 @@ const PRReviewer: React.FC = () => {
     }
     return statusText;
   };
+
+  const activeCritiquedComments = useMemo(
+    () => critiquedComments.filter((c) => c.status !== 'rejected'),
+    [critiquedComments],
+  );
+
+  const rejectedCritiquedComments = useMemo(
+    () => critiquedComments.filter((c) => c.status === 'rejected'),
+    [critiquedComments],
+  );
+
+  const displayedComments = useMemo(() => {
+    if (hasCritiqued && commentViewMode === 'critiqued') {
+      return activeCritiquedComments;
+    }
+    return comments;
+  }, [hasCritiqued, commentViewMode, activeCritiquedComments, comments]);
 
   useEffect(() => {
     loadPhases();
@@ -425,16 +445,16 @@ const PRReviewer: React.FC = () => {
     }
   };
 
+  const triggerNotification = (title: string, body: string) => {
+    if (!document.hasFocus()) {
+      window.electronAPI.showNotification(title, body).catch((err) => {
+        console.error('Failed to show notification:', err);
+      });
+    }
+  };
+
   const handleStartReview = async () => {
     if (!selectedPR || !commitSha) return;
-
-    const triggerNotification = (title: string, body: string) => {
-      if (!document.hasFocus()) {
-        window.electronAPI.showNotification(title, body).catch((err) => {
-          console.error('Failed to show notification:', err);
-        });
-      }
-    };
 
     const activePhases = phases.filter((p) => p.enabled);
     const phaseWithTemplateError = activePhases.find((p) => p.templateError);
@@ -449,6 +469,10 @@ const PRReviewer: React.FC = () => {
     setIsReviewing(true);
     setHasReviewed(false);
     setComments([]);
+    setCritiquedComments([]);
+    setHasCritiqued(false);
+    setIsCritiquing(false);
+    setCommentViewMode('critiqued');
     setCollapsedComments({});
     setIsPostingComment({});
     setLastStatusTime(null);
@@ -546,6 +570,53 @@ const PRReviewer: React.FC = () => {
     }
   };
 
+  const handleRunCritic = async () => {
+    if (!selectedPR || comments.length === 0 || isCritiquing) return;
+    setIsCritiquing(true);
+    try {
+      const res = await window.electronAPI.critiquePRComments(
+        comments,
+        selectedPR.description,
+        selectedModel,
+      );
+      if (res && res.result) {
+        setCritiquedComments(res.result);
+        setHasCritiqued(true);
+        setCommentViewMode('critiqued');
+      }
+      if (res && res.usage) {
+        setUsageStats((prev) => {
+          if (!prev) return res.usage;
+          const mergedPhases = [
+            ...(prev.phases || []),
+            ...(res.usage.phases || []),
+          ];
+          return {
+            inputTokens: prev.inputTokens + res.usage.inputTokens,
+            outputTokens: prev.outputTokens + res.usage.outputTokens,
+            cacheReadTokens: prev.cacheReadTokens + res.usage.cacheReadTokens,
+            cost: prev.cost + res.usage.cost,
+            phases: mergedPhases,
+          };
+        });
+      }
+      triggerNotification(
+        'Critic Phase Complete',
+        `The Critic phase for PR #${selectedPR.id} evaluated ${comments.length} comments.`,
+      );
+    } catch (err: unknown) {
+      console.error('Critic execution failed:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showError(msg, 'Critic Phase Failed');
+      triggerNotification(
+        'Critic Phase Failed',
+        `The Critic phase for PR #${selectedPR.id} failed to complete.`,
+      );
+    } finally {
+      setIsCritiquing(false);
+    }
+  };
+
   const showError = (msg: string, title = 'Fetch & Checkout Failed') => {
     setErrorMessage(msg);
     setErrorTitle(title);
@@ -582,12 +653,19 @@ const PRReviewer: React.FC = () => {
         edited: isEdited,
       });
 
-      // Mark as posted
-      setComments((prev) => {
-        const copy = [...prev];
-        copy[index] = { ...copy[index], comment: commentText, posted: true };
-        return copy;
-      });
+      // Mark as posted in both lists
+      const updateList = (prev: ReviewComment[]) =>
+        prev.map((c, i) =>
+          i === index ||
+          (c.comment === comment.comment &&
+            c.file === comment.file &&
+            c.line === comment.line)
+            ? { ...c, comment: commentText, posted: true }
+            : c,
+        );
+      setComments(updateList);
+      setCritiquedComments(updateList);
+
       setCollapsedComments((prev) => ({ ...prev, [index]: true }));
       setEditingCommentIndex(null);
     } catch (err: unknown) {
@@ -1190,15 +1268,38 @@ const PRReviewer: React.FC = () => {
                         )}
 
                         {!isReviewing && (
-                          <button
-                            className="btn btn-outline-primary btn-sm w-100 mt-auto fw-semibold"
-                            onClick={() => {
-                              setPhaseProgress([]);
-                            }}
-                          >
-                            <i className="fas fa-arrow-left me-2"></i>
-                            Back to Settings
-                          </button>
+                          <div className="d-flex flex-column gap-2 mt-auto">
+                            {comments.length > 0 && (
+                              <button
+                                className="btn btn-outline-info btn-sm w-100 fw-semibold"
+                                onClick={handleRunCritic}
+                                disabled={isCritiquing}
+                              >
+                                {isCritiquing ? (
+                                  <>
+                                    <span className="spinner-border spinner-border-sm me-2"></span>
+                                    Checking Comments...
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="fas fa-user-check me-2"></i>
+                                    {hasCritiqued
+                                      ? 'Re-run Critic Phase'
+                                      : 'Check Comments'}
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-outline-primary btn-sm w-100 fw-semibold"
+                              onClick={() => {
+                                setPhaseProgress([]);
+                              }}
+                            >
+                              <i className="fas fa-arrow-left me-2"></i>
+                              Back to Settings
+                            </button>
+                          </div>
                         )}
                       </div>
                     ) : (
@@ -1332,10 +1433,32 @@ const PRReviewer: React.FC = () => {
                       minHeight: '300px',
                     }}
                   >
-                    <h5 className="card-title fw-bold mb-3">
-                      <i className="fas fa-comments me-2 text-primary"></i>
-                      Review Comments ({comments.length})
-                    </h5>
+                    <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                      <h5 className="card-title fw-bold mb-0">
+                        <i className="fas fa-comments me-2 text-primary"></i>
+                        Review Comments ({displayedComments.length})
+                      </h5>
+                      {hasCritiqued && (
+                        <div className="btn-group btn-group-sm" role="group">
+                          <button
+                            type="button"
+                            className={`btn ${commentViewMode === 'critiqued' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                            onClick={() => setCommentViewMode('critiqued')}
+                          >
+                            <i className="fas fa-user-check me-1"></i>
+                            Critiqued ({activeCritiquedComments.length})
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn ${commentViewMode === 'unvalidated' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                            onClick={() => setCommentViewMode('unvalidated')}
+                          >
+                            <i className="fas fa-list me-1"></i>
+                            Unvalidated ({comments.length})
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     {isReviewing && comments.length > 0 && (
                       <div className="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-info-subtle text-info-emphasis small">
@@ -1357,18 +1480,41 @@ const PRReviewer: React.FC = () => {
                     )}
 
                     {!isReviewing && hasReviewed && comments.length > 0 && (
-                      <div className="alert alert-success py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-success-subtle text-success-emphasis small">
+                      <div className="alert alert-success py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-success-subtle text-success-emphasis small flex-wrap gap-2">
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-check-circle text-success me-1"></i>
                           <span>
                             <strong>Review complete</strong>
+                            {hasCritiqued && ' • Critic phase completed'}
                           </span>
                         </div>
-                        {lastStatusTime && (
-                          <span className="text-muted small font-monospace">
-                            Completed at: {lastStatusTime.toLocaleTimeString()}
-                          </span>
-                        )}
+                        <div className="d-flex align-items-center gap-3">
+                          <button
+                            className="btn btn-sm btn-success py-1 px-3 fw-semibold shadow-sm"
+                            onClick={handleRunCritic}
+                            disabled={isCritiquing}
+                          >
+                            {isCritiquing ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-1"></span>
+                                Critiquing...
+                              </>
+                            ) : (
+                              <>
+                                <i className="fas fa-user-check me-1"></i>
+                                {hasCritiqued
+                                  ? 'Re-run Critic Phase'
+                                  : 'Check Comments'}
+                              </>
+                            )}
+                          </button>
+                          {lastStatusTime && (
+                            <span className="text-muted small font-monospace">
+                              Completed at:{' '}
+                              {lastStatusTime.toLocaleTimeString()}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -1376,7 +1522,10 @@ const PRReviewer: React.FC = () => {
                       className="flex-grow-1 overflow-y-auto pe-1"
                       style={{ maxHeight: 'none' }}
                     >
-                      {comments.length === 0 ? (
+                      {displayedComments.length === 0 &&
+                      (!hasCritiqued ||
+                        commentViewMode === 'unvalidated' ||
+                        rejectedCritiquedComments.length === 0) ? (
                         <div className="h-100 d-flex flex-column align-items-center justify-content-center py-5 text-muted">
                           {isReviewing ? (
                             <>
@@ -1423,7 +1572,7 @@ const PRReviewer: React.FC = () => {
                         </div>
                       ) : (
                         <div className="comments-list">
-                          {comments.map((comment, index) => {
+                          {displayedComments.map((comment, index) => {
                             const isLine = comment.type === 'line';
                             if (collapsedComments[index]) {
                               return (
@@ -1436,6 +1585,24 @@ const PRReviewer: React.FC = () => {
                                       {comment.phase && (
                                         <span className="badge bg-info-subtle text-info-emphasis">
                                           {comment.phase}
+                                        </span>
+                                      )}
+                                      {comment.status === 'approved' && (
+                                        <span className="badge bg-success-subtle text-success-emphasis">
+                                          <i className="fas fa-check me-1"></i>
+                                          Approved
+                                        </span>
+                                      )}
+                                      {comment.status === 'edited' && (
+                                        <span className="badge bg-warning-subtle text-warning-emphasis">
+                                          <i className="fas fa-edit me-1"></i>
+                                          Edited by Critic
+                                        </span>
+                                      )}
+                                      {comment.status === 'merged' && (
+                                        <span className="badge bg-primary-subtle text-primary-emphasis">
+                                          <i className="fas fa-code-merge me-1"></i>
+                                          Merged by Critic
                                         </span>
                                       )}
                                       {comment.posted ? (
@@ -1484,10 +1651,28 @@ const PRReviewer: React.FC = () => {
                               >
                                 <div className="card-body p-3">
                                   <div className="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary-subtle">
-                                    <div className="d-flex align-items-center gap-2">
+                                    <div className="d-flex align-items-center gap-2 flex-wrap">
                                       {comment.phase && (
                                         <span className="badge bg-info-subtle text-info-emphasis">
                                           {comment.phase}
+                                        </span>
+                                      )}
+                                      {comment.status === 'approved' && (
+                                        <span className="badge bg-success-subtle text-success-emphasis">
+                                          <i className="fas fa-check me-1"></i>
+                                          Approved
+                                        </span>
+                                      )}
+                                      {comment.status === 'edited' && (
+                                        <span className="badge bg-warning-subtle text-warning-emphasis">
+                                          <i className="fas fa-edit me-1"></i>
+                                          Edited by Critic
+                                        </span>
+                                      )}
+                                      {comment.status === 'merged' && (
+                                        <span className="badge bg-primary-subtle text-primary-emphasis">
+                                          <i className="fas fa-code-merge me-1"></i>
+                                          Merged by Critic
                                         </span>
                                       )}
                                     </div>
@@ -1617,6 +1802,148 @@ const PRReviewer: React.FC = () => {
                               </div>
                             );
                           })}
+
+                          {hasCritiqued &&
+                            commentViewMode === 'critiqued' &&
+                            rejectedCritiquedComments.length > 0 && (
+                              <div className="mt-4 pt-3 border-top border-secondary-subtle">
+                                <h6 className="fw-bold text-muted mb-3 d-flex align-items-center">
+                                  <i className="fas fa-ban text-danger me-2"></i>
+                                  Rejected Comments (
+                                  {rejectedCritiquedComments.length})
+                                </h6>
+                                {rejectedCritiquedComments.map(
+                                  (comment, rIdx) => {
+                                    const keyIndex = `rejected-${rIdx}`;
+                                    const isCollapsed =
+                                      collapsedComments[keyIndex] !== false;
+                                    const isLine = comment.type === 'line';
+                                    return (
+                                      <div
+                                        key={keyIndex}
+                                        className="card shadow-sm border-0 mb-2 bg-body-tertiary opacity-75"
+                                      >
+                                        <div className="card-body p-3">
+                                          <div className="d-flex align-items-center justify-content-between">
+                                            <div className="d-flex align-items-center gap-2 flex-wrap">
+                                              <span className="badge bg-danger-subtle text-danger-emphasis fw-semibold">
+                                                <i className="fas fa-times-circle me-1"></i>
+                                                {comment.reason || 'Rejected'}
+                                              </span>
+                                              {comment.phase && (
+                                                <span className="badge bg-secondary-subtle text-secondary-emphasis">
+                                                  {comment.phase}
+                                                </span>
+                                              )}
+                                              {isLine && comment.file && (
+                                                <span
+                                                  className="font-monospace text-muted small text-truncate"
+                                                  style={{ maxWidth: '250px' }}
+                                                  title={`${comment.file}:${comment.line}`}
+                                                >
+                                                  {comment.file}:{comment.line}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <button
+                                              className="btn btn-sm btn-link text-decoration-none p-0 px-2 ms-2"
+                                              onClick={() =>
+                                                setCollapsedComments(
+                                                  (prev) => ({
+                                                    ...prev,
+                                                    [keyIndex]: !isCollapsed,
+                                                  }),
+                                                )
+                                              }
+                                            >
+                                              <i
+                                                className={`fas fa-chevron-${isCollapsed ? 'down' : 'up'} me-1`}
+                                              ></i>
+                                              {isCollapsed
+                                                ? 'Expand'
+                                                : 'Collapse'}
+                                            </button>
+                                          </div>
+                                          {!isCollapsed && (
+                                            <div className="mt-3 pt-2 border-top border-secondary-subtle">
+                                              {isLine &&
+                                                comment.codeLines &&
+                                                comment.codeLines.length >
+                                                  0 && (
+                                                  <div
+                                                    className="mb-2 rounded overflow-hidden border border-secondary-subtle"
+                                                    style={{
+                                                      backgroundColor:
+                                                        '#1e1e1e',
+                                                    }}
+                                                  >
+                                                    <pre
+                                                      className="m-0 p-2 text-white font-monospace small"
+                                                      style={{
+                                                        overflowX: 'auto',
+                                                        whiteSpace: 'pre',
+                                                      }}
+                                                    >
+                                                      {comment.codeLines.map(
+                                                        (lineObj, idx) => (
+                                                          <div
+                                                            key={idx}
+                                                            style={{
+                                                              backgroundColor:
+                                                                lineObj.isTarget
+                                                                  ? 'rgba(255, 235, 59, 0.15)'
+                                                                  : 'transparent',
+                                                              borderLeft:
+                                                                lineObj.isTarget
+                                                                  ? '3px solid #ffeb3b'
+                                                                  : '3px solid transparent',
+                                                              paddingLeft:
+                                                                lineObj.isTarget
+                                                                  ? '5px'
+                                                                  : '8px',
+                                                              display: 'flex',
+                                                            }}
+                                                          >
+                                                            <span
+                                                              className="me-3 select-none"
+                                                              style={{
+                                                                width: '35px',
+                                                                display:
+                                                                  'inline-block',
+                                                                textAlign:
+                                                                  'right',
+                                                                flexShrink: 0,
+                                                                color:
+                                                                  '#858585',
+                                                              }}
+                                                            >
+                                                              {lineObj.line}
+                                                            </span>
+                                                            <span className="text-break-none">
+                                                              {lineObj.text}
+                                                            </span>
+                                                          </div>
+                                                        ),
+                                                      )}
+                                                    </pre>
+                                                  </div>
+                                                )}
+                                              <div className="markdown-content text-body small">
+                                                <ReactMarkdown
+                                                  remarkPlugins={[remarkGfm]}
+                                                >
+                                                  {comment.comment}
+                                                </ReactMarkdown>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  },
+                                )}
+                              </div>
+                            )}
                         </div>
                       )}
                     </div>

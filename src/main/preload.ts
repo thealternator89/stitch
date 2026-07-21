@@ -6,6 +6,8 @@ import {
   PRMetadata,
   PRDiffFile,
   ReviewPhase,
+  ReviewComment,
+  CopilotResult,
 } from '../types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -214,6 +216,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       prUrlOrId,
       comment,
     ),
+  critiquePRComments: (
+    comments: ReviewComment[],
+    prDescription?: string,
+    modelOverride?: string,
+  ): Promise<CopilotResult<ReviewComment[]>> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:critique-comments',
+      comments,
+      prDescription,
+      modelOverride,
+    ),
+
   showNotification: (title: string, body: string): Promise<void> =>
     ipcRenderer.invoke('show-notification', title, body),
   isWindows: process.platform === 'win32',

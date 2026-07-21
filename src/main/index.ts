@@ -518,6 +518,17 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle(
+  'pr-reviewer:critique-comments',
+  async (event, comments, prDescription, modelOverride) => {
+    const settings = await getDecryptedSettings();
+    return prReviewerService.critiqueComments(comments, settings, {
+      modelOverride,
+      prDescription,
+    });
+  },
+);
+
 ipcMain.handle('pr-reviewer:get-repo-path-history', async (event, repoName) => {
   const s = await initStore();
   return s.get(`repo-paths.${repoName}`) || null;
