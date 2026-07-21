@@ -55,6 +55,7 @@ describe('PRReviewerService', () => {
     mockCopilotService = {
       createClientAndSession: vi.fn(),
       sendAndCollectStream: vi.fn(),
+      listModels: vi.fn().mockResolvedValue([]),
     };
     prReviewerService = new PRReviewerService(
       mockGitService,
@@ -1831,6 +1832,56 @@ describe('PRReviewerService', () => {
       // Verify sessions had isPrReviewer attached
       expect((mockSession1 as any).isPrReviewer).toBe(true);
       expect((mockSession2 as any).isPrReviewer).toBe(true);
+    });
+
+    it('should map model IDs to display names if available and fall back to raw ID', async () => {
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'file.ts', status: 'modified' },
+      ]);
+      vi.spyOn(prReviewerService, 'loadPhasesFromDisk').mockResolvedValue([
+        {
+          id: '010-definition-of-done.md',
+          title: 'Definition of Done',
+          body: 'Review guidelines',
+        },
+      ]);
+      mockCopilotService.listModels.mockResolvedValue([
+        {
+          id: 'claude-3.5-sonnet',
+          name: 'Claude 3.5 Sonnet',
+          billing: { multiplier: 1.5 },
+        },
+      ]);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+        usage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheReadTokens: 10,
+          cost: 1.5,
+          model: 'claude-3.5-sonnet',
+        },
+      };
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+
+      mockCopilotService.sendAndCollectStream.mockResolvedValue('done');
+
+      const res = await prReviewerService.reviewPR(
+        '/mock/repo',
+        'main',
+        settings,
+        {
+          enabledPhaseIds: ['010-definition-of-done.md'],
+        },
+      );
+
+      expect(res.usage.phases?.[0].model).toBe('Claude 3.5 Sonnet');
     });
   });
 
