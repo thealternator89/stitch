@@ -1004,10 +1004,7 @@ const PRReviewer: React.FC = () => {
                                             }`}
                                             htmlFor={`phase-check-${phase.id}`}
                                           >
-                                            {phase.title}{' '}
-                                            <span className="text-muted font-monospace tiny-text ms-1">
-                                              ({phase.id})
-                                            </span>
+                                            {phase.title}
                                             {phase.templateError && (
                                               <span
                                                 className="text-danger ms-2"
