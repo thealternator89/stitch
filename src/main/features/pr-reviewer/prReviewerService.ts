@@ -45,9 +45,9 @@ ${commentsFormatted}
 
 Your goal is to decide for EACH proposed comment (or group of related comments) whether to:
 1. APPROVE: The comment is accurate, actionable, directly relevant to changed code, and worth addressing.
-2. EDIT: The comment is valid and useful, but its wording, explanation, or formatting can be improved for clarity or constructiveness. You may also modify the target "file" and/or "line" if the comment is valid but poorly placed or better anchored elsewhere (e.g. on a method signature or overall file).
+2. EDIT: The comment is valid and useful, but its wording, explanation, or formatting can be improved for clarity or constructiveness. You may edit both general comments and line comments, convert a line comment to a general PR comment ("type": "general"), or relocate a line comment to a different "file" and/or "line" (e.g. anchoring to a method signature or class declaration).
 3. REJECT: The comment is invalid, false positive, out of scope, overly pedantic/nitpicky, inaccurate, or redundant. You MUST provide a concise reason for rejection (such as "False positive", "Out of scope", "Duplicate", or "Pedantic nitpick").
-4. MERGE: Two or more comments refer to the same root issue, file section, or redundant points. Combine them into a single clear comment, specifying the optimal target "file" and "line" placement (e.g. method signature or shared class).
+4. MERGE: Two or more comments refer to the same root issue, file section, or redundant points. Combine them into a single clear comment (either a general PR comment or a line-specific comment with target "file" and "line" placement).
 
 Your output must strictly consist of JSON Lines (JSONL).
 Every line of your response MUST be a single, standalone, valid JSON object.
@@ -60,14 +60,20 @@ For each decision, output a JSON object on its own line matching one of these sc
 - For approving an existing comment unchanged:
 {"action": "approve", "commentIndex": 1}
 
-- For editing an existing comment (wording or optional file/line relocation):
-{"action": "edit", "commentIndex": 1, "comment": "Updated markdown comment text...", "file": "path/to/file", "line": 42}
+- For editing a line-specific comment (wording, or relocating file/line):
+{"action": "edit", "commentIndex": 1, "type": "line", "file": "path/to/file", "line": 42, "comment": "Updated markdown comment text..."}
+
+- For editing/converting a comment to a general PR comment:
+{"action": "edit", "commentIndex": 2, "type": "general", "comment": "Updated general PR comment text..."}
 
 - For rejecting an existing comment:
-{"action": "reject", "commentIndex": 1, "reason": "Reason for rejection, e.g. False positive or Out of scope"}
+{"action": "reject", "commentIndex": 3, "reason": "Reason for rejection, e.g. False positive or Out of scope"}
 
-- For merging multiple existing comments into one (with target file/line placement):
-{"action": "merge", "commentIndices": [2, 3], "type": "line", "file": "path/to/file", "line": 42, "comment": "Combined merged markdown comment text..."}
+- For merging multiple comments into a line-specific comment:
+{"action": "merge", "commentIndices": [4, 5], "type": "line", "file": "path/to/file", "line": 42, "comment": "Combined merged line comment text..."}
+
+- For merging multiple comments into a general PR comment:
+{"action": "merge", "commentIndices": [6, 7], "type": "general", "comment": "Combined general PR comment text..."}
 
 Note: "commentIndex" and elements of "commentIndices" are 1-indexed integers corresponding to the comment numbers listed above. Ensure EVERY input comment (from 1 to ${comments.length}) is accounted for by either an approve, edit, reject, or merge action.
 
@@ -1293,13 +1299,26 @@ export class PRReviewerService {
             ) {
               handledOriginalIndices.add(idx);
               const original = comments[idx];
-              const targetFile =
-                typeof obj.file === 'string' ? obj.file : original.file;
-              const targetLine =
-                typeof obj.line === 'number' ? obj.line : original.line;
+              const targetType =
+                obj.type === 'general' || obj.type === 'line'
+                  ? obj.type
+                  : original.type;
 
-              let codeLines = original.codeLines;
+              const isGeneral = targetType === 'general';
+              const targetFile = isGeneral
+                ? undefined
+                : typeof obj.file === 'string'
+                  ? obj.file
+                  : original.file;
+              const targetLine = isGeneral
+                ? undefined
+                : typeof obj.line === 'number'
+                  ? obj.line
+                  : original.line;
+
+              let codeLines = isGeneral ? undefined : original.codeLines;
               if (
+                !isGeneral &&
                 options.repoPath &&
                 targetFile &&
                 targetLine !== undefined &&
@@ -1322,6 +1341,7 @@ export class PRReviewerService {
 
               critiquedComments.push({
                 ...original,
+                type: targetType,
                 comment: obj.comment,
                 file: targetFile,
                 line: targetLine,
@@ -1362,13 +1382,28 @@ export class PRReviewerService {
               if (unhandled.length > 0) {
                 unhandled.forEach((i: number) => handledOriginalIndices.add(i));
                 const first = comments[indices[0]];
-                const targetFile =
-                  typeof obj.file === 'string' ? obj.file : first.file;
-                const targetLine =
-                  typeof obj.line === 'number' ? obj.line : first.line;
+                const targetType =
+                  obj.type === 'general' || obj.type === 'line'
+                    ? obj.type
+                    : obj.file
+                      ? 'line'
+                      : first.type;
 
-                let codeLines = first.codeLines;
+                const isGeneral = targetType === 'general';
+                const targetFile = isGeneral
+                  ? undefined
+                  : typeof obj.file === 'string'
+                    ? obj.file
+                    : first.file;
+                const targetLine = isGeneral
+                  ? undefined
+                  : typeof obj.line === 'number'
+                    ? obj.line
+                    : first.line;
+
+                let codeLines = isGeneral ? undefined : first.codeLines;
                 if (
+                  !isGeneral &&
                   options.repoPath &&
                   targetFile &&
                   targetLine !== undefined &&
@@ -1390,10 +1425,10 @@ export class PRReviewerService {
                 }
 
                 critiquedComments.push({
-                  type: obj.type || (targetFile ? 'line' : first.type),
+                  type: targetType,
                   file: targetFile,
                   line: targetLine,
-                  context: first.context,
+                  context: isGeneral ? undefined : first.context,
                   codeLines,
                   phase: first.phase,
                   comment: obj.comment,

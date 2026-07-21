@@ -2292,5 +2292,85 @@ describe('PRReviewerService', () => {
         'Combined issue placed on shared interface',
       );
     });
+
+    it('should support converting line comments to general comments on edit and merge', async () => {
+      const mockComments = [
+        {
+          type: 'line' as const,
+          file: 'src/a.ts',
+          line: 10,
+          comment: 'Line issue A',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/b.ts',
+          line: 20,
+          comment: 'Line issue B',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/c.ts',
+          line: 30,
+          comment: 'Line issue C',
+        },
+      ];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 50,
+          outputTokens: 20,
+          cacheReadTokens: 0,
+          cost: 0.005,
+          model: 'gpt-4o',
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const criticStreamOutput = [
+        JSON.stringify({
+          action: 'edit',
+          commentIndex: 1,
+          type: 'general',
+          comment: 'Converted to general comment for entire PR',
+        }),
+        JSON.stringify({
+          action: 'merge',
+          commentIndices: [2, 3],
+          type: 'general',
+          comment: 'Merged into general PR feedback',
+        }),
+      ].join('\n');
+
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        criticStreamOutput,
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      const res = await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { prDescription: 'Test PR' },
+      );
+
+      expect(res.result).toHaveLength(2);
+      expect(res.result[0].type).toBe('general');
+      expect(res.result[0].file).toBeUndefined();
+      expect(res.result[0].line).toBeUndefined();
+      expect(res.result[0].comment).toBe(
+        'Converted to general comment for entire PR',
+      );
+
+      expect(res.result[1].type).toBe('general');
+      expect(res.result[1].file).toBeUndefined();
+      expect(res.result[1].line).toBeUndefined();
+      expect(res.result[1].comment).toBe('Merged into general PR feedback');
+    });
   });
 });
