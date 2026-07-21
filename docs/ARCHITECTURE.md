@@ -99,9 +99,9 @@ locally on the machine.
   - Inside `sendAndCollectStream`, a newline buffer fallback processes block-delivered responses when incremental token deltas are skipped during tool executions, ensuring smooth UI status tracking.
 - **Usage Metrics Tracking**:
   - For each Copilot session, `CopilotService` listens to the `assistant.usage` event emitted by the Copilot agent.
-  - The service tracks token usage metrics, including input tokens (`inputTokens`), output tokens (`outputTokens`), cached tokens (`cacheReadTokens`), and model multiplier/cost (`cost`), falling back to `0` if any metric is missing.
+  - The service tracks token usage metrics, including input tokens (`inputTokens`), output tokens (`outputTokens`), cached tokens (`cacheReadTokens`), model name (`model`), and model multiplier/cost (`cost`), falling back to default values if any metric is missing.
   - The accumulated usage metrics are returned to the renderer process upon task completion via IPC.
-  - For parallelized tasks like the **PR Reviewer**, individual phase sessions propagate their stats to the reviewer service, which aggregates the usage across all phases and returns the total usage stats to the frontend.
+  - For parallelized tasks like the **PR Reviewer**, individual phase sessions propagate their stats to the reviewer service, which aggregates the total usage stats and attaches per-phase usage details (`phases`) returned to the frontend for detailed inspection via the model usage toast modal.
 - **`request_documentation` Custom Tool**:
   - Exposed to the Copilot session during both **PR Reviewer** (when attaching linked stories) and **Story Elaborator** tasks.
   - The custom tool (`createRequestDocumentationTool` from `src/main/infrastructure/copilot/tools/documentationTool.ts`) takes a `documentId` (e.g., Confluence Page ID) and queries `ConfluenceService` to retrieve the page title and storage body layout.

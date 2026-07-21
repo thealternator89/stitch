@@ -268,6 +268,16 @@ describe('CopilotService', () => {
     await checkExpectation;
   });
 
+  describe('getCachedModels', () => {
+    it('should return cached models synchronously', () => {
+      const mockModels = [
+        { id: 'gpt-4o', name: 'GPT-4o', billing: { multiplier: 1 } },
+      ];
+      (service as any).cachedModels = mockModels;
+      expect(service.getCachedModels()).toEqual(mockModels);
+    });
+  });
+
   it('should resiliently parse stream with leading noise and markdown wrappers', async () => {
     const lines: string[] = [];
     const responsePromise = service.sendAndCollectStream(
@@ -544,6 +554,7 @@ describe('CopilotService', () => {
           outputTokens: 50,
           cacheReadTokens: 10,
           cost: 1.5,
+          model: 'claude-3.5-sonnet',
         },
       });
 
@@ -552,7 +563,7 @@ describe('CopilotService', () => {
         type: 'assistant.usage',
         data: {
           inputTokens: 200,
-          // outputTokens, cacheReadTokens, cost are missing
+          // outputTokens, cacheReadTokens are missing
         },
       });
 
@@ -569,6 +580,7 @@ describe('CopilotService', () => {
         outputTokens: 50,
         cacheReadTokens: 10,
         cost: 1.5,
+        model: 'claude-3.5-sonnet',
       });
     });
 

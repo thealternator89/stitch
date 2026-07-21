@@ -12,6 +12,7 @@ import {
   ReviewPhase,
   TicketData,
   CopilotUsage,
+  PhaseUsage,
   CopilotResult,
 } from '../../../types';
 import { IssueTrackerProvider } from '../../infrastructure/providers/IssueTrackerProvider';
@@ -779,7 +780,12 @@ export class PRReviewerService {
       }
 
       const results: string[] = new Array(enabledPhases.length).fill('');
-      const phaseStats: { phaseTitle: string; usage: CopilotUsage }[] = [];
+      const phaseStats: {
+        phaseTitle: string;
+        usage: CopilotUsage;
+        model: string;
+        multiplier: number;
+      }[] = [];
       let firstError: Error | null = null;
       let queueIndex = 0;
 
@@ -1016,9 +1022,16 @@ export class PRReviewerService {
               cost: 0,
             };
 
+            const fallbackModel =
+              phase.model || options.modelOverride || 'Unknown';
+            const model = usage.model || fallbackModel;
+            const multiplier = usage.cost;
+
             phaseStats.push({
               phaseTitle: phase.title,
               usage,
+              model,
+              multiplier,
             });
 
             try {
@@ -1071,6 +1084,30 @@ export class PRReviewerService {
 
       const accumulatedResult = results.filter((r) => r !== '').join('');
 
+      const availableModels = this.copilotService.getCachedModels();
+
+      const getModelDisplayName = (rawModel: string): string => {
+        if (!rawModel) {
+          return 'Unknown';
+        }
+        const matched = availableModels.find(
+          (m) =>
+            m.id.toLowerCase() === rawModel.toLowerCase() ||
+            m.name.toLowerCase() === rawModel.toLowerCase(),
+        );
+        return matched ? matched.name : rawModel;
+      };
+
+      const phaseUsageList: PhaseUsage[] = phaseStats.map((stat) => ({
+        phaseTitle: stat.phaseTitle,
+        model: getModelDisplayName(stat.model),
+        inputTokens: stat.usage.inputTokens,
+        outputTokens: stat.usage.outputTokens,
+        cacheReadTokens: stat.usage.cacheReadTokens,
+        cost: stat.usage.cost,
+        multiplier: stat.multiplier,
+      }));
+
       return {
         result: accumulatedResult,
         usage: {
@@ -1078,6 +1115,7 @@ export class PRReviewerService {
           outputTokens: totalOutputTokens,
           cacheReadTokens: totalCacheReadTokens,
           cost: totalCost,
+          phases: phaseUsageList,
         },
       };
     } finally {

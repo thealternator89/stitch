@@ -807,3 +807,17 @@ tr.is-dragging {
   color: #34d399;
   background: rgba(52, 211, 153, 0.1);
 }
+
+/* Usage Details Modal & Table */
+.usage-details-modal {
+  max-width: 900px;
+  width: 90%;
+}
+
+.usage-details-table {
+  font-size: 13px;
+}
+
+[data-bs-theme='dark'] .usage-details-table {
+  color: var(--bs-body-color);
+}
