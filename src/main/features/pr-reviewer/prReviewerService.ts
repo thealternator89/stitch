@@ -45,28 +45,28 @@ ${commentsFormatted}
 
 Your goal is to decide for EACH proposed comment (or group of related comments) whether to:
 1. APPROVE: The comment is accurate, actionable, directly relevant to changed code, and worth addressing.
-2. EDIT: The comment is valid and useful, but its wording, explanation, or formatting can be improved for clarity or constructiveness. Provide the improved comment text.
+2. EDIT: The comment is valid and useful, but its wording, explanation, or formatting can be improved for clarity or constructiveness. You may also modify the target "file" and/or "line" if the comment is valid but poorly placed or better anchored elsewhere (e.g. on a method signature or overall file).
 3. REJECT: The comment is invalid, false positive, out of scope, overly pedantic/nitpicky, inaccurate, or redundant. You MUST provide a concise reason for rejection (such as "False positive", "Out of scope", "Duplicate", or "Pedantic nitpick").
-4. MERGE: Two or more comments refer to the same root issue, file section, or redundant points. Combine them into a single clear comment.
+4. MERGE: Two or more comments refer to the same root issue, file section, or redundant points. Combine them into a single clear comment, specifying the optimal target "file" and "line" placement (e.g. method signature or shared class).
 
 Your output must strictly consist of JSON Lines (JSONL).
 Every line of your response MUST be a single, standalone, valid JSON object.
 Do NOT wrap the JSON objects in a JSON array.
 Do NOT output markdown code blocks (such as \`\`\`json) wrapping your JSONL output.
-All double quotes and newlines inside JSON strings must be properly escaped (e.g. \\" for quotes, \\n for newlines).
+All double quotes and newlines inside JSON strings must be properly escaped (e.g. " for quotes, \n for newlines).
 
 For each decision, output a JSON object on its own line matching one of these schema formats:
 
 - For approving an existing comment unchanged:
 {"action": "approve", "commentIndex": 1}
 
-- For editing an existing comment:
-{"action": "edit", "commentIndex": 1, "comment": "Updated markdown comment text..."}
+- For editing an existing comment (wording or optional file/line relocation):
+{"action": "edit", "commentIndex": 1, "comment": "Updated markdown comment text...", "file": "path/to/file", "line": 42}
 
 - For rejecting an existing comment:
 {"action": "reject", "commentIndex": 1, "reason": "Reason for rejection, e.g. False positive or Out of scope"}
 
-- For merging multiple existing comments into one:
+- For merging multiple existing comments into one (with target file/line placement):
 {"action": "merge", "commentIndices": [2, 3], "type": "line", "file": "path/to/file", "line": 42, "comment": "Combined merged markdown comment text..."}
 
 Note: "commentIndex" and elements of "commentIndices" are 1-indexed integers corresponding to the comment numbers listed above. Ensure EVERY input comment (from 1 to ${comments.length}) is accounted for by either an approve, edit, reject, or merge action.
@@ -1222,6 +1222,7 @@ export class PRReviewerService {
     options: {
       modelOverride?: string;
       prDescription?: string;
+      repoPath?: string;
     } = {},
   ): Promise<CopilotResult<ReviewComment[]>> {
     if (!comments || comments.length === 0) {
@@ -1291,9 +1292,40 @@ export class PRReviewerService {
               !handledOriginalIndices.has(idx)
             ) {
               handledOriginalIndices.add(idx);
+              const original = comments[idx];
+              const targetFile =
+                typeof obj.file === 'string' ? obj.file : original.file;
+              const targetLine =
+                typeof obj.line === 'number' ? obj.line : original.line;
+
+              let codeLines = original.codeLines;
+              if (
+                options.repoPath &&
+                targetFile &&
+                targetLine !== undefined &&
+                (targetFile !== original.file || targetLine !== original.line)
+              ) {
+                const effectiveRepo = this.getEffectiveRepoPath(
+                  options.repoPath,
+                );
+                const contextSize = original.context ?? 5;
+                const extracted = extractFileContextSync(
+                  effectiveRepo,
+                  targetFile,
+                  targetLine,
+                  contextSize,
+                );
+                if (extracted) {
+                  codeLines = extracted;
+                }
+              }
+
               critiquedComments.push({
-                ...comments[idx],
+                ...original,
                 comment: obj.comment,
+                file: targetFile,
+                line: targetLine,
+                codeLines,
                 status: 'edited',
               });
             }
@@ -1330,12 +1362,39 @@ export class PRReviewerService {
               if (unhandled.length > 0) {
                 unhandled.forEach((i: number) => handledOriginalIndices.add(i));
                 const first = comments[indices[0]];
+                const targetFile =
+                  typeof obj.file === 'string' ? obj.file : first.file;
+                const targetLine =
+                  typeof obj.line === 'number' ? obj.line : first.line;
+
+                let codeLines = first.codeLines;
+                if (
+                  options.repoPath &&
+                  targetFile &&
+                  targetLine !== undefined &&
+                  (targetFile !== first.file || targetLine !== first.line)
+                ) {
+                  const effectiveRepo = this.getEffectiveRepoPath(
+                    options.repoPath,
+                  );
+                  const contextSize = first.context ?? 5;
+                  const extracted = extractFileContextSync(
+                    effectiveRepo,
+                    targetFile,
+                    targetLine,
+                    contextSize,
+                  );
+                  if (extracted) {
+                    codeLines = extracted;
+                  }
+                }
+
                 critiquedComments.push({
-                  type: obj.type || first.type,
-                  file: obj.file || first.file,
-                  line: obj.line !== undefined ? obj.line : first.line,
+                  type: obj.type || (targetFile ? 'line' : first.type),
+                  file: targetFile,
+                  line: targetLine,
                   context: first.context,
-                  codeLines: first.codeLines,
+                  codeLines,
                   phase: first.phase,
                   comment: obj.comment,
                   status: 'merged',

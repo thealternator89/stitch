@@ -133,6 +133,7 @@ export interface IElectronAPI {
     },
   ) => Promise<void>;
   critiquePRComments: (
+    repoPath: string,
     comments: ReviewComment[],
     prDescription?: string,
     modelOverride?: string,

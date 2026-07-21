@@ -2209,5 +2209,88 @@ describe('PRReviewerService', () => {
 
       expect(res.usage.phases?.[0].phaseTitle).toBe('Critic');
     });
+
+    it('should support modifying file and line on edit and merge', async () => {
+      const mockComments = [
+        {
+          type: 'line' as const,
+          file: 'src/old.ts',
+          line: 10,
+          comment: 'Poorly placed comment',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/a.ts',
+          line: 5,
+          comment: 'Issue A',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/b.ts',
+          line: 8,
+          comment: 'Issue B',
+        },
+      ];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 50,
+          outputTokens: 20,
+          cacheReadTokens: 0,
+          cost: 0.005,
+          model: 'gpt-4o',
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const criticStreamOutput = [
+        JSON.stringify({
+          action: 'edit',
+          commentIndex: 1,
+          comment: 'Better placed on method signature',
+          file: 'src/new.ts',
+          line: 42,
+        }),
+        JSON.stringify({
+          action: 'merge',
+          commentIndices: [2, 3],
+          type: 'line',
+          file: 'src/shared.ts',
+          line: 100,
+          comment: 'Combined issue placed on shared interface',
+        }),
+      ].join('\n');
+
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        criticStreamOutput,
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      const res = await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { prDescription: 'Test PR', repoPath: '/mock/repo' },
+      );
+
+      expect(res.result).toHaveLength(2);
+      expect(res.result[0].status).toBe('edited');
+      expect(res.result[0].file).toBe('src/new.ts');
+      expect(res.result[0].line).toBe(42);
+      expect(res.result[0].comment).toBe('Better placed on method signature');
+
+      expect(res.result[1].status).toBe('merged');
+      expect(res.result[1].file).toBe('src/shared.ts');
+      expect(res.result[1].line).toBe(100);
+      expect(res.result[1].comment).toBe(
+        'Combined issue placed on shared interface',
+      );
+    });
   });
 });

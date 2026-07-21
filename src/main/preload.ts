@@ -217,12 +217,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       comment,
     ),
   critiquePRComments: (
+    repoPath: string,
     comments: ReviewComment[],
     prDescription?: string,
     modelOverride?: string,
   ): Promise<CopilotResult<ReviewComment[]>> =>
     ipcRenderer.invoke(
       'pr-reviewer:critique-comments',
+      repoPath,
       comments,
       prDescription,
       modelOverride,

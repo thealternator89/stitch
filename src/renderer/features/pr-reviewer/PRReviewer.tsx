@@ -575,6 +575,7 @@ const PRReviewer: React.FC = () => {
     setIsCritiquing(true);
     try {
       const res = await window.electronAPI.critiquePRComments(
+        repoPath,
         comments,
         selectedPR.description,
         selectedModel,
