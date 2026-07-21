@@ -338,7 +338,12 @@ export class CopilotService {
         sessionUsage.inputTokens += event.data?.inputTokens ?? 0;
         sessionUsage.outputTokens += event.data?.outputTokens ?? 0;
         sessionUsage.cacheReadTokens += event.data?.cacheReadTokens ?? 0;
-        sessionUsage.cost += event.data?.cost ?? 0;
+        if (event.data?.cost !== undefined) {
+          sessionUsage.cost = event.data.cost;
+        }
+        if (event.data?.model !== undefined) {
+          sessionUsage.model = event.data.model;
+        }
       } else if (event.type === 'session.idle') {
         if (onLine && buffer.trim()) {
           buffer = parseResilientJSONL(buffer, onLine);

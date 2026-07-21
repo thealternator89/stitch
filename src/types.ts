@@ -165,11 +165,23 @@ export interface ReviewPhase {
   model?: string;
 }
 
+export interface PhaseUsage {
+  phaseTitle: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cost: number;
+  multiplier: number;
+}
+
 export interface CopilotUsage {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
   cost: number;
+  model?: string;
+  phases?: PhaseUsage[];
 }
 
 export interface CopilotResult<T> {

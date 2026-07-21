@@ -326,6 +326,17 @@ describe('PRReviewerService', () => {
           outputTokens: 0,
           cacheReadTokens: 0,
           cost: 0,
+          phases: [
+            {
+              phaseTitle: 'Definition of Done',
+              model: 'gpt-4',
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cost: 0,
+              multiplier: 0,
+            },
+          ],
         },
       });
     });
@@ -1795,6 +1806,26 @@ describe('PRReviewerService', () => {
         outputTokens: 125,
         cacheReadTokens: 30,
         cost: 0.35,
+        phases: [
+          {
+            phaseTitle: 'DoD Review',
+            model: 'Unknown',
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheReadTokens: 10,
+            cost: 0.1,
+            multiplier: 0.1,
+          },
+          {
+            phaseTitle: 'Security Review',
+            model: 'Unknown',
+            inputTokens: 200,
+            outputTokens: 75,
+            cacheReadTokens: 20,
+            cost: 0.25,
+            multiplier: 0.25,
+          },
+        ],
       });
 
       // Verify sessions had isPrReviewer attached
