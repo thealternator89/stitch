@@ -208,6 +208,10 @@ export class CopilotService {
     }
   }
 
+  getCachedModels(): CopilotModel[] {
+    return this.cachedModels;
+  }
+
   async listModels(copilotToken?: string): Promise<CopilotModel[]> {
     if (this.cachedModels.length > 0) {
       return this.cachedModels;

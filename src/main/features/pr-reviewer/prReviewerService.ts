@@ -14,7 +14,6 @@ import {
   CopilotUsage,
   PhaseUsage,
   CopilotResult,
-  CopilotModel,
 } from '../../../types';
 import { IssueTrackerProvider } from '../../infrastructure/providers/IssueTrackerProvider';
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
@@ -1085,14 +1084,7 @@ export class PRReviewerService {
 
       const accumulatedResult = results.filter((r) => r !== '').join('');
 
-      let availableModels: CopilotModel[] = [];
-      try {
-        availableModels = await this.copilotService.listModels(
-          settings.copilotToken,
-        );
-      } catch (err) {
-        console.error('Failed to fetch Copilot models for model mapping:', err);
-      }
+      const availableModels = this.copilotService.getCachedModels();
 
       const getModelDisplayName = (rawModel: string): string => {
         if (!rawModel) {

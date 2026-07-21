@@ -56,6 +56,7 @@ describe('PRReviewerService', () => {
       createClientAndSession: vi.fn(),
       sendAndCollectStream: vi.fn(),
       listModels: vi.fn().mockResolvedValue([]),
+      getCachedModels: vi.fn().mockReturnValue([]),
     };
     prReviewerService = new PRReviewerService(
       mockGitService,
@@ -1845,7 +1846,7 @@ describe('PRReviewerService', () => {
           body: 'Review guidelines',
         },
       ]);
-      mockCopilotService.listModels.mockResolvedValue([
+      mockCopilotService.getCachedModels.mockReturnValue([
         {
           id: 'claude-3.5-sonnet',
           name: 'Claude 3.5 Sonnet',

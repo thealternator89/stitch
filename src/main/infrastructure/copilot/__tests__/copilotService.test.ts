@@ -268,6 +268,16 @@ describe('CopilotService', () => {
     await checkExpectation;
   });
 
+  describe('getCachedModels', () => {
+    it('should return cached models synchronously', () => {
+      const mockModels = [
+        { id: 'gpt-4o', name: 'GPT-4o', billing: { multiplier: 1 } },
+      ];
+      (service as any).cachedModels = mockModels;
+      expect(service.getCachedModels()).toEqual(mockModels);
+    });
+  });
+
   it('should resiliently parse stream with leading noise and markdown wrappers', async () => {
     const lines: string[] = [];
     const responsePromise = service.sendAndCollectStream(
