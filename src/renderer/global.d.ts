@@ -138,6 +138,7 @@ export interface IElectronAPI {
     comments: ReviewComment[],
     prDescription?: string,
     modelOverride?: string,
+    persona?: string,
   ) => Promise<CopilotResult<ReviewComment[]>>;
   showNotification: (title: string, body: string) => Promise<void>;
   isWindows: boolean;

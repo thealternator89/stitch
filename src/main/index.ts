@@ -522,12 +522,13 @@ ipcMain.handle(
 
 ipcMain.handle(
   'pr-reviewer:critique-comments',
-  async (event, repoPath, comments, prDescription, modelOverride) => {
+  async (event, repoPath, comments, prDescription, modelOverride, persona) => {
     const settings = await getDecryptedSettings();
     return prReviewerService.critiqueComments(comments, settings, {
       modelOverride,
       prDescription,
       repoPath,
+      persona,
     });
   },
 );

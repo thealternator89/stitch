@@ -223,6 +223,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     comments: ReviewComment[],
     prDescription?: string,
     modelOverride?: string,
+    persona?: string,
   ): Promise<CopilotResult<ReviewComment[]>> =>
     ipcRenderer.invoke(
       'pr-reviewer:critique-comments',
@@ -230,6 +231,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       comments,
       prDescription,
       modelOverride,
+      persona,
     ),
 
   showNotification: (title: string, body: string): Promise<void> =>

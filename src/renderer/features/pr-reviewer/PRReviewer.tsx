@@ -583,6 +583,7 @@ const PRReviewer: React.FC = () => {
             localComments,
             selectedPR.description,
             selectedModel,
+            selectedPersona,
           );
           if (criticRes && criticRes.result) {
             setCritiquedComments(criticRes.result);
