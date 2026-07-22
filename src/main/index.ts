@@ -488,6 +488,7 @@ ipcMain.handle(
     prId,
     maxParallelism,
     persona,
+    skipCleanup,
   ) => {
     const settings = await getDecryptedSettings();
     return prReviewerService.reviewPR(repoPath, targetBranch, settings, {
@@ -498,6 +499,7 @@ ipcMain.handle(
       prId,
       maxParallelism,
       persona,
+      skipCleanup,
       onLine: (line: string) => {
         event.sender.send('pr-reviewer:review-line', line);
       },

@@ -80,6 +80,9 @@ const PRReviewer: React.FC = () => {
   }
   const [phases, setPhases] = useState<LocalReviewPhase[]>([]);
   const [isLoadingPhases, setIsLoadingPhases] = useState(false);
+  const [isCriticEnabled, setIsCriticEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('pr_reviewer_critic_enabled') !== 'false';
+  });
 
   const checkIsModelMissing = (phase: ReviewPhase) => {
     if (!phase.model) return false;
@@ -472,18 +475,26 @@ const PRReviewer: React.FC = () => {
     setCritiquedComments([]);
     setHasCritiqued(false);
     setIsCritiquing(false);
-    setCommentViewMode('critiqued');
+    setCommentViewMode(isCriticEnabled ? 'critiqued' : 'unvalidated');
     setCollapsedComments({});
     setIsPostingComment({});
     setLastStatusTime(null);
 
-    setPhaseProgress(
-      activePhases.map((p) => ({
-        id: p.id,
-        title: p.title,
-        status: 'pending',
-      })),
-    );
+    const initialProgress = activePhases.map((p) => ({
+      id: p.id,
+      title: p.title,
+      status: 'pending' as const,
+    }));
+    if (isCriticEnabled) {
+      initialProgress.push({
+        id: 'critic-phase',
+        title: 'Critic',
+        status: 'pending' as const,
+      });
+    }
+    setPhaseProgress(initialProgress);
+
+    const localComments: ReviewComment[] = [];
 
     const unsubscribe = window.electronAPI.onPRReviewLine((line: string) => {
       try {
@@ -526,6 +537,7 @@ const PRReviewer: React.FC = () => {
           commentObj &&
           (commentObj.type === 'general' || commentObj.type === 'line')
         ) {
+          localComments.push(commentObj);
           setComments((prev) => [...prev, commentObj]);
           setLastStatusTime(new Date());
         }
@@ -547,9 +559,103 @@ const PRReviewer: React.FC = () => {
         selectedPR.id,
         maxParallelism,
         selectedPersona,
+        isCriticEnabled,
       );
-      if (res && res.usage) {
-        setUsageStats(res.usage);
+
+      let currentUsage = res && res.usage ? res.usage : null;
+
+      if (isCriticEnabled) {
+        setPhaseProgress((prev) =>
+          prev.map((p) =>
+            p.id === 'critic-phase'
+              ? {
+                  ...p,
+                  status: 'in-progress',
+                  statusText: 'Critiquing generated comments...',
+                }
+              : p,
+          ),
+        );
+        setIsCritiquing(true);
+        try {
+          const criticRes = await window.electronAPI.critiquePRComments(
+            repoPath,
+            localComments,
+            selectedPR.description,
+            selectedModel,
+          );
+          if (criticRes && criticRes.result) {
+            setCritiquedComments(criticRes.result);
+            setHasCritiqued(true);
+            setCommentViewMode('critiqued');
+            setPhaseProgress((prev) =>
+              prev.map((p) =>
+                p.id === 'critic-phase'
+                  ? {
+                      ...p,
+                      status: 'completed',
+                      statusText: 'Critic phase complete.',
+                    }
+                  : p,
+              ),
+            );
+          } else {
+            setPhaseProgress((prev) =>
+              prev.map((p) =>
+                p.id === 'critic-phase'
+                  ? {
+                      ...p,
+                      status: 'completed',
+                      statusText: 'Critic phase complete.',
+                    }
+                  : p,
+              ),
+            );
+          }
+          if (criticRes && criticRes.usage) {
+            if (currentUsage) {
+              const mergedPhases = [
+                ...(currentUsage.phases || []),
+                ...(criticRes.usage.phases || []),
+              ];
+              currentUsage = {
+                inputTokens:
+                  currentUsage.inputTokens + criticRes.usage.inputTokens,
+                outputTokens:
+                  currentUsage.outputTokens + criticRes.usage.outputTokens,
+                cacheReadTokens:
+                  currentUsage.cacheReadTokens +
+                  criticRes.usage.cacheReadTokens,
+                cost: currentUsage.cost + criticRes.usage.cost,
+                phases: mergedPhases,
+              };
+            } else {
+              currentUsage = criticRes.usage;
+            }
+          }
+        } catch (criticErr) {
+          console.error('Critic execution failed:', criticErr);
+          const criticMsg =
+            criticErr instanceof Error ? criticErr.message : String(criticErr);
+          showError(criticMsg, 'Critic Phase Failed');
+          setPhaseProgress((prev) =>
+            prev.map((p) =>
+              p.id === 'critic-phase'
+                ? {
+                    ...p,
+                    status: 'skipped',
+                    reason: `Critic failed: ${criticMsg}`,
+                  }
+                : p,
+            ),
+          );
+        } finally {
+          setIsCritiquing(false);
+        }
+      }
+
+      if (currentUsage) {
+        setUsageStats(currentUsage);
       }
       setHasReviewed(true);
       triggerNotification(
@@ -564,6 +670,15 @@ const PRReviewer: React.FC = () => {
         'PR Review Failed',
         `The review for PR #${selectedPR.id} ("${selectedPR.title}") failed to complete.`,
       );
+      if (isCriticEnabled) {
+        setPhaseProgress((prev) =>
+          prev.map((p) =>
+            p.id === 'critic-phase'
+              ? { ...p, status: 'skipped', reason: 'Review phase failed' }
+              : p,
+          ),
+        );
+      }
     } finally {
       setIsReviewing(false);
       unsubscribe();
@@ -688,6 +803,137 @@ const PRReviewer: React.FC = () => {
       pr.id.toString().includes(prSearchQuery) ||
       pr.repositoryName.toLowerCase().includes(prSearchQuery.toLowerCase()),
   );
+
+  const renderCriticCardUI = () => {
+    const total = phaseProgress.length;
+    const completed = phaseProgress.filter(
+      (p) => p.status === 'completed' || p.status === 'skipped',
+    ).length;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return (
+      <div className="card shadow-sm border-0 mb-4 bg-body">
+        <div className="card-body p-4">
+          <div className="d-flex align-items-center justify-content-between mb-4 pb-3 border-bottom flex-wrap gap-2">
+            <div>
+              <h4 className="fw-bold mb-1 d-flex align-items-center gap-2">
+                <i className="fas fa-microchip text-primary"></i>
+                PR Review Progress
+              </h4>
+              <p className="text-muted small mb-0">
+                Running automated review phases and Critic refinement.
+              </p>
+            </div>
+            <div className="text-end">
+              <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-6 rounded-pill">
+                {percent}% Complete
+              </span>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="progress mb-4" style={{ height: '10px' }}>
+            <div
+              className="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+              role="progressbar"
+              style={{ width: `${percent}%` }}
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
+          </div>
+
+          {/* Cards Grid */}
+          <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+            {phaseProgress.map((p) => {
+              let cardBg = 'bg-body';
+              let borderClass = 'border';
+              let icon = <i className="far fa-circle text-muted fs-5"></i>;
+              let statusTextClass = 'text-muted';
+              let badgeColor = 'bg-secondary-subtle text-secondary-emphasis';
+              let displayStatus = 'Pending';
+              let statusMsg = p.statusText || '';
+
+              if (p.status === 'in-progress') {
+                cardBg = 'bg-primary-subtle bg-opacity-10';
+                borderClass = 'border-primary shadow-sm';
+                icon = (
+                  <i className="fas fa-circle-notch fa-spin text-primary fs-5"></i>
+                );
+                statusTextClass = 'text-primary-emphasis fw-semibold';
+                badgeColor =
+                  'bg-primary-subtle text-primary-emphasis border border-primary-subtle';
+                displayStatus = 'Active';
+                if (!statusMsg) statusMsg = 'Analyzing diffs...';
+              } else if (p.status === 'completed') {
+                cardBg = 'bg-success-subtle bg-opacity-5';
+                borderClass = 'border-success-subtle';
+                icon = (
+                  <i className="fas fa-check-circle text-success fs-5"></i>
+                );
+                statusTextClass = 'text-success-emphasis';
+                badgeColor =
+                  'bg-success-subtle text-success-emphasis border border-success-subtle';
+                displayStatus = 'Complete';
+                if (!statusMsg) statusMsg = 'Phase completed.';
+              } else if (p.status === 'skipped') {
+                cardBg = 'bg-warning-subtle bg-opacity-5';
+                borderClass = 'border-warning-subtle';
+                icon = <i className="fas fa-forward text-warning fs-5"></i>;
+                statusTextClass = 'text-warning-emphasis';
+                badgeColor =
+                  'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                displayStatus = 'Skipped';
+                statusMsg =
+                  p.reason || 'Skipped (no matching files or conditions).';
+              }
+
+              return (
+                <div key={p.id} className="col">
+                  <div
+                    className={`card h-100 ${cardBg} ${borderClass} rounded-3`}
+                  >
+                    <div className="card-body p-3 d-flex flex-column justify-content-between">
+                      <div>
+                        <div className="d-flex align-items-center justify-content-between mb-2">
+                          <span className="small font-monospace text-muted">
+                            Phase
+                          </span>
+                          <span
+                            className={`badge ${badgeColor} font-monospace rounded-pill tiny-badge`}
+                          >
+                            {displayStatus}
+                          </span>
+                        </div>
+                        <h6
+                          className="card-title fw-bold text-truncate mb-2"
+                          title={p.title}
+                        >
+                          {p.title}
+                        </h6>
+                      </div>
+
+                      <div className="mt-2 border-top pt-2">
+                        <div className="d-flex align-items-start gap-2">
+                          <div className="mt-1 flex-shrink-0">{icon}</div>
+                          <p
+                            className={`small mb-0 flex-grow-1 ${statusTextClass}`}
+                            style={{ minHeight: '40px', fontSize: '0.8rem' }}
+                          >
+                            {statusMsg}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const hasSelectedPhases = phases.some((p) => p.enabled);
 
@@ -1117,6 +1363,44 @@ const PRReviewer: React.FC = () => {
                               </div>
                             );
                           })}
+
+                          {/* Fixed Critic Phase Toggle */}
+                          <div
+                            className={
+                              phases.length > 0 ? 'border-top pt-3 mt-3' : ''
+                            }
+                          >
+                            <div className="form-check d-flex align-items-start gap-2">
+                              <input
+                                className="form-check-input mt-1"
+                                type="checkbox"
+                                id="critic-phase-toggle"
+                                checked={isCriticEnabled}
+                                onChange={(e) => {
+                                  setIsCriticEnabled(e.target.checked);
+                                  localStorage.setItem(
+                                    'pr_reviewer_critic_enabled',
+                                    String(e.target.checked),
+                                  );
+                                }}
+                              />
+                              <div>
+                                <label
+                                  className="form-check-label small fw-bold text-body"
+                                  htmlFor="critic-phase-toggle"
+                                >
+                                  Critic
+                                </label>
+                                <div
+                                  className="text-muted small"
+                                  style={{ fontSize: '0.75rem' }}
+                                >
+                                  Critiques and refines the generated comments
+                                  once all review phases are complete.
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1167,791 +1451,805 @@ const PRReviewer: React.FC = () => {
         {/* Review Comments Segment (Displays once checked out and commitSha is generated) */}
         {selectedPR && commitSha && (
           <div className="col-12 mt-4">
-            <div className="row g-4">
-              {/* Review Settings Side Column */}
-              <div className="col-md-4">
-                <div className="card shadow-sm border-0 h-100">
-                  <div
-                    className="card-body p-4 d-flex flex-column"
-                    style={{ minHeight: '300px' }}
-                  >
-                    <h5 className="card-title fw-bold mb-3">
-                      <i className="fas fa-robot me-2 text-primary"></i>
-                      {isReviewing || phaseProgress.length > 0
-                        ? 'Review Progress'
-                        : 'Review Settings'}
-                    </h5>
+            {isCriticEnabled && (isReviewing || isCritiquing) ? (
+              renderCriticCardUI()
+            ) : (
+              <div className="row g-4">
+                {/* Review Settings Side Column */}
+                <div className="col-md-4">
+                  <div className="card shadow-sm border-0 h-100">
+                    <div
+                      className="card-body p-4 d-flex flex-column"
+                      style={{ minHeight: '300px' }}
+                    >
+                      <h5 className="card-title fw-bold mb-3">
+                        <i className="fas fa-robot me-2 text-primary"></i>
+                        {isReviewing || phaseProgress.length > 0
+                          ? 'Review Progress'
+                          : 'Review Settings'}
+                      </h5>
 
-                    {isReviewing || phaseProgress.length > 0 ? (
-                      /* Phase Progress Checklist */
-                      <div className="flex-grow-1 d-flex flex-column">
-                        <div
-                          className="list-group list-group-flush border rounded overflow-hidden flex-grow-1 overflow-y-auto mb-3"
-                          style={{ maxHeight: '300px' }}
-                        >
-                          {phaseProgress.map((p) => (
-                            <div
-                              key={p.id}
-                              className="list-group-item p-3"
-                              style={{
-                                backgroundColor:
-                                  p.status === 'in-progress'
-                                    ? 'rgba(13, 110, 253, 0.1)'
-                                    : 'transparent',
-                              }}
-                            >
-                              <div className="d-flex align-items-center justify-content-between">
-                                <div
-                                  className="d-flex align-items-center gap-2 text-truncate"
-                                  style={{ maxWidth: '75%' }}
-                                >
-                                  {p.status === 'pending' && (
-                                    <i className="far fa-circle text-muted"></i>
+                      {isReviewing || phaseProgress.length > 0 ? (
+                        /* Phase Progress Checklist */
+                        <div className="flex-grow-1 d-flex flex-column">
+                          <div
+                            className="list-group list-group-flush border rounded overflow-hidden flex-grow-1 overflow-y-auto mb-3"
+                            style={{ maxHeight: '300px' }}
+                          >
+                            {phaseProgress.map((p) => (
+                              <div
+                                key={p.id}
+                                className="list-group-item p-3"
+                                style={{
+                                  backgroundColor:
+                                    p.status === 'in-progress'
+                                      ? 'rgba(13, 110, 253, 0.1)'
+                                      : 'transparent',
+                                }}
+                              >
+                                <div className="d-flex align-items-center justify-content-between">
+                                  <div
+                                    className="d-flex align-items-center gap-2 text-truncate"
+                                    style={{ maxWidth: '75%' }}
+                                  >
+                                    {p.status === 'pending' && (
+                                      <i className="far fa-circle text-muted"></i>
+                                    )}
+                                    {p.status === 'in-progress' && (
+                                      <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                    )}
+                                    {p.status === 'completed' && (
+                                      <i className="fas fa-check-circle text-success"></i>
+                                    )}
+                                    {p.status === 'skipped' && (
+                                      <i
+                                        className="fas fa-forward text-warning"
+                                        title={p.reason || 'Skipped'}
+                                      ></i>
+                                    )}
+                                    <span
+                                      className={`small text-truncate ${
+                                        p.status === 'completed'
+                                          ? 'text-decoration-line-through text-muted'
+                                          : p.status === 'skipped'
+                                            ? 'text-muted'
+                                            : 'fw-semibold text-body'
+                                      }`}
+                                      title={p.title}
+                                    >
+                                      {p.title}
+                                    </span>
+                                  </div>
+                                  {p.status === 'skipped' && (
+                                    <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
+                                      Skipped
+                                    </span>
                                   )}
                                   {p.status === 'in-progress' && (
-                                    <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                    <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
+                                      Running
+                                    </span>
                                   )}
                                   {p.status === 'completed' && (
-                                    <i className="fas fa-check-circle text-success"></i>
+                                    <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
+                                      Done
+                                    </span>
                                   )}
-                                  {p.status === 'skipped' && (
-                                    <i
-                                      className="fas fa-forward text-warning"
-                                      title={p.reason || 'Skipped'}
-                                    ></i>
-                                  )}
-                                  <span
-                                    className={`small text-truncate ${
-                                      p.status === 'completed'
-                                        ? 'text-decoration-line-through text-muted'
-                                        : p.status === 'skipped'
-                                          ? 'text-muted'
-                                          : 'fw-semibold text-body'
-                                    }`}
-                                    title={p.title}
-                                  >
-                                    {p.title}
-                                  </span>
                                 </div>
-                                {p.status === 'skipped' && (
-                                  <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
-                                    Skipped
-                                  </span>
-                                )}
-                                {p.status === 'in-progress' && (
-                                  <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
-                                    Running
-                                  </span>
-                                )}
-                                {p.status === 'completed' && (
-                                  <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
-                                    Done
-                                  </span>
+                                {p.status === 'in-progress' && p.statusText && (
+                                  <div
+                                    className="ps-4 mt-1 text-muted small text-truncate"
+                                    title={p.statusText}
+                                  >
+                                    {p.statusText}
+                                  </div>
                                 )}
                               </div>
-                              {p.status === 'in-progress' && p.statusText && (
-                                <div
-                                  className="ps-4 mt-1 text-muted small text-truncate"
-                                  title={p.statusText}
-                                >
-                                  {p.statusText}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-
-                        {isReviewing && (
-                          <div className="mt-auto text-center text-muted small py-2 bg-body-secondary rounded">
-                            <span className="spinner-border spinner-border-sm me-2 text-primary"></span>
-                            {getGeneralStatusText()}
+                            ))}
                           </div>
-                        )}
 
-                        {!isReviewing && (
-                          <div className="d-flex flex-column gap-2 mt-auto">
-                            {comments.length > 0 && (
+                          {isReviewing && (
+                            <div className="mt-auto text-center text-muted small py-2 bg-body-secondary rounded">
+                              <span className="spinner-border spinner-border-sm me-2 text-primary"></span>
+                              {getGeneralStatusText()}
+                            </div>
+                          )}
+
+                          {!isReviewing && (
+                            <div className="d-flex flex-column gap-2 mt-auto">
+                              {comments.length > 0 && (
+                                <button
+                                  className="btn btn-outline-info btn-sm w-100 fw-semibold"
+                                  onClick={handleRunCritic}
+                                  disabled={isCritiquing}
+                                >
+                                  {isCritiquing ? (
+                                    <>
+                                      <span className="spinner-border spinner-border-sm me-2"></span>
+                                      Checking Comments...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="fas fa-user-check me-2"></i>
+                                      {hasCritiqued
+                                        ? 'Re-run Critic Phase'
+                                        : 'Check Comments'}
+                                    </>
+                                  )}
+                                </button>
+                              )}
                               <button
-                                className="btn btn-outline-info btn-sm w-100 fw-semibold"
-                                onClick={handleRunCritic}
-                                disabled={isCritiquing}
+                                className="btn btn-outline-primary btn-sm w-100 fw-semibold"
+                                onClick={() => {
+                                  setPhaseProgress([]);
+                                }}
                               >
-                                {isCritiquing ? (
-                                  <>
-                                    <span className="spinner-border spinner-border-sm me-2"></span>
-                                    Checking Comments...
-                                  </>
-                                ) : (
-                                  <>
-                                    <i className="fas fa-user-check me-2"></i>
-                                    {hasCritiqued
-                                      ? 'Re-run Critic Phase'
-                                      : 'Check Comments'}
-                                  </>
-                                )}
+                                <i className="fas fa-arrow-left me-2"></i>
+                                Back to Settings
                               </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Original Review Settings Inputs */
+                        <>
+                          {/* Model Selection */}
+                          <div className="mb-3">
+                            <label className="form-label text-muted small fw-semibold">
+                              Copilot Model
+                            </label>
+                            <ModelDropdown
+                              models={models}
+                              selectedModel={selectedModel}
+                              onSelect={setSelectedModel}
+                              loading={loadingModels}
+                            />
+                          </div>
+
+                          {/* Max Parallelism */}
+                          <div className="mb-3">
+                            <label className="form-label text-muted small fw-semibold d-block mb-1">
+                              Review Agent Parallelism
+                            </label>
+                            {cpuCount < 4 ? (
+                              <div className="text-muted small">
+                                Parallelism fixed at 1 (fewer than 4 CPU cores).
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="d-flex align-items-center gap-2">
+                                  <input
+                                    type="range"
+                                    className="form-range"
+                                    min="1"
+                                    max={cpuCount - 2}
+                                    value={maxParallelism}
+                                    onChange={(e) =>
+                                      setMaxParallelism(
+                                        parseInt(e.target.value),
+                                      )
+                                    }
+                                    disabled={isReviewing}
+                                    style={{ flexGrow: 1 }}
+                                  />
+                                  <span className="badge bg-secondary font-monospace">
+                                    {maxParallelism}x
+                                  </span>
+                                </div>
+                                <span
+                                  className="text-muted tiny"
+                                  style={{ fontSize: '0.75rem' }}
+                                >
+                                  Range: 1 to {cpuCount - 2} workers (CPUs:{' '}
+                                  {cpuCount})
+                                </span>
+                              </div>
                             )}
-                            <button
-                              className="btn btn-outline-primary btn-sm w-100 fw-semibold"
-                              onClick={() => {
-                                setPhaseProgress([]);
-                              }}
+                          </div>
+
+                          {/* Persona Selector */}
+                          <div className="mb-3">
+                            <label className="form-label text-muted small fw-semibold">
+                              Review Persona (Optional)
+                            </label>
+                            <select
+                              className="form-select form-select-sm"
+                              value={selectedPersona}
+                              onChange={(e) =>
+                                handlePersonaChange(e.target.value)
+                              }
+                              disabled={isReviewing}
                             >
-                              <i className="fas fa-arrow-left me-2"></i>
-                              Back to Settings
+                              <option value="None">None (Default)</option>
+                              {personas.map((p) => (
+                                <option key={p.name} value={p.name}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Custom Review Instructions */}
+                          <div className="mb-4 flex-grow-1 d-flex flex-column">
+                            <label className="form-label text-muted small fw-semibold">
+                              Specific Instructions (Optional)
+                            </label>
+                            <textarea
+                              className="form-control flex-grow-1"
+                              rows={3}
+                              style={{ minHeight: '80px', resize: 'none' }}
+                              placeholder="E.g., Focus on security, look out for proper error handling, verify database queries, etc."
+                              value={customInstructions}
+                              onChange={(e) =>
+                                setCustomInstructions(e.target.value)
+                              }
+                              disabled={isReviewing}
+                            />
+                          </div>
+
+                          {/* Action Button */}
+                          <button
+                            className="btn btn-primary w-100 py-2 fw-semibold shadow-sm mb-2"
+                            onClick={handleStartReview}
+                            disabled={
+                              isReviewing || !commitSha || !hasSelectedPhases
+                            }
+                          >
+                            <i className="fas fa-play me-2"></i>
+                            Start Code Review
+                          </button>
+                          {!hasSelectedPhases && (
+                            <div className="text-warning small text-center mt-1">
+                              <i className="fas fa-exclamation-triangle me-1"></i>
+                              Select at least one phase in PR settings to start
+                              review.
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Review Comments Screen */}
+                <div className="col-md-8">
+                  <div className="card shadow-sm border-0 h-100">
+                    <div
+                      className="card-body p-4 d-flex flex-column"
+                      style={{
+                        height: isHeaderCollapsed
+                          ? 'calc(100vh - 365px)'
+                          : '450px',
+                        minHeight: '300px',
+                      }}
+                    >
+                      <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                        <h5 className="card-title fw-bold mb-0">
+                          <i className="fas fa-comments me-2 text-primary"></i>
+                          Review Comments ({displayedComments.length})
+                        </h5>
+                        {hasCritiqued && (
+                          <div className="btn-group btn-group-sm" role="group">
+                            <button
+                              type="button"
+                              className={`btn ${commentViewMode === 'critiqued' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                              onClick={() => setCommentViewMode('critiqued')}
+                            >
+                              <i className="fas fa-user-check me-1"></i>
+                              Critiqued ({activeCritiquedComments.length})
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn ${commentViewMode === 'unvalidated' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                              onClick={() => setCommentViewMode('unvalidated')}
+                            >
+                              <i className="fas fa-list me-1"></i>
+                              Unvalidated ({comments.length})
                             </button>
                           </div>
                         )}
                       </div>
-                    ) : (
-                      /* Original Review Settings Inputs */
-                      <>
-                        {/* Model Selection */}
-                        <div className="mb-3">
-                          <label className="form-label text-muted small fw-semibold">
-                            Copilot Model
-                          </label>
-                          <ModelDropdown
-                            models={models}
-                            selectedModel={selectedModel}
-                            onSelect={setSelectedModel}
-                            loading={loadingModels}
-                          />
-                        </div>
 
-                        {/* Max Parallelism */}
-                        <div className="mb-3">
-                          <label className="form-label text-muted small fw-semibold d-block mb-1">
-                            Review Agent Parallelism
-                          </label>
-                          {cpuCount < 4 ? (
-                            <div className="text-muted small">
-                              Parallelism fixed at 1 (fewer than 4 CPU cores).
-                            </div>
-                          ) : (
-                            <div>
-                              <div className="d-flex align-items-center gap-2">
-                                <input
-                                  type="range"
-                                  className="form-range"
-                                  min="1"
-                                  max={cpuCount - 2}
-                                  value={maxParallelism}
-                                  onChange={(e) =>
-                                    setMaxParallelism(parseInt(e.target.value))
-                                  }
-                                  disabled={isReviewing}
-                                  style={{ flexGrow: 1 }}
-                                />
-                                <span className="badge bg-secondary font-monospace">
-                                  {maxParallelism}x
-                                </span>
-                              </div>
-                              <span
-                                className="text-muted tiny"
-                                style={{ fontSize: '0.75rem' }}
-                              >
-                                Range: 1 to {cpuCount - 2} workers (CPUs:{' '}
-                                {cpuCount})
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Persona Selector */}
-                        <div className="mb-3">
-                          <label className="form-label text-muted small fw-semibold">
-                            Review Persona (Optional)
-                          </label>
-                          <select
-                            className="form-select form-select-sm"
-                            value={selectedPersona}
-                            onChange={(e) =>
-                              handlePersonaChange(e.target.value)
-                            }
-                            disabled={isReviewing}
-                          >
-                            <option value="None">None (Default)</option>
-                            {personas.map((p) => (
-                              <option key={p.name} value={p.name}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Custom Review Instructions */}
-                        <div className="mb-4 flex-grow-1 d-flex flex-column">
-                          <label className="form-label text-muted small fw-semibold">
-                            Specific Instructions (Optional)
-                          </label>
-                          <textarea
-                            className="form-control flex-grow-1"
-                            rows={3}
-                            style={{ minHeight: '80px', resize: 'none' }}
-                            placeholder="E.g., Focus on security, look out for proper error handling, verify database queries, etc."
-                            value={customInstructions}
-                            onChange={(e) =>
-                              setCustomInstructions(e.target.value)
-                            }
-                            disabled={isReviewing}
-                          />
-                        </div>
-
-                        {/* Action Button */}
-                        <button
-                          className="btn btn-primary w-100 py-2 fw-semibold shadow-sm mb-2"
-                          onClick={handleStartReview}
-                          disabled={
-                            isReviewing || !commitSha || !hasSelectedPhases
-                          }
-                        >
-                          <i className="fas fa-play me-2"></i>
-                          Start Code Review
-                        </button>
-                        {!hasSelectedPhases && (
-                          <div className="text-warning small text-center mt-1">
-                            <i className="fas fa-exclamation-triangle me-1"></i>
-                            Select at least one phase in PR settings to start
-                            review.
+                      {isReviewing && comments.length > 0 && (
+                        <div className="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-info-subtle text-info-emphasis small">
+                          <div className="d-flex align-items-center gap-2">
+                            <span
+                              className="spinner-border spinner-border-sm text-info me-1"
+                              style={{ width: '1rem', height: '1rem' }}
+                            ></span>
+                            <span>
+                              <strong>Status:</strong> {getGeneralStatusText()}
+                            </span>
                           </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Review Comments Screen */}
-              <div className="col-md-8">
-                <div className="card shadow-sm border-0 h-100">
-                  <div
-                    className="card-body p-4 d-flex flex-column"
-                    style={{
-                      height: isHeaderCollapsed
-                        ? 'calc(100vh - 365px)'
-                        : '450px',
-                      minHeight: '300px',
-                    }}
-                  >
-                    <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                      <h5 className="card-title fw-bold mb-0">
-                        <i className="fas fa-comments me-2 text-primary"></i>
-                        Review Comments ({displayedComments.length})
-                      </h5>
-                      {hasCritiqued && (
-                        <div className="btn-group btn-group-sm" role="group">
-                          <button
-                            type="button"
-                            className={`btn ${commentViewMode === 'critiqued' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                            onClick={() => setCommentViewMode('critiqued')}
-                          >
-                            <i className="fas fa-user-check me-1"></i>
-                            Critiqued ({activeCritiquedComments.length})
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn ${commentViewMode === 'unvalidated' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                            onClick={() => setCommentViewMode('unvalidated')}
-                          >
-                            <i className="fas fa-list me-1"></i>
-                            Unvalidated ({comments.length})
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {isReviewing && comments.length > 0 && (
-                      <div className="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-info-subtle text-info-emphasis small">
-                        <div className="d-flex align-items-center gap-2">
-                          <span
-                            className="spinner-border spinner-border-sm text-info me-1"
-                            style={{ width: '1rem', height: '1rem' }}
-                          ></span>
-                          <span>
-                            <strong>Status:</strong> {getGeneralStatusText()}
-                          </span>
-                        </div>
-                        {lastStatusTime && (
-                          <span className="text-muted small font-monospace">
-                            Last update: {lastStatusTime.toLocaleTimeString()}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {!isReviewing && hasReviewed && comments.length > 0 && (
-                      <div className="alert alert-success py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-success-subtle text-success-emphasis small flex-wrap gap-2">
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-check-circle text-success me-1"></i>
-                          <span>
-                            <strong>Review complete</strong>
-                            {hasCritiqued && ' • Critic phase completed'}
-                          </span>
-                        </div>
-                        <div className="d-flex align-items-center gap-3">
-                          <button
-                            className="btn btn-sm btn-success py-1 px-3 fw-semibold shadow-sm"
-                            onClick={handleRunCritic}
-                            disabled={isCritiquing}
-                          >
-                            {isCritiquing ? (
-                              <>
-                                <span className="spinner-border spinner-border-sm me-1"></span>
-                                Critiquing...
-                              </>
-                            ) : (
-                              <>
-                                <i className="fas fa-user-check me-1"></i>
-                                {hasCritiqued
-                                  ? 'Re-run Critic Phase'
-                                  : 'Check Comments'}
-                              </>
-                            )}
-                          </button>
                           {lastStatusTime && (
                             <span className="text-muted small font-monospace">
-                              Completed at:{' '}
-                              {lastStatusTime.toLocaleTimeString()}
+                              Last update: {lastStatusTime.toLocaleTimeString()}
                             </span>
                           )}
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    <div
-                      className="flex-grow-1 overflow-y-auto pe-1"
-                      style={{ maxHeight: 'none' }}
-                    >
-                      {displayedComments.length === 0 &&
-                      (!hasCritiqued ||
-                        commentViewMode === 'unvalidated' ||
-                        rejectedCritiquedComments.length === 0) ? (
-                        <div className="h-100 d-flex flex-column align-items-center justify-content-center py-5 text-muted">
-                          {isReviewing ? (
-                            <>
-                              <span
-                                className="spinner-border text-primary mb-3"
-                                style={{ width: '3rem', height: '3rem' }}
-                              ></span>
-                              <p className="fw-semibold text-body mb-1">
-                                {getGeneralStatusText()}
-                              </p>
-                              {lastStatusTime && (
-                                <p className="text-muted small mb-2">
-                                  Last update:{' '}
-                                  {lastStatusTime.toLocaleTimeString()}
-                                </p>
+                      {!isReviewing && hasReviewed && comments.length > 0 && (
+                        <div className="alert alert-success py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0 bg-success-subtle text-success-emphasis small flex-wrap gap-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-check-circle text-success me-1"></i>
+                            <span>
+                              <strong>Review complete</strong>
+                              {hasCritiqued && ' • Critic phase completed'}
+                            </span>
+                          </div>
+                          <div className="d-flex align-items-center gap-3">
+                            <button
+                              className="btn btn-sm btn-success py-1 px-3 fw-semibold shadow-sm"
+                              onClick={handleRunCritic}
+                              disabled={isCritiquing}
+                            >
+                              {isCritiquing ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-1"></span>
+                                  Critiquing...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="fas fa-user-check me-1"></i>
+                                  {hasCritiqued
+                                    ? 'Re-run Critic Phase'
+                                    : 'Check Comments'}
+                                </>
                               )}
-                              <p className="small mb-0 text-center px-4">
-                                Copilot is analyzing the repository. Comments
-                                will appear here as they are generated.
-                              </p>
-                            </>
-                          ) : hasReviewed ? (
-                            <>
-                              <i className="fas fa-check-circle fa-3x mb-3 text-success"></i>
-                              <p className="fw-bold text-success fs-5 mb-1">
-                                Review complete
-                              </p>
-                              <p className="small mb-0 text-center px-4 text-muted">
-                                No comments were suggested.
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <i className="fas fa-clipboard-list fa-3x mb-3 text-secondary opacity-50"></i>
-                              <p className="fw-semibold text-body mb-1">
-                                No comments generated yet
-                              </p>
-                              <p className="small mb-0 text-center px-4">
-                                Configure instructions on the left and click
-                                "Start Code Review" to begin.
-                              </p>
-                            </>
-                          )}
+                            </button>
+                            {lastStatusTime && (
+                              <span className="text-muted small font-monospace">
+                                Completed at:{' '}
+                                {lastStatusTime.toLocaleTimeString()}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        <div className="comments-list">
-                          {displayedComments.map((comment, index) => {
-                            const isLine = comment.type === 'line';
-                            if (collapsedComments[index]) {
+                      )}
+
+                      <div
+                        className="flex-grow-1 overflow-y-auto pe-1"
+                        style={{ maxHeight: 'none' }}
+                      >
+                        {displayedComments.length === 0 &&
+                        (!hasCritiqued ||
+                          commentViewMode === 'unvalidated' ||
+                          rejectedCritiquedComments.length === 0) ? (
+                          <div className="h-100 d-flex flex-column align-items-center justify-content-center py-5 text-muted">
+                            {isReviewing ? (
+                              <>
+                                <span
+                                  className="spinner-border text-primary mb-3"
+                                  style={{ width: '3rem', height: '3rem' }}
+                                ></span>
+                                <p className="fw-semibold text-body mb-1">
+                                  {getGeneralStatusText()}
+                                </p>
+                                {lastStatusTime && (
+                                  <p className="text-muted small mb-2">
+                                    Last update:{' '}
+                                    {lastStatusTime.toLocaleTimeString()}
+                                  </p>
+                                )}
+                                <p className="small mb-0 text-center px-4">
+                                  Copilot is analyzing the repository. Comments
+                                  will appear here as they are generated.
+                                </p>
+                              </>
+                            ) : hasReviewed ? (
+                              <>
+                                <i className="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                                <p className="fw-bold text-success fs-5 mb-1">
+                                  Review complete
+                                </p>
+                                <p className="small mb-0 text-center px-4 text-muted">
+                                  No comments were suggested.
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <i className="fas fa-clipboard-list fa-3x mb-3 text-secondary opacity-50"></i>
+                                <p className="fw-semibold text-body mb-1">
+                                  No comments generated yet
+                                </p>
+                                <p className="small mb-0 text-center px-4">
+                                  Configure instructions on the left and click
+                                  "Start Code Review" to begin.
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="comments-list">
+                            {displayedComments.map((comment, index) => {
+                              const isLine = comment.type === 'line';
+                              if (collapsedComments[index]) {
+                                return (
+                                  <div
+                                    key={index}
+                                    className="card shadow-sm border-0 mb-2 bg-body-secondary opacity-75"
+                                  >
+                                    <div className="card-body p-2 d-flex align-items-center justify-content-between">
+                                      <div className="d-flex align-items-center gap-2">
+                                        {comment.phase && (
+                                          <span className="badge bg-info-subtle text-info-emphasis">
+                                            {comment.phase}
+                                          </span>
+                                        )}
+                                        {comment.status === 'approved' && (
+                                          <span className="badge bg-success-subtle text-success-emphasis">
+                                            <i className="fas fa-check me-1"></i>
+                                            Approved
+                                          </span>
+                                        )}
+                                        {comment.status === 'edited' && (
+                                          <span className="badge bg-warning-subtle text-warning-emphasis">
+                                            <i className="fas fa-edit me-1"></i>
+                                            Edited by Critic
+                                          </span>
+                                        )}
+                                        {comment.status === 'merged' && (
+                                          <span className="badge bg-primary-subtle text-primary-emphasis">
+                                            <i className="fas fa-code-merge me-1"></i>
+                                            Merged by Critic
+                                          </span>
+                                        )}
+                                        {comment.posted ? (
+                                          <span className="text-success small fw-semibold">
+                                            <i className="fas fa-check-circle me-1"></i>
+                                            Posted to PR
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted small fw-semibold">
+                                            <i className="fas fa-times-circle me-1"></i>
+                                            Dismissed
+                                          </span>
+                                        )}
+                                        {isLine && comment.file && (
+                                          <span
+                                            className="font-monospace text-muted small text-truncate"
+                                            style={{ maxWidth: '300px' }}
+                                            title={`${comment.file}:${comment.line}`}
+                                          >
+                                            {comment.file}:{comment.line}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <button
+                                        className="btn btn-sm btn-link text-decoration-none p-0 px-2"
+                                        onClick={() =>
+                                          handleToggleCollapse(index)
+                                        }
+                                      >
+                                        <i className="fas fa-chevron-down me-1"></i>{' '}
+                                        Expand
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
                               return (
                                 <div
                                   key={index}
-                                  className="card shadow-sm border-0 mb-2 bg-body-secondary opacity-75"
+                                  className={`card shadow-sm border-0 mb-3 ${
+                                    isLine
+                                      ? 'border-start border-4 border-primary'
+                                      : 'bg-body-tertiary'
+                                  }`}
                                 >
-                                  <div className="card-body p-2 d-flex align-items-center justify-content-between">
-                                    <div className="d-flex align-items-center gap-2">
-                                      {comment.phase && (
-                                        <span className="badge bg-info-subtle text-info-emphasis">
-                                          {comment.phase}
-                                        </span>
-                                      )}
-                                      {comment.status === 'approved' && (
-                                        <span className="badge bg-success-subtle text-success-emphasis">
-                                          <i className="fas fa-check me-1"></i>
-                                          Approved
-                                        </span>
-                                      )}
-                                      {comment.status === 'edited' && (
-                                        <span className="badge bg-warning-subtle text-warning-emphasis">
-                                          <i className="fas fa-edit me-1"></i>
-                                          Edited by Critic
-                                        </span>
-                                      )}
-                                      {comment.status === 'merged' && (
-                                        <span className="badge bg-primary-subtle text-primary-emphasis">
-                                          <i className="fas fa-code-merge me-1"></i>
-                                          Merged by Critic
-                                        </span>
-                                      )}
-                                      {comment.posted ? (
-                                        <span className="text-success small fw-semibold">
-                                          <i className="fas fa-check-circle me-1"></i>
-                                          Posted to PR
-                                        </span>
-                                      ) : (
-                                        <span className="text-muted small fw-semibold">
-                                          <i className="fas fa-times-circle me-1"></i>
-                                          Dismissed
-                                        </span>
-                                      )}
+                                  <div className="card-body p-3">
+                                    <div className="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary-subtle">
+                                      <div className="d-flex align-items-center gap-2 flex-wrap">
+                                        {comment.phase && (
+                                          <span className="badge bg-info-subtle text-info-emphasis">
+                                            {comment.phase}
+                                          </span>
+                                        )}
+                                        {comment.status === 'approved' && (
+                                          <span className="badge bg-success-subtle text-success-emphasis">
+                                            <i className="fas fa-check me-1"></i>
+                                            Approved
+                                          </span>
+                                        )}
+                                        {comment.status === 'edited' && (
+                                          <span className="badge bg-warning-subtle text-warning-emphasis">
+                                            <i className="fas fa-edit me-1"></i>
+                                            Edited by Critic
+                                          </span>
+                                        )}
+                                        {comment.status === 'merged' && (
+                                          <span className="badge bg-primary-subtle text-primary-emphasis">
+                                            <i className="fas fa-code-merge me-1"></i>
+                                            Merged by Critic
+                                          </span>
+                                        )}
+                                      </div>
                                       {isLine && comment.file && (
                                         <span
-                                          className="font-monospace text-muted small text-truncate"
-                                          style={{ maxWidth: '300px' }}
+                                          className="font-monospace text-muted small text-truncate ms-2"
+                                          style={{ maxWidth: '70%' }}
                                           title={`${comment.file}:${comment.line}`}
                                         >
                                           {comment.file}:{comment.line}
                                         </span>
                                       )}
                                     </div>
-                                    <button
-                                      className="btn btn-sm btn-link text-decoration-none p-0 px-2"
-                                      onClick={() =>
-                                        handleToggleCollapse(index)
-                                      }
-                                    >
-                                      <i className="fas fa-chevron-down me-1"></i>{' '}
-                                      Expand
-                                    </button>
+
+                                    {isLine &&
+                                      comment.codeLines &&
+                                      comment.codeLines.length > 0 && (
+                                        <div
+                                          className="mb-3 rounded overflow-hidden border border-secondary-subtle"
+                                          style={{ backgroundColor: '#1e1e1e' }}
+                                        >
+                                          <pre
+                                            className="m-0 p-2 text-white font-monospace small"
+                                            style={{
+                                              overflowX: 'auto',
+                                              whiteSpace: 'pre',
+                                            }}
+                                          >
+                                            {comment.codeLines.map(
+                                              (
+                                                lineObj: {
+                                                  line: number;
+                                                  text: string;
+                                                  isTarget: boolean;
+                                                },
+                                                idx: number,
+                                              ) => (
+                                                <div
+                                                  key={idx}
+                                                  style={{
+                                                    backgroundColor:
+                                                      lineObj.isTarget
+                                                        ? 'rgba(255, 235, 59, 0.15)'
+                                                        : 'transparent',
+                                                    borderLeft: lineObj.isTarget
+                                                      ? '3px solid #ffeb3b'
+                                                      : '3px solid transparent',
+                                                    paddingLeft:
+                                                      lineObj.isTarget
+                                                        ? '5px'
+                                                        : '8px',
+                                                    display: 'flex',
+                                                  }}
+                                                >
+                                                  <span
+                                                    className="me-3 select-none"
+                                                    style={{
+                                                      width: '35px',
+                                                      display: 'inline-block',
+                                                      textAlign: 'right',
+                                                      flexShrink: 0,
+                                                      color: '#858585',
+                                                    }}
+                                                  >
+                                                    {lineObj.line}
+                                                  </span>
+                                                  <span className="text-break-none">
+                                                    {lineObj.text}
+                                                  </span>
+                                                </div>
+                                              ),
+                                            )}
+                                          </pre>
+                                        </div>
+                                      )}
+
+                                    <div className="markdown-content text-body small">
+                                      <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                      >
+                                        {comment.comment}
+                                      </ReactMarkdown>
+                                    </div>
+
+                                    {/* Card Actions */}
+                                    <div className="d-flex justify-content-end gap-2 mt-3 pt-2 border-top border-secondary-subtle">
+                                      <button
+                                        className="btn btn-sm btn-outline-secondary"
+                                        onClick={() =>
+                                          handleDismissComment(index)
+                                        }
+                                      >
+                                        <i className="fas fa-eye-slash me-1"></i>
+                                        Dismiss
+                                      </button>
+                                      <div className="btn-group" role="group">
+                                        <button
+                                          className="btn btn-sm btn-primary"
+                                          onClick={() =>
+                                            handlePostComment(comment, index)
+                                          }
+                                          disabled={isPostingComment[index]}
+                                        >
+                                          {isPostingComment[index] ? (
+                                            <>
+                                              <span className="spinner-border spinner-border-sm me-1"></span>
+                                              Posting...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <i className="fas fa-paper-plane me-1"></i>
+                                              Post
+                                            </>
+                                          )}
+                                        </button>
+                                        <button
+                                          className="btn btn-sm btn-primary"
+                                          onClick={() => {
+                                            setEditingCommentIndex(index);
+                                            setEditedCommentText(
+                                              comment.comment,
+                                            );
+                                          }}
+                                          disabled={isPostingComment[index]}
+                                          title="Edit comment before posting"
+                                        >
+                                          <i className="fas fa-edit"></i>
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               );
-                            }
+                            })}
 
-                            return (
-                              <div
-                                key={index}
-                                className={`card shadow-sm border-0 mb-3 ${
-                                  isLine
-                                    ? 'border-start border-4 border-primary'
-                                    : 'bg-body-tertiary'
-                                }`}
-                              >
-                                <div className="card-body p-3">
-                                  <div className="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary-subtle">
-                                    <div className="d-flex align-items-center gap-2 flex-wrap">
-                                      {comment.phase && (
-                                        <span className="badge bg-info-subtle text-info-emphasis">
-                                          {comment.phase}
-                                        </span>
-                                      )}
-                                      {comment.status === 'approved' && (
-                                        <span className="badge bg-success-subtle text-success-emphasis">
-                                          <i className="fas fa-check me-1"></i>
-                                          Approved
-                                        </span>
-                                      )}
-                                      {comment.status === 'edited' && (
-                                        <span className="badge bg-warning-subtle text-warning-emphasis">
-                                          <i className="fas fa-edit me-1"></i>
-                                          Edited by Critic
-                                        </span>
-                                      )}
-                                      {comment.status === 'merged' && (
-                                        <span className="badge bg-primary-subtle text-primary-emphasis">
-                                          <i className="fas fa-code-merge me-1"></i>
-                                          Merged by Critic
-                                        </span>
-                                      )}
-                                    </div>
-                                    {isLine && comment.file && (
-                                      <span
-                                        className="font-monospace text-muted small text-truncate ms-2"
-                                        style={{ maxWidth: '70%' }}
-                                        title={`${comment.file}:${comment.line}`}
-                                      >
-                                        {comment.file}:{comment.line}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {isLine &&
-                                    comment.codeLines &&
-                                    comment.codeLines.length > 0 && (
-                                      <div
-                                        className="mb-3 rounded overflow-hidden border border-secondary-subtle"
-                                        style={{ backgroundColor: '#1e1e1e' }}
-                                      >
-                                        <pre
-                                          className="m-0 p-2 text-white font-monospace small"
-                                          style={{
-                                            overflowX: 'auto',
-                                            whiteSpace: 'pre',
-                                          }}
+                            {hasCritiqued &&
+                              commentViewMode === 'critiqued' &&
+                              rejectedCritiquedComments.length > 0 && (
+                                <div className="mt-4 pt-3 border-top border-secondary-subtle">
+                                  <h6 className="fw-bold text-muted mb-3 d-flex align-items-center">
+                                    <i className="fas fa-ban text-danger me-2"></i>
+                                    Rejected Comments (
+                                    {rejectedCritiquedComments.length})
+                                  </h6>
+                                  {rejectedCritiquedComments.map(
+                                    (comment, rIdx) => {
+                                      const keyIndex = `rejected-${rIdx}`;
+                                      const isCollapsed =
+                                        collapsedComments[keyIndex] !== false;
+                                      const isLine = comment.type === 'line';
+                                      return (
+                                        <div
+                                          key={keyIndex}
+                                          className="card shadow-sm border-0 mb-2 bg-body-tertiary opacity-75"
                                         >
-                                          {comment.codeLines.map(
-                                            (
-                                              lineObj: {
-                                                line: number;
-                                                text: string;
-                                                isTarget: boolean;
-                                              },
-                                              idx: number,
-                                            ) => (
-                                              <div
-                                                key={idx}
-                                                style={{
-                                                  backgroundColor:
-                                                    lineObj.isTarget
-                                                      ? 'rgba(255, 235, 59, 0.15)'
-                                                      : 'transparent',
-                                                  borderLeft: lineObj.isTarget
-                                                    ? '3px solid #ffeb3b'
-                                                    : '3px solid transparent',
-                                                  paddingLeft: lineObj.isTarget
-                                                    ? '5px'
-                                                    : '8px',
-                                                  display: 'flex',
-                                                }}
-                                              >
-                                                <span
-                                                  className="me-3 select-none"
-                                                  style={{
-                                                    width: '35px',
-                                                    display: 'inline-block',
-                                                    textAlign: 'right',
-                                                    flexShrink: 0,
-                                                    color: '#858585',
-                                                  }}
-                                                >
-                                                  {lineObj.line}
+                                          <div className="card-body p-3">
+                                            <div className="d-flex align-items-center justify-content-between">
+                                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                                <span className="badge bg-danger-subtle text-danger-emphasis fw-semibold">
+                                                  <i className="fas fa-times-circle me-1"></i>
+                                                  {comment.reason || 'Rejected'}
                                                 </span>
-                                                <span className="text-break-none">
-                                                  {lineObj.text}
-                                                </span>
-                                              </div>
-                                            ),
-                                          )}
-                                        </pre>
-                                      </div>
-                                    )}
-
-                                  <div className="markdown-content text-body small">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                      {comment.comment}
-                                    </ReactMarkdown>
-                                  </div>
-
-                                  {/* Card Actions */}
-                                  <div className="d-flex justify-content-end gap-2 mt-3 pt-2 border-top border-secondary-subtle">
-                                    <button
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={() =>
-                                        handleDismissComment(index)
-                                      }
-                                    >
-                                      <i className="fas fa-eye-slash me-1"></i>
-                                      Dismiss
-                                    </button>
-                                    <div className="btn-group" role="group">
-                                      <button
-                                        className="btn btn-sm btn-primary"
-                                        onClick={() =>
-                                          handlePostComment(comment, index)
-                                        }
-                                        disabled={isPostingComment[index]}
-                                      >
-                                        {isPostingComment[index] ? (
-                                          <>
-                                            <span className="spinner-border spinner-border-sm me-1"></span>
-                                            Posting...
-                                          </>
-                                        ) : (
-                                          <>
-                                            <i className="fas fa-paper-plane me-1"></i>
-                                            Post
-                                          </>
-                                        )}
-                                      </button>
-                                      <button
-                                        className="btn btn-sm btn-primary"
-                                        onClick={() => {
-                                          setEditingCommentIndex(index);
-                                          setEditedCommentText(comment.comment);
-                                        }}
-                                        disabled={isPostingComment[index]}
-                                        title="Edit comment before posting"
-                                      >
-                                        <i className="fas fa-edit"></i>
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-
-                          {hasCritiqued &&
-                            commentViewMode === 'critiqued' &&
-                            rejectedCritiquedComments.length > 0 && (
-                              <div className="mt-4 pt-3 border-top border-secondary-subtle">
-                                <h6 className="fw-bold text-muted mb-3 d-flex align-items-center">
-                                  <i className="fas fa-ban text-danger me-2"></i>
-                                  Rejected Comments (
-                                  {rejectedCritiquedComments.length})
-                                </h6>
-                                {rejectedCritiquedComments.map(
-                                  (comment, rIdx) => {
-                                    const keyIndex = `rejected-${rIdx}`;
-                                    const isCollapsed =
-                                      collapsedComments[keyIndex] !== false;
-                                    const isLine = comment.type === 'line';
-                                    return (
-                                      <div
-                                        key={keyIndex}
-                                        className="card shadow-sm border-0 mb-2 bg-body-tertiary opacity-75"
-                                      >
-                                        <div className="card-body p-3">
-                                          <div className="d-flex align-items-center justify-content-between">
-                                            <div className="d-flex align-items-center gap-2 flex-wrap">
-                                              <span className="badge bg-danger-subtle text-danger-emphasis fw-semibold">
-                                                <i className="fas fa-times-circle me-1"></i>
-                                                {comment.reason || 'Rejected'}
-                                              </span>
-                                              {comment.phase && (
-                                                <span className="badge bg-secondary-subtle text-secondary-emphasis">
-                                                  {comment.phase}
-                                                </span>
-                                              )}
-                                              {isLine && comment.file && (
-                                                <span
-                                                  className="font-monospace text-muted small text-truncate"
-                                                  style={{ maxWidth: '250px' }}
-                                                  title={`${comment.file}:${comment.line}`}
-                                                >
-                                                  {comment.file}:{comment.line}
-                                                </span>
-                                              )}
-                                            </div>
-                                            <button
-                                              className="btn btn-sm btn-link text-decoration-none p-0 px-2 ms-2"
-                                              onClick={() =>
-                                                setCollapsedComments(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [keyIndex]: !isCollapsed,
-                                                  }),
-                                                )
-                                              }
-                                            >
-                                              <i
-                                                className={`fas fa-chevron-${isCollapsed ? 'down' : 'up'} me-1`}
-                                              ></i>
-                                              {isCollapsed
-                                                ? 'Expand'
-                                                : 'Collapse'}
-                                            </button>
-                                          </div>
-                                          {!isCollapsed && (
-                                            <div className="mt-3 pt-2 border-top border-secondary-subtle">
-                                              {isLine &&
-                                                comment.codeLines &&
-                                                comment.codeLines.length >
-                                                  0 && (
-                                                  <div
-                                                    className="mb-2 rounded overflow-hidden border border-secondary-subtle"
+                                                {comment.phase && (
+                                                  <span className="badge bg-secondary-subtle text-secondary-emphasis">
+                                                    {comment.phase}
+                                                  </span>
+                                                )}
+                                                {isLine && comment.file && (
+                                                  <span
+                                                    className="font-monospace text-muted small text-truncate"
                                                     style={{
-                                                      backgroundColor:
-                                                        '#1e1e1e',
+                                                      maxWidth: '250px',
                                                     }}
+                                                    title={`${comment.file}:${comment.line}`}
                                                   >
-                                                    <pre
-                                                      className="m-0 p-2 text-white font-monospace small"
+                                                    {comment.file}:
+                                                    {comment.line}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <button
+                                                className="btn btn-sm btn-link text-decoration-none p-0 px-2 ms-2"
+                                                onClick={() =>
+                                                  setCollapsedComments(
+                                                    (prev) => ({
+                                                      ...prev,
+                                                      [keyIndex]: !isCollapsed,
+                                                    }),
+                                                  )
+                                                }
+                                              >
+                                                <i
+                                                  className={`fas fa-chevron-${isCollapsed ? 'down' : 'up'} me-1`}
+                                                ></i>
+                                                {isCollapsed
+                                                  ? 'Expand'
+                                                  : 'Collapse'}
+                                              </button>
+                                            </div>
+                                            {!isCollapsed && (
+                                              <div className="mt-3 pt-2 border-top border-secondary-subtle">
+                                                {isLine &&
+                                                  comment.codeLines &&
+                                                  comment.codeLines.length >
+                                                    0 && (
+                                                    <div
+                                                      className="mb-2 rounded overflow-hidden border border-secondary-subtle"
                                                       style={{
-                                                        overflowX: 'auto',
-                                                        whiteSpace: 'pre',
+                                                        backgroundColor:
+                                                          '#1e1e1e',
                                                       }}
                                                     >
-                                                      {comment.codeLines.map(
-                                                        (lineObj, idx) => (
-                                                          <div
-                                                            key={idx}
-                                                            style={{
-                                                              backgroundColor:
-                                                                lineObj.isTarget
-                                                                  ? 'rgba(255, 235, 59, 0.15)'
-                                                                  : 'transparent',
-                                                              borderLeft:
-                                                                lineObj.isTarget
-                                                                  ? '3px solid #ffeb3b'
-                                                                  : '3px solid transparent',
-                                                              paddingLeft:
-                                                                lineObj.isTarget
-                                                                  ? '5px'
-                                                                  : '8px',
-                                                              display: 'flex',
-                                                            }}
-                                                          >
-                                                            <span
-                                                              className="me-3 select-none"
+                                                      <pre
+                                                        className="m-0 p-2 text-white font-monospace small"
+                                                        style={{
+                                                          overflowX: 'auto',
+                                                          whiteSpace: 'pre',
+                                                        }}
+                                                      >
+                                                        {comment.codeLines.map(
+                                                          (lineObj, idx) => (
+                                                            <div
+                                                              key={idx}
                                                               style={{
-                                                                width: '35px',
-                                                                display:
-                                                                  'inline-block',
-                                                                textAlign:
-                                                                  'right',
-                                                                flexShrink: 0,
-                                                                color:
-                                                                  '#858585',
+                                                                backgroundColor:
+                                                                  lineObj.isTarget
+                                                                    ? 'rgba(255, 235, 59, 0.15)'
+                                                                    : 'transparent',
+                                                                borderLeft:
+                                                                  lineObj.isTarget
+                                                                    ? '3px solid #ffeb3b'
+                                                                    : '3px solid transparent',
+                                                                paddingLeft:
+                                                                  lineObj.isTarget
+                                                                    ? '5px'
+                                                                    : '8px',
+                                                                display: 'flex',
                                                               }}
                                                             >
-                                                              {lineObj.line}
-                                                            </span>
-                                                            <span className="text-break-none">
-                                                              {lineObj.text}
-                                                            </span>
-                                                          </div>
-                                                        ),
-                                                      )}
-                                                    </pre>
-                                                  </div>
-                                                )}
-                                              <div className="markdown-content text-body small">
-                                                <ReactMarkdown
-                                                  remarkPlugins={[remarkGfm]}
-                                                >
-                                                  {comment.comment}
-                                                </ReactMarkdown>
+                                                              <span
+                                                                className="me-3 select-none"
+                                                                style={{
+                                                                  width: '35px',
+                                                                  display:
+                                                                    'inline-block',
+                                                                  textAlign:
+                                                                    'right',
+                                                                  flexShrink: 0,
+                                                                  color:
+                                                                    '#858585',
+                                                                }}
+                                                              >
+                                                                {lineObj.line}
+                                                              </span>
+                                                              <span className="text-break-none">
+                                                                {lineObj.text}
+                                                              </span>
+                                                            </div>
+                                                          ),
+                                                        )}
+                                                      </pre>
+                                                    </div>
+                                                  )}
+                                                <div className="markdown-content text-body small">
+                                                  <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                  >
+                                                    {comment.comment}
+                                                  </ReactMarkdown>
+                                                </div>
                                               </div>
-                                            </div>
-                                          )}
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    );
-                                  },
-                                )}
-                              </div>
-                            )}
-                        </div>
-                      )}
+                                      );
+                                    },
+                                  )}
+                                </div>
+                              )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>

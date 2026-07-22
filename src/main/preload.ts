@@ -179,6 +179,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     prId?: string,
     maxParallelism?: number,
     persona?: string,
+    skipCleanup?: boolean,
   ): Promise<string> =>
     ipcRenderer.invoke(
       'pr-reviewer:review',
@@ -191,6 +192,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       prId,
       maxParallelism,
       persona,
+      skipCleanup,
     ),
   onPRReviewLine: (callback: (line: string) => void) => {
     const listener = (_event: unknown, line: string) => callback(line);

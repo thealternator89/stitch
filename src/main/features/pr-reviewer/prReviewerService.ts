@@ -689,6 +689,7 @@ export class PRReviewerService {
       onLine?: (line: string) => void;
       maxParallelism?: number;
       persona?: string;
+      skipCleanup?: boolean;
     } = {},
   ): Promise<CopilotResult<string>> {
     if (!options.enabledPhaseIds || options.enabledPhaseIds.length === 0) {
@@ -708,6 +709,7 @@ export class PRReviewerService {
     }
 
     let blockerId: number | null = null;
+    let hasError = false;
     try {
       blockerId = powerSaveBlocker.start('prevent-app-suspension');
 
@@ -1184,25 +1186,30 @@ export class PRReviewerService {
           phases: phaseUsageList,
         },
       };
+    } catch (err) {
+      hasError = true;
+      throw err;
     } finally {
       if (blockerId !== null && powerSaveBlocker.isStarted(blockerId)) {
         powerSaveBlocker.stop(blockerId);
       }
 
-      if (settings.gitWorktreeEnabled && settings.gitWorktreeBaseDir) {
-        await this.cleanupWorktree(repoPath);
-      } else {
-        const originalRef = this.activeCheckouts.get(repoPath);
-        if (originalRef) {
-          try {
-            await this.gitService.restoreRef(repoPath, originalRef);
-          } catch (err) {
-            console.error(
-              `Failed to automatically restore repository at ${repoPath}:`,
-              err,
-            );
+      if (!options.skipCleanup || hasError) {
+        if (settings.gitWorktreeEnabled && settings.gitWorktreeBaseDir) {
+          await this.cleanupWorktree(repoPath);
+        } else {
+          const originalRef = this.activeCheckouts.get(repoPath);
+          if (originalRef) {
+            try {
+              await this.gitService.restoreRef(repoPath, originalRef);
+            } catch (err) {
+              console.error(
+                `Failed to automatically restore repository at ${repoPath}:`,
+                err,
+              );
+            }
+            this.activeCheckouts.delete(repoPath);
           }
-          this.activeCheckouts.delete(repoPath);
         }
       }
     }
@@ -1513,6 +1520,25 @@ export class PRReviewerService {
     } finally {
       if (blockerId !== null && powerSaveBlocker.isStarted(blockerId)) {
         powerSaveBlocker.stop(blockerId);
+      }
+
+      if (options.repoPath) {
+        if (settings.gitWorktreeEnabled && settings.gitWorktreeBaseDir) {
+          await this.cleanupWorktree(options.repoPath);
+        } else {
+          const originalRef = this.activeCheckouts.get(options.repoPath);
+          if (originalRef) {
+            try {
+              await this.gitService.restoreRef(options.repoPath, originalRef);
+            } catch (err) {
+              console.error(
+                `Failed to restore original git ref for ${options.repoPath}:`,
+                err,
+              );
+            }
+            this.activeCheckouts.delete(options.repoPath);
+          }
+        }
       }
     }
   }
