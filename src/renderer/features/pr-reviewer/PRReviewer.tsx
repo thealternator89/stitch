@@ -685,54 +685,6 @@ const PRReviewer: React.FC = () => {
     }
   };
 
-  const handleRunCritic = async () => {
-    if (!selectedPR || comments.length === 0 || isCritiquing) return;
-    setIsCritiquing(true);
-    try {
-      const res = await window.electronAPI.critiquePRComments(
-        repoPath,
-        comments,
-        selectedPR.description,
-        selectedModel,
-      );
-      if (res && res.result) {
-        setCritiquedComments(res.result);
-        setHasCritiqued(true);
-        setCommentViewMode('critiqued');
-      }
-      if (res && res.usage) {
-        setUsageStats((prev) => {
-          if (!prev) return res.usage;
-          const mergedPhases = [
-            ...(prev.phases || []),
-            ...(res.usage.phases || []),
-          ];
-          return {
-            inputTokens: prev.inputTokens + res.usage.inputTokens,
-            outputTokens: prev.outputTokens + res.usage.outputTokens,
-            cacheReadTokens: prev.cacheReadTokens + res.usage.cacheReadTokens,
-            cost: prev.cost + res.usage.cost,
-            phases: mergedPhases,
-          };
-        });
-      }
-      triggerNotification(
-        'Critic Phase Complete',
-        `The Critic phase for PR #${selectedPR.id} evaluated ${comments.length} comments.`,
-      );
-    } catch (err: unknown) {
-      console.error('Critic execution failed:', err);
-      const msg = err instanceof Error ? err.message : String(err);
-      showError(msg, 'Critic Phase Failed');
-      triggerNotification(
-        'Critic Phase Failed',
-        `The Critic phase for PR #${selectedPR.id} failed to complete.`,
-      );
-    } finally {
-      setIsCritiquing(false);
-    }
-  };
-
   const showError = (msg: string, title = 'Fetch & Checkout Failed') => {
     setErrorMessage(msg);
     setErrorTitle(title);
@@ -875,7 +827,7 @@ const PRReviewer: React.FC = () => {
                 badgeColor =
                   'bg-success-subtle text-success-emphasis border border-success-subtle';
                 displayStatus = 'Complete';
-                if (!statusMsg) statusMsg = 'Phase completed.';
+                statusMsg = 'Phase complete';
               } else if (p.status === 'skipped') {
                 cardBg = 'bg-warning-subtle bg-opacity-5';
                 borderClass = 'border-warning-subtle';
@@ -1557,27 +1509,6 @@ const PRReviewer: React.FC = () => {
 
                           {!isReviewing && (
                             <div className="d-flex flex-column gap-2 mt-auto">
-                              {comments.length > 0 && (
-                                <button
-                                  className="btn btn-outline-info btn-sm w-100 fw-semibold"
-                                  onClick={handleRunCritic}
-                                  disabled={isCritiquing}
-                                >
-                                  {isCritiquing ? (
-                                    <>
-                                      <span className="spinner-border spinner-border-sm me-2"></span>
-                                      Checking Comments...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <i className="fas fa-user-check me-2"></i>
-                                      {hasCritiqued
-                                        ? 'Re-run Critic Phase'
-                                        : 'Check Comments'}
-                                    </>
-                                  )}
-                                </button>
-                              )}
                               <button
                                 className="btn btn-outline-primary btn-sm w-100 fw-semibold"
                                 onClick={() => {
@@ -1779,25 +1710,6 @@ const PRReviewer: React.FC = () => {
                             </span>
                           </div>
                           <div className="d-flex align-items-center gap-3">
-                            <button
-                              className="btn btn-sm btn-success py-1 px-3 fw-semibold shadow-sm"
-                              onClick={handleRunCritic}
-                              disabled={isCritiquing}
-                            >
-                              {isCritiquing ? (
-                                <>
-                                  <span className="spinner-border spinner-border-sm me-1"></span>
-                                  Critiquing...
-                                </>
-                              ) : (
-                                <>
-                                  <i className="fas fa-user-check me-1"></i>
-                                  {hasCritiqued
-                                    ? 'Re-run Critic Phase'
-                                    : 'Check Comments'}
-                                </>
-                              )}
-                            </button>
                             {lastStatusTime && (
                               <span className="text-muted small font-monospace">
                                 Completed at:{' '}

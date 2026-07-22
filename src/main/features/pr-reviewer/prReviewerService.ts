@@ -43,6 +43,7 @@ You have access to the working directory of the repository. Use your file inspec
 When evaluating each proposed comment:
 (a) Check the code: Inspect the actual source code files in the working directory to verify whether the issue, bug, or suggestion in the proposed comment is accurate and technically sound.
 (b) Verify scope: Ensure the comment is directly relevant and within the scope of the current Pull Request changes. If a comment addresses code or suggestions outside the scope of the PR, REJECT it with reason "Out of scope".
+(c) Strict Duplicate Prevention: You MUST NOT allow two or more comments to exist on the exact same line of the same file. If multiple comments target the same file and line, you MUST merge them into a single consolidated comment or reject the redundant ones.
 
 ${prDescription ? `--- PULL REQUEST DESCRIPTION ---\n${prDescription}\n-----------------------------------\n` : ''}
 Here are the ${comments.length} proposed review comments to evaluate:
@@ -52,8 +53,8 @@ ${commentsFormatted}
 Your goal is to decide for EACH proposed comment (or group of related comments) whether to:
 1. APPROVE: The comment is accurate, actionable, directly relevant to changed code, within the scope of the PR, and worth addressing.
 2. EDIT: The comment is valid and useful, but its wording, explanation, or formatting can be improved for clarity or constructiveness. You may edit both general comments and line comments, convert a line comment to a general PR comment ("type": "general"), or relocate a line comment to a different "file" and/or "line" (e.g. anchoring to a method signature or class declaration).
-3. REJECT: The comment is invalid, false positive, out of scope, overly pedantic/nitpicky, inaccurate, or redundant. You MUST provide a concise reason for rejection (such as "False positive", "Out of scope", "Duplicate", or "Pedantic nitpick").
-4. MERGE: Two or more comments refer to the same root issue, file section, or redundant points. Combine them into a single clear comment (either a general PR comment or a line-specific comment with target "file" and "line" placement).
+3. REJECT: The comment is invalid, false positive, out of scope, overly pedantic/nitpicky, inaccurate, or redundant. You MUST provide an extremely terse reason for rejection (such as "False positive", "Out of scope", "Duplicate", or "Pedantic nitpick"). Keep it to a few words maximum; do not write long explanations.
+4. MERGE: Two or more comments refer to the same root issue, file section, or redundant points. Combine them into a single clear comment (either a general PR comment or a line-specific comment with target "file" and "line" placement). You MUST merge comments if they target the same line of the same file.
 
 Your output must strictly consist of JSON Lines (JSONL).
 Every line of your response MUST be a single, standalone, valid JSON object.
