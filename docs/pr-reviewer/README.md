@@ -46,7 +46,7 @@ structure in your home directory:
 ```
 
 - **`config.json`**: Global configuration file (e.g., defines the display order
-  of phase groups). See [Configuration](configuration.md) for details.
+  of phase groups and custom AI Critic instructions). See [Configuration](configuration.md) for details.
 - **`phases/`**: Directory containing markdown files for each review phase.
   Every `.md` file in this directory represents a distinct phase. See
   [Phases](phases.md) for details.
