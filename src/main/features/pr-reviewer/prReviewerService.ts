@@ -854,7 +854,68 @@ export class PRReviewerService {
         }
       }
 
-      const results: string[] = new Array(enabledPhases.length).fill('');
+      // Pre-check phase to identify skipped phases upfront
+      const skippedPhaseIds = new Set<string>();
+      for (const phase of enabledPhases) {
+        let eligibleFiles = [...files];
+
+        if (phase.include) {
+          try {
+            const isMatch = getGlobMatcher(phase.include);
+            eligibleFiles = eligibleFiles.filter((f) => isMatch(f.path));
+          } catch (err) {
+            console.error(`Invalid include glob: ${phase.include}`, err);
+          }
+        }
+
+        if (phase.exclude) {
+          try {
+            const isMatch = getGlobMatcher(phase.exclude);
+            eligibleFiles = eligibleFiles.filter((f) => !isMatch(f.path));
+          } catch (err) {
+            console.error(`Invalid exclude glob: ${phase.exclude}`, err);
+          }
+        }
+
+        if (eligibleFiles.length === 0) {
+          skippedPhaseIds.add(phase.id);
+          if (options.onLine) {
+            options.onLine(
+              JSON.stringify({
+                type: 'phase-skip',
+                phaseId: phase.id,
+                phaseTitle: phase.title,
+                reason: 'No matching files found',
+              }),
+            );
+          }
+          continue;
+        }
+
+        const attachStory =
+          phase.attach && phase.attach.toLowerCase().includes('story');
+
+        if (attachStory && !linkedStoriesContent) {
+          skippedPhaseIds.add(phase.id);
+          if (options.onLine) {
+            options.onLine(
+              JSON.stringify({
+                type: 'phase-skip',
+                phaseId: phase.id,
+                phaseTitle: phase.title,
+                reason: 'No linked stories found for this Pull Request',
+              }),
+            );
+          }
+          continue;
+        }
+      }
+
+      const activePhases = enabledPhases.filter(
+        (phase) => !skippedPhaseIds.has(phase.id),
+      );
+
+      const results: string[] = new Array(activePhases.length).fill('');
       const phaseStats: {
         phaseTitle: string;
         usage: CopilotUsage;
@@ -865,9 +926,9 @@ export class PRReviewerService {
       let queueIndex = 0;
 
       const getNextPhase = () => {
-        if (queueIndex < enabledPhases.length) {
+        if (queueIndex < activePhases.length) {
           const index = queueIndex++;
-          return { phase: enabledPhases[index], phaseIdx: index };
+          return { phase: activePhases[index], phaseIdx: index };
         }
         return null;
       };
@@ -889,7 +950,7 @@ export class PRReviewerService {
           maxWorkers = Math.max(1, Math.floor(numCPUs / 2));
         }
       }
-      const workerCount = Math.min(maxWorkers, enabledPhases.length);
+      const workerCount = Math.min(maxWorkers, activePhases.length);
 
       const runWorker = async () => {
         while (true) {
@@ -920,37 +981,6 @@ export class PRReviewerService {
             } catch (err) {
               console.error(`Invalid exclude glob: ${phase.exclude}`, err);
             }
-          }
-
-          if (eligibleFiles.length === 0) {
-            if (options.onLine) {
-              options.onLine(
-                JSON.stringify({
-                  type: 'phase-skip',
-                  phaseId: phase.id,
-                  phaseTitle: phase.title,
-                  reason: 'No matching files found',
-                }),
-              );
-            }
-            continue;
-          }
-
-          const attachStory =
-            phase.attach && phase.attach.toLowerCase().includes('story');
-
-          if (attachStory && !linkedStoriesContent) {
-            if (options.onLine) {
-              options.onLine(
-                JSON.stringify({
-                  type: 'phase-skip',
-                  phaseId: phase.id,
-                  phaseTitle: phase.title,
-                  reason: 'No linked stories found for this Pull Request',
-                }),
-              );
-            }
-            continue;
           }
 
           if (options.onLine) {
@@ -998,6 +1028,9 @@ export class PRReviewerService {
               options.onLine(line);
             }
           };
+
+          const attachStory =
+            phase.attach && phase.attach.toLowerCase().includes('story');
 
           const sessionOpts = attachStory
             ? {

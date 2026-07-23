@@ -758,9 +758,12 @@ const PRReviewer: React.FC = () => {
   );
 
   const renderCriticCardUI = () => {
-    const total = phaseProgress.length;
-    const completed = phaseProgress.filter(
-      (p) => p.status === 'completed' || p.status === 'skipped',
+    const activeProgress = phaseProgress.filter((p) => p.status !== 'skipped');
+    const skippedProgress = phaseProgress.filter((p) => p.status === 'skipped');
+
+    const total = activeProgress.length;
+    const completed = activeProgress.filter(
+      (p) => p.status === 'completed',
     ).length;
     const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
@@ -796,9 +799,9 @@ const PRReviewer: React.FC = () => {
             />
           </div>
 
-          {/* Cards Grid */}
+          {/* Active Cards Grid */}
           <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
-            {phaseProgress.map((p) => {
+            {activeProgress.map((p) => {
               let cardBg = 'bg-body';
               let borderClass = 'border';
               let icon = <i className="far fa-circle text-muted fs-5"></i>;
@@ -829,16 +832,6 @@ const PRReviewer: React.FC = () => {
                   'bg-success-subtle text-success-emphasis border border-success-subtle';
                 displayStatus = 'Complete';
                 statusMsg = 'Phase complete';
-              } else if (p.status === 'skipped') {
-                cardBg = 'bg-warning-subtle bg-opacity-5';
-                borderClass = 'border-warning-subtle';
-                icon = <i className="fas fa-forward text-warning fs-5"></i>;
-                statusTextClass = 'text-warning-emphasis';
-                badgeColor =
-                  'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
-                displayStatus = 'Skipped';
-                statusMsg =
-                  p.reason || 'Skipped (no matching files or conditions).';
               }
 
               return (
@@ -883,6 +876,65 @@ const PRReviewer: React.FC = () => {
               );
             })}
           </div>
+
+          {/* Skipped Cards (Rendered smaller below the active cards grid) */}
+          {skippedProgress.length > 0 && (
+            <div className="mt-4 pt-3 border-top">
+              <h6 className="fw-bold text-muted small mb-3 d-flex align-items-center gap-2">
+                <i className="fas fa-forward text-warning"></i>
+                Skipped Phases ({skippedProgress.length})
+              </h6>
+              <div className="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-2">
+                {skippedProgress.map((p) => (
+                  <div key={p.id} className="col">
+                    <div className="card h-100 bg-body-tertiary border-light-subtle rounded-3 shadow-none">
+                      <div
+                        className="card-body p-2 d-flex flex-column justify-content-between"
+                        style={{ minHeight: '75px' }}
+                      >
+                        <div>
+                          <div className="d-flex align-items-center justify-content-between mb-1">
+                            <span
+                              className="font-monospace text-muted"
+                              style={{ fontSize: '0.65rem' }}
+                            >
+                              Phase
+                            </span>
+                            <span
+                              className="badge bg-warning-subtle text-warning border border-warning-subtle font-monospace rounded-pill"
+                              style={{
+                                fontSize: '0.6rem',
+                                padding: '0.1rem 0.3rem',
+                              }}
+                            >
+                              Skipped
+                            </span>
+                          </div>
+                          <h6
+                            className="fw-bold text-truncate mb-1 text-body-secondary"
+                            style={{ fontSize: '0.75rem' }}
+                            title={p.title}
+                          >
+                            {p.title}
+                          </h6>
+                        </div>
+                        <p
+                          className="text-muted text-truncate mb-0"
+                          style={{ fontSize: '0.65rem' }}
+                          title={
+                            p.reason ||
+                            'Skipped (no matching files or conditions).'
+                          }
+                        >
+                          {p.reason || 'Skipped'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
