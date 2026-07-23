@@ -15,6 +15,7 @@ import {
   PhaseUsage,
   CopilotResult,
   ReviewComment,
+  PRReviewerConfig,
 } from '../../../types';
 import { IssueTrackerProvider } from '../../infrastructure/providers/IssueTrackerProvider';
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
@@ -25,6 +26,7 @@ export function buildCriticPrompt(
   comments: ReviewComment[],
   prDescription = '',
   personaGuidelines = '',
+  criticInstruction = '',
 ): string {
   const commentsFormatted = comments
     .map((c, index) => {
@@ -51,7 +53,7 @@ When evaluating each proposed comment:
 (b) Verify scope: Ensure the comment is directly relevant and within the scope of the current Pull Request changes. If a comment addresses code or suggestions outside the scope of the PR, REJECT it with reason "Out of scope".
 (c) Strict Duplicate Prevention: You MUST NOT allow two or more comments to exist on the exact same line of the same file. If multiple comments target the same file and line, you MUST merge them into a single consolidated comment or reject the redundant ones.
 
-${prDescription ? `--- PULL REQUEST DESCRIPTION ---\n${prDescription}\n-----------------------------------\n` : ''}${personaInstruction}
+${criticInstruction ? `--- ADDITIONAL CRITIC INSTRUCTIONS ---\n${criticInstruction}\n---------------------------------------\n\n` : ''}${prDescription ? `--- PULL REQUEST DESCRIPTION ---\n${prDescription}\n-----------------------------------\n` : ''}${personaInstruction}
 Here are the ${comments.length} proposed review comments to evaluate:
 
 ${commentsFormatted}
@@ -284,6 +286,29 @@ export class PRReviewerService {
     return urls;
   }
 
+  private getPRReviewerConfig(): PRReviewerConfig {
+    const homeDir = os.homedir();
+    const configPath = path.join(
+      homeDir,
+      '.stitch',
+      'pr-reviewer',
+      'config.json',
+    );
+    if (!fs.existsSync(configPath)) {
+      return {};
+    }
+    try {
+      const configContent = fs.readFileSync(configPath, 'utf8');
+      return JSON.parse(configContent) || {};
+    } catch (err) {
+      console.error(
+        `Failed to read or parse config.json at ${configPath}:`,
+        err,
+      );
+      return {};
+    }
+  }
+
   async loadPhasesFromDisk(): Promise<ReviewPhase[]> {
     const homeDir = os.homedir();
     const stitchDir = path.join(homeDir, '.stitch', 'pr-reviewer');
@@ -305,27 +330,8 @@ export class PRReviewerService {
     }
 
     try {
-      let groupOrder: string[] = [];
-      const configPath = path.join(
-        homeDir,
-        '.stitch',
-        'pr-reviewer',
-        'config.json',
-      );
-      if (fs.existsSync(configPath)) {
-        try {
-          const configContent = fs.readFileSync(configPath, 'utf8');
-          const config = JSON.parse(configContent);
-          if (config && Array.isArray(config.groups)) {
-            groupOrder = config.groups;
-          }
-        } catch (err) {
-          console.error(
-            `Failed to read or parse config.json at ${configPath}:`,
-            err,
-          );
-        }
-      }
+      const config = this.getPRReviewerConfig();
+      const groupOrder = Array.isArray(config.groups) ? config.groups : [];
 
       const files = fs.readdirSync(phasesDir);
       const mdFiles = files.filter((f) => f.endsWith('.md')).sort();
@@ -1324,10 +1330,17 @@ export class PRReviewerService {
         }
       }
 
+      const config = this.getPRReviewerConfig();
+      const criticInstruction =
+        config && typeof config.criticInstruction === 'string'
+          ? config.criticInstruction
+          : '';
+
       const prompt = buildCriticPrompt(
         comments,
         options.prDescription,
         personaGuidelines,
+        criticInstruction,
       );
       const resText = await this.copilotService.sendAndCollectStream(
         session,

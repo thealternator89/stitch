@@ -202,3 +202,8 @@ export interface CopilotResult<T> {
   result: T;
   usage: CopilotUsage;
 }
+
+export interface PRReviewerConfig {
+  groups?: string[];
+  criticInstruction?: string;
+}

@@ -6,15 +6,21 @@ Global options for the PR Reviewer can be configured in a central configuration 
 
 ## Configuration File Structure
 
-The configuration file is a JSON file. Currently, its primary function is defining the custom ordering of phase groups in the UI.
+The configuration file is a JSON file. It allows configuring the custom ordering of phase groups in the UI, as well as providing custom instructions for the AI Critic.
 
 ### Example `config.json`
 
 ```json
 {
-  "groups": ["Security", "Performance", "Style"]
+  "groups": ["Security", "Performance", "Style"],
+  "criticInstruction": "Please do not reject comments that mention code style or formatting."
 }
 ```
+
+### Configuration Options
+
+- **`groups`**: (Optional) An array of strings defining the sorting priority of phase groups.
+- **`criticInstruction`**: (Optional) A string containing custom instructions that are injected into the AI Critic's prompt during the Critic Phase, allowing the user to guide the critic's evaluations.
 
 ---
 

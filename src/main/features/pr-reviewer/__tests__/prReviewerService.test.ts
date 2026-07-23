@@ -2109,6 +2109,85 @@ describe('PRReviewerService', () => {
       expect(prompt).toContain('MERGE');
     });
 
+    it('should inject criticInstruction when provided to buildCriticPrompt', () => {
+      const mockComments = [
+        { type: 'general' as const, comment: 'Comment 1', phase: 'Phase 1' },
+      ];
+      const prompt = buildCriticPrompt(
+        mockComments,
+        'Fix bug in auth',
+        'Be constructive',
+        'Reject any nitpicks about comments',
+      );
+      expect(prompt).toContain('Reject any nitpicks about comments');
+      expect(prompt).toContain('--- ADDITIONAL CRITIC INSTRUCTIONS ---');
+    });
+
+    it('should load criticInstruction from config.json and pass to buildCriticPrompt', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/config.json')) {
+          return true;
+        }
+        return false;
+      });
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/config.json')) {
+          return JSON.stringify({
+            criticInstruction: 'Please be extremely strict on syntax errors',
+          });
+        }
+        return '';
+      });
+
+      const mockComments = [
+        { type: 'general' as const, comment: 'General issue' },
+      ];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          cacheReadTokens: 0,
+          cost: 0.001,
+          model: 'gpt-4o',
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+
+      let capturedPrompt = '';
+      mockCopilotService.sendAndCollectStream.mockImplementationOnce(
+        async (session: any, prompt: string) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ action: 'approve', commentIndex: 1 });
+        },
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { prDescription: 'Test PR' },
+      );
+
+      expect(capturedPrompt).toContain(
+        'Please be extremely strict on syntax errors',
+      );
+      expect(capturedPrompt).toContain(
+        '--- ADDITIONAL CRITIC INSTRUCTIONS ---',
+      );
+    });
+
     it('should return empty result if no comments provided to critiqueComments', async () => {
       const result = await prReviewerService.critiqueComments([], {
         copilotModel: 'gpt-4',
