@@ -141,6 +141,10 @@ export interface IElectronAPI {
     persona?: string,
   ) => Promise<CopilotResult<ReviewComment[]>>;
   showNotification: (title: string, body: string) => Promise<void>;
+  setWindowProgress: (
+    progress: number,
+    mode?: 'none' | 'normal' | 'indeterminate' | 'error' | 'paused',
+  ) => Promise<void>;
   isWindows: boolean;
 }
 

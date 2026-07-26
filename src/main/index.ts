@@ -658,6 +658,25 @@ ipcMain.handle('show-notification', (event, title: string, body: string) => {
   }
 });
 
+ipcMain.handle(
+  'set-window-progress',
+  (
+    event,
+    progress: number,
+    mode?: 'none' | 'normal' | 'indeterminate' | 'error' | 'paused',
+  ) => {
+    const webContents = event.sender;
+    const win = BrowserWindow.fromWebContents(webContents);
+    if (win) {
+      if (mode) {
+        win.setProgressBar(progress, { mode });
+      } else {
+        win.setProgressBar(progress);
+      }
+    }
+  },
+);
+
 const createWindow = (): void => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({

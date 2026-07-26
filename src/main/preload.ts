@@ -236,5 +236,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   showNotification: (title: string, body: string): Promise<void> =>
     ipcRenderer.invoke('show-notification', title, body),
+  setWindowProgress: (
+    progress: number,
+    mode?: 'none' | 'normal' | 'indeterminate' | 'error' | 'paused',
+  ): Promise<void> => ipcRenderer.invoke('set-window-progress', progress, mode),
   isWindows: process.platform === 'win32',
 });
