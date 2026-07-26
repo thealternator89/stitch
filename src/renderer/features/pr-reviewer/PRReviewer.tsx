@@ -214,6 +214,36 @@ const PRReviewer: React.FC = () => {
     }
   }, [models, loadingModels, phases]);
 
+  useEffect(() => {
+    if (!isCriticEnabled) {
+      window.electronAPI.setWindowProgress(-1);
+      return;
+    }
+
+    if (isReviewing || isCritiquing) {
+      const activeProgress = phaseProgress.filter(
+        (p) => p.status !== 'skipped',
+      );
+      const total = activeProgress.length;
+      const completed = activeProgress.filter(
+        (p) => p.status === 'completed',
+      ).length;
+      const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      if (percent === 0) {
+        window.electronAPI.setWindowProgress(2, 'indeterminate');
+      } else {
+        window.electronAPI.setWindowProgress(percent / 100, 'normal');
+      }
+    } else {
+      window.electronAPI.setWindowProgress(-1);
+    }
+
+    return () => {
+      window.electronAPI.setWindowProgress(-1);
+    };
+  }, [isCriticEnabled, isReviewing, isCritiquing, phaseProgress]);
+
   const loadSettingsData = async () => {
     try {
       const cpus = await window.electronAPI.getCpuCount();

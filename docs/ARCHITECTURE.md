@@ -185,3 +185,5 @@ support modern ESM-only libraries like `electron-store` and
 - `pr-reviewer:post-comment`: Submits a code review comment (general or line-anchored code block thread) back to the PR via `CodeReviewProvider`.
 - `pr-reviewer:get-repo-path-history` / `pr-reviewer:save-repo-path-history`: Stores the last used local filesystem clone path mapping for a given repository.
 - `pr-reviewer:verify-repo-path`: Asserts if a path represents a git repository, resolving its root directory if necessary.
+- `show-notification`: Displays a system notification using the native `Notification` API.
+- `set-window-progress`: Configures or clears the progress state on the native window taskbar or dock.
