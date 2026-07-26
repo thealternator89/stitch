@@ -809,6 +809,7 @@ const PRReviewer: React.FC = () => {
               let badgeColor = 'bg-secondary-subtle text-secondary-emphasis';
               let displayStatus = 'Pending';
               let statusMsg = p.statusText || '';
+              let inlineStyle: React.CSSProperties = {};
 
               if (p.status === 'in-progress') {
                 cardBg = 'bg-primary-subtle bg-opacity-10';
@@ -832,12 +833,23 @@ const PRReviewer: React.FC = () => {
                   'bg-success-subtle text-success-emphasis border border-success-subtle';
                 displayStatus = 'Complete';
                 statusMsg = 'Phase complete';
+              } else if (p.id === 'critic-phase' && p.status === 'pending') {
+                cardBg = 'bg-body-tertiary opacity-75';
+                borderClass = 'border-secondary-subtle';
+                inlineStyle = { borderStyle: 'dashed' };
+                icon = <i className="far fa-clock text-muted fs-5"></i>;
+                statusTextClass = 'text-muted fst-italic';
+                badgeColor =
+                  'bg-light text-secondary border border-light-subtle';
+                displayStatus = 'Queued';
+                statusMsg = 'Will run once the review phases have completed';
               }
 
               return (
                 <div key={p.id} className="col">
                   <div
                     className={`card h-100 ${cardBg} ${borderClass} rounded-3`}
+                    style={inlineStyle}
                   >
                     <div className="card-body p-3 d-flex flex-column justify-content-between">
                       <div>
@@ -1481,76 +1493,110 @@ const PRReviewer: React.FC = () => {
                             className="list-group list-group-flush border rounded overflow-hidden flex-grow-1 overflow-y-auto mb-3"
                             style={{ maxHeight: '300px' }}
                           >
-                            {phaseProgress.map((p) => (
-                              <div
-                                key={p.id}
-                                className="list-group-item p-3"
-                                style={{
-                                  backgroundColor:
-                                    p.status === 'in-progress'
-                                      ? 'rgba(13, 110, 253, 0.1)'
-                                      : 'transparent',
-                                }}
-                              >
-                                <div className="d-flex align-items-center justify-content-between">
-                                  <div
-                                    className="d-flex align-items-center gap-2 text-truncate"
-                                    style={{ maxWidth: '75%' }}
-                                  >
-                                    {p.status === 'pending' && (
-                                      <i className="far fa-circle text-muted"></i>
+                            {phaseProgress.map((p) => {
+                              const isCriticPending =
+                                p.id === 'critic-phase' &&
+                                p.status === 'pending';
+                              const statusTextVal = isCriticPending
+                                ? 'Will run once the review phases have completed'
+                                : p.statusText;
+                              const showStatusText =
+                                p.status === 'in-progress' ||
+                                (isCriticPending && statusTextVal);
+
+                              return (
+                                <div
+                                  key={p.id}
+                                  className="list-group-item p-3"
+                                  style={{
+                                    backgroundColor:
+                                      p.status === 'in-progress'
+                                        ? 'rgba(13, 110, 253, 0.1)'
+                                        : 'transparent',
+                                    opacity: isCriticPending ? 0.75 : 1,
+                                    borderStyle: isCriticPending
+                                      ? 'dashed'
+                                      : 'solid',
+                                    borderColor: isCriticPending
+                                      ? 'var(--bs-border-color)'
+                                      : undefined,
+                                  }}
+                                >
+                                  <div className="d-flex align-items-center justify-content-between">
+                                    <div
+                                      className="d-flex align-items-center gap-2 text-truncate"
+                                      style={{ maxWidth: '75%' }}
+                                    >
+                                      {p.status === 'pending' &&
+                                        (isCriticPending ? (
+                                          <i className="far fa-clock text-muted"></i>
+                                        ) : (
+                                          <i className="far fa-circle text-muted"></i>
+                                        ))}
+                                      {p.status === 'in-progress' && (
+                                        <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                      )}
+                                      {p.status === 'completed' && (
+                                        <i className="fas fa-check-circle text-success"></i>
+                                      )}
+                                      {p.status === 'skipped' && (
+                                        <i
+                                          className="fas fa-forward text-warning"
+                                          title={p.reason || 'Skipped'}
+                                        ></i>
+                                      )}
+                                      <span
+                                        className={`small text-truncate ${
+                                          p.status === 'completed'
+                                            ? 'text-decoration-line-through text-muted'
+                                            : p.status === 'skipped'
+                                              ? 'text-muted'
+                                              : isCriticPending
+                                                ? 'text-muted fst-italic'
+                                                : 'fw-semibold text-body'
+                                        }`}
+                                        title={p.title}
+                                      >
+                                        {p.title}
+                                      </span>
+                                    </div>
+                                    {p.status === 'skipped' && (
+                                      <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
+                                        Skipped
+                                      </span>
                                     )}
                                     {p.status === 'in-progress' && (
-                                      <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                                      <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
+                                        Running
+                                      </span>
                                     )}
                                     {p.status === 'completed' && (
-                                      <i className="fas fa-check-circle text-success"></i>
+                                      <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
+                                        Done
+                                      </span>
                                     )}
-                                    {p.status === 'skipped' && (
-                                      <i
-                                        className="fas fa-forward text-warning"
-                                        title={p.reason || 'Skipped'}
-                                      ></i>
+                                    {isCriticPending && (
+                                      <span className="badge bg-light text-secondary border font-monospace tiny-badge">
+                                        Queued
+                                      </span>
                                     )}
-                                    <span
-                                      className={`small text-truncate ${
-                                        p.status === 'completed'
-                                          ? 'text-decoration-line-through text-muted'
-                                          : p.status === 'skipped'
-                                            ? 'text-muted'
-                                            : 'fw-semibold text-body'
-                                      }`}
-                                      title={p.title}
-                                    >
-                                      {p.title}
-                                    </span>
                                   </div>
-                                  {p.status === 'skipped' && (
-                                    <span className="badge bg-warning-subtle text-warning-emphasis font-monospace tiny-badge">
-                                      Skipped
-                                    </span>
-                                  )}
-                                  {p.status === 'in-progress' && (
-                                    <span className="badge bg-primary-subtle text-primary-emphasis font-monospace tiny-badge">
-                                      Running
-                                    </span>
-                                  )}
-                                  {p.status === 'completed' && (
-                                    <span className="badge bg-success-subtle text-success-emphasis font-monospace tiny-badge">
-                                      Done
-                                    </span>
+                                  {showStatusText && statusTextVal && (
+                                    <div
+                                      className="ps-4 mt-1 text-muted small text-truncate"
+                                      title={statusTextVal}
+                                      style={{
+                                        fontStyle: isCriticPending
+                                          ? 'italic'
+                                          : 'normal',
+                                      }}
+                                    >
+                                      {statusTextVal}
+                                    </div>
                                   )}
                                 </div>
-                                {p.status === 'in-progress' && p.statusText && (
-                                  <div
-                                    className="ps-4 mt-1 text-muted small text-truncate"
-                                    title={p.statusText}
-                                  >
-                                    {p.statusText}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
 
                           {isReviewing && (
