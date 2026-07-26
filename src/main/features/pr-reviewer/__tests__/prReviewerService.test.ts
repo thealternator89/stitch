@@ -8,6 +8,7 @@ import {
   extractFileContextSync,
   parseFrontmatter,
   buildPhaseReviewPrompt,
+  buildCriticPrompt,
 } from '../prReviewerService';
 
 const mockCodeReviewProvider = {
@@ -2083,6 +2084,372 @@ describe('PRReviewerService', () => {
         expectedPrompt,
         undefined,
       );
+    });
+  });
+
+  describe('Critic Phase (buildCriticPrompt & critiqueComments)', () => {
+    it('should build a formatted critic prompt with comments and PR description', () => {
+      const mockComments = [
+        { type: 'general' as const, comment: 'Comment 1', phase: 'Phase 1' },
+        {
+          type: 'line' as const,
+          file: 'src/app.ts',
+          line: 10,
+          comment: 'Comment 2',
+          phase: 'Phase 2',
+        },
+      ];
+      const prompt = buildCriticPrompt(mockComments, 'Fix bug in auth');
+      expect(prompt).toContain('Comment #1 (GENERAL)');
+      expect(prompt).toContain('Comment #2 (LINE) File: src/app.ts Line: 10');
+      expect(prompt).toContain('Fix bug in auth');
+      expect(prompt).toContain('APPROVE');
+      expect(prompt).toContain('REJECT');
+      expect(prompt).toContain('EDIT');
+      expect(prompt).toContain('MERGE');
+    });
+
+    it('should inject criticInstruction when provided to buildCriticPrompt', () => {
+      const mockComments = [
+        { type: 'general' as const, comment: 'Comment 1', phase: 'Phase 1' },
+      ];
+      const prompt = buildCriticPrompt(
+        mockComments,
+        'Fix bug in auth',
+        'Be constructive',
+        'Reject any nitpicks about comments',
+      );
+      expect(prompt).toContain('Reject any nitpicks about comments');
+      expect(prompt).toContain('--- ADDITIONAL CRITIC INSTRUCTIONS ---');
+    });
+
+    it('should load criticInstruction from config.json and pass to buildCriticPrompt', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/config.json')) {
+          return true;
+        }
+        return false;
+      });
+
+      vi.spyOn(fs, 'readFileSync').mockImplementation((filePath: any) => {
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('pr-reviewer/config.json')) {
+          return JSON.stringify({
+            criticInstruction: 'Please be extremely strict on syntax errors',
+          });
+        }
+        return '';
+      });
+
+      const mockComments = [
+        { type: 'general' as const, comment: 'General issue' },
+      ];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          cacheReadTokens: 0,
+          cost: 0.001,
+          model: 'gpt-4o',
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+
+      let capturedPrompt = '';
+      mockCopilotService.sendAndCollectStream.mockImplementationOnce(
+        async (session: any, prompt: string) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ action: 'approve', commentIndex: 1 });
+        },
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { prDescription: 'Test PR' },
+      );
+
+      expect(capturedPrompt).toContain(
+        'Please be extremely strict on syntax errors',
+      );
+      expect(capturedPrompt).toContain(
+        '--- ADDITIONAL CRITIC INSTRUCTIONS ---',
+      );
+    });
+
+    it('should return empty result if no comments provided to critiqueComments', async () => {
+      const result = await prReviewerService.critiqueComments([], {
+        copilotModel: 'gpt-4',
+      });
+      expect(result.result).toEqual([]);
+      expect(result.usage.inputTokens).toBe(0);
+    });
+
+    it('should process approve, edit, reject, and merge critic decisions', async () => {
+      const mockComments = [
+        { type: 'general' as const, comment: 'Good overall architecture' },
+        {
+          type: 'line' as const,
+          file: 'src/main.ts',
+          line: 15,
+          comment: 'Typo in variable name',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/main.ts',
+          line: 20,
+          comment: 'Out of scope suggestion',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/main.ts',
+          line: 25,
+          comment: 'Duplicate comment A',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/main.ts',
+          line: 26,
+          comment: 'Duplicate comment B',
+        },
+      ];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheReadTokens: 0,
+          cost: 0.01,
+          model: 'gpt-4o',
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const criticStreamOutput = [
+        JSON.stringify({ action: 'approve', commentIndex: 1 }),
+        JSON.stringify({
+          action: 'edit',
+          commentIndex: 2,
+          comment: 'Typo in variable name `foo`',
+        }),
+        JSON.stringify({
+          action: 'reject',
+          commentIndex: 3,
+          reason: 'Out of scope',
+        }),
+        JSON.stringify({
+          action: 'merge',
+          commentIndices: [4, 5],
+          type: 'line',
+          file: 'src/main.ts',
+          line: 25,
+          comment: 'Merged duplicate comment',
+        }),
+      ].join('\n');
+
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        criticStreamOutput,
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      const res = await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { prDescription: 'Test PR' },
+      );
+
+      expect(res.result).toHaveLength(4);
+      expect(res.result[0].status).toBe('approved');
+      expect(res.result[1].status).toBe('edited');
+      expect(res.result[1].comment).toBe('Typo in variable name `foo`');
+      expect(res.result[2].status).toBe('rejected');
+      expect(res.result[2].reason).toBe('Out of scope');
+      expect(res.result[3].status).toBe('merged');
+      expect(res.result[3].comment).toBe('Merged duplicate comment');
+      expect(res.result[3].mergedFromIndices).toEqual([3, 4]);
+
+      expect(res.usage.phases?.[0].phaseTitle).toBe('Critic');
+    });
+
+    it('should support modifying file and line on edit and merge', async () => {
+      const mockComments = [
+        {
+          type: 'line' as const,
+          file: 'src/old.ts',
+          line: 10,
+          comment: 'Poorly placed comment',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/a.ts',
+          line: 5,
+          comment: 'Issue A',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/b.ts',
+          line: 8,
+          comment: 'Issue B',
+        },
+      ];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 50,
+          outputTokens: 20,
+          cacheReadTokens: 0,
+          cost: 0.005,
+          model: 'gpt-4o',
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const criticStreamOutput = [
+        JSON.stringify({
+          action: 'edit',
+          commentIndex: 1,
+          comment: 'Better placed on method signature',
+          file: 'src/new.ts',
+          line: 42,
+        }),
+        JSON.stringify({
+          action: 'merge',
+          commentIndices: [2, 3],
+          type: 'line',
+          file: 'src/shared.ts',
+          line: 100,
+          comment: 'Combined issue placed on shared interface',
+        }),
+      ].join('\n');
+
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        criticStreamOutput,
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      const res = await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { prDescription: 'Test PR', repoPath: '/mock/repo' },
+      );
+
+      expect(res.result).toHaveLength(2);
+      expect(res.result[0].status).toBe('edited');
+      expect(res.result[0].file).toBe('src/new.ts');
+      expect(res.result[0].line).toBe(42);
+      expect(res.result[0].comment).toBe('Better placed on method signature');
+
+      expect(res.result[1].status).toBe('merged');
+      expect(res.result[1].file).toBe('src/shared.ts');
+      expect(res.result[1].line).toBe(100);
+      expect(res.result[1].comment).toBe(
+        'Combined issue placed on shared interface',
+      );
+    });
+
+    it('should support converting line comments to general comments on edit and merge', async () => {
+      const mockComments = [
+        {
+          type: 'line' as const,
+          file: 'src/a.ts',
+          line: 10,
+          comment: 'Line issue A',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/b.ts',
+          line: 20,
+          comment: 'Line issue B',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/c.ts',
+          line: 30,
+          comment: 'Line issue C',
+        },
+      ];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 50,
+          outputTokens: 20,
+          cacheReadTokens: 0,
+          cost: 0.005,
+          model: 'gpt-4o',
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const criticStreamOutput = [
+        JSON.stringify({
+          action: 'edit',
+          commentIndex: 1,
+          type: 'general',
+          comment: 'Converted to general comment for entire PR',
+        }),
+        JSON.stringify({
+          action: 'merge',
+          commentIndices: [2, 3],
+          type: 'general',
+          comment: 'Merged into general PR feedback',
+        }),
+      ].join('\n');
+
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        criticStreamOutput,
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      const res = await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { prDescription: 'Test PR' },
+      );
+
+      expect(res.result).toHaveLength(2);
+      expect(res.result[0].type).toBe('general');
+      expect(res.result[0].file).toBeUndefined();
+      expect(res.result[0].line).toBeUndefined();
+      expect(res.result[0].comment).toBe(
+        'Converted to general comment for entire PR',
+      );
+
+      expect(res.result[1].type).toBe('general');
+      expect(res.result[1].file).toBeUndefined();
+      expect(res.result[1].line).toBeUndefined();
+      expect(res.result[1].comment).toBe('Merged into general PR feedback');
     });
   });
 });

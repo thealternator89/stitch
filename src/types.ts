@@ -165,6 +165,20 @@ export interface ReviewPhase {
   model?: string;
 }
 
+export interface ReviewComment {
+  type: 'general' | 'line';
+  file?: string;
+  line?: number;
+  context?: number;
+  comment: string;
+  codeLines?: { line: number; text: string; isTarget: boolean }[];
+  posted?: boolean;
+  phase?: string;
+  status?: 'approved' | 'rejected' | 'edited' | 'merged';
+  reason?: string;
+  mergedFromIndices?: number[];
+}
+
 export interface PhaseUsage {
   phaseTitle: string;
   model: string;
@@ -187,4 +201,9 @@ export interface CopilotUsage {
 export interface CopilotResult<T> {
   result: T;
   usage: CopilotUsage;
+}
+
+export interface PRReviewerConfig {
+  groups?: string[];
+  criticInstruction?: string;
 }

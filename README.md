@@ -52,6 +52,7 @@ automate reviews without losing focus or context.
     Azure DevOps or GitHub user stories/issues. This automatically extracts Confluence
     documentation links and equips the Copilot session with a custom
     `request_documentation` tool to fetch and read their contents.
+  - **Critic Phase**: Run a manual "Check Comments" evaluation pass after review phases finish. The AI Critic approves, edits, merges, or rejects comments with explicit reasons (e.g. "False positive", "Out of scope"), allowing toggling between Critiqued and Unvalidated comment views.
   - Displays real-time streaming status logs, phase success indicators, general
     review feedback, and line-specific comments enriched with local code
     context.

@@ -6,6 +6,8 @@ import {
   PRMetadata,
   PRDiffFile,
   ReviewPhase,
+  ReviewComment,
+  CopilotResult,
 } from '../types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -177,6 +179,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     prId?: string,
     maxParallelism?: number,
     persona?: string,
+    skipCleanup?: boolean,
   ): Promise<string> =>
     ipcRenderer.invoke(
       'pr-reviewer:review',
@@ -189,6 +192,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       prId,
       maxParallelism,
       persona,
+      skipCleanup,
     ),
   onPRReviewLine: (callback: (line: string) => void) => {
     const listener = (_event: unknown, line: string) => callback(line);
@@ -214,6 +218,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
       prUrlOrId,
       comment,
     ),
+  critiquePRComments: (
+    repoPath: string,
+    comments: ReviewComment[],
+    prDescription?: string,
+    modelOverride?: string,
+    persona?: string,
+  ): Promise<CopilotResult<ReviewComment[]>> =>
+    ipcRenderer.invoke(
+      'pr-reviewer:critique-comments',
+      repoPath,
+      comments,
+      prDescription,
+      modelOverride,
+      persona,
+    ),
+
   showNotification: (title: string, body: string): Promise<void> =>
     ipcRenderer.invoke('show-notification', title, body),
   isWindows: process.platform === 'win32',

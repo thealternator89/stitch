@@ -9,6 +9,7 @@ import {
   PRMetadata,
   PRDiffFile,
   ReviewPhase,
+  ReviewComment,
   CopilotResult,
   CopilotUsage,
 } from '../types';
@@ -118,6 +119,7 @@ export interface IElectronAPI {
     prId?: string,
     maxParallelism?: number,
     persona?: string,
+    skipCleanup?: boolean,
   ) => Promise<CopilotResult<string>>;
   onPRReviewLine: (callback: (line: string) => void) => () => void;
   postPRComment: (
@@ -131,6 +133,13 @@ export interface IElectronAPI {
       edited?: boolean;
     },
   ) => Promise<void>;
+  critiquePRComments: (
+    repoPath: string,
+    comments: ReviewComment[],
+    prDescription?: string,
+    modelOverride?: string,
+    persona?: string,
+  ) => Promise<CopilotResult<ReviewComment[]>>;
   showNotification: (title: string, body: string) => Promise<void>;
   isWindows: boolean;
 }
