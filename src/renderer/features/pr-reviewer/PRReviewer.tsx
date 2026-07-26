@@ -146,6 +146,7 @@ const PRReviewer: React.FC = () => {
     status: 'pending' | 'in-progress' | 'completed' | 'skipped';
     reason?: string;
     statusText?: string;
+    group?: string;
   }
   const [phaseProgress, setPhaseProgress] = useState<PhaseProgress[]>([]);
   const [maxParallelism, setMaxParallelism] = useState<number>(2);
@@ -480,10 +481,11 @@ const PRReviewer: React.FC = () => {
     setIsPostingComment({});
     setLastStatusTime(null);
 
-    const initialProgress = activePhases.map((p) => ({
+    const initialProgress: PhaseProgress[] = activePhases.map((p) => ({
       id: p.id,
       title: p.title,
       status: 'pending' as const,
+      group: p.group,
     }));
     if (isCriticEnabled) {
       initialProgress.push({
@@ -853,10 +855,18 @@ const PRReviewer: React.FC = () => {
                   >
                     <div className="card-body p-3 d-flex flex-column justify-content-between">
                       <div>
-                        <div className="d-flex align-items-center justify-content-between mb-2">
-                          <span className="small font-monospace text-muted">
-                            Phase
-                          </span>
+                        <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <span className="small font-monospace text-muted">
+                              Phase
+                            </span>
+                            {(p.group ||
+                              (p.id !== 'critic-phase' && 'Ungrouped')) && (
+                              <span className="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle font-monospace rounded-pill tiny-badge">
+                                {p.group || 'Ungrouped'}
+                              </span>
+                            )}
+                          </div>
                           <span
                             className={`badge ${badgeColor} font-monospace rounded-pill tiny-badge`}
                           >
@@ -905,13 +915,27 @@ const PRReviewer: React.FC = () => {
                         style={{ minHeight: '75px' }}
                       >
                         <div>
-                          <div className="d-flex align-items-center justify-content-between mb-1">
-                            <span
-                              className="font-monospace text-muted"
-                              style={{ fontSize: '0.65rem' }}
-                            >
-                              Phase
-                            </span>
+                          <div className="d-flex align-items-center justify-content-between mb-1 flex-wrap gap-1">
+                            <div className="d-flex align-items-center gap-1">
+                              <span
+                                className="font-monospace text-muted"
+                                style={{ fontSize: '0.65rem' }}
+                              >
+                                Phase
+                              </span>
+                              {(p.group ||
+                                (p.id !== 'critic-phase' && 'Ungrouped')) && (
+                                <span
+                                  className="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle font-monospace rounded-pill"
+                                  style={{
+                                    fontSize: '0.6rem',
+                                    padding: '0.1rem 0.3rem',
+                                  }}
+                                >
+                                  {p.group || 'Ungrouped'}
+                                </span>
+                              )}
+                            </div>
                             <span
                               className="badge bg-warning-subtle text-warning border border-warning-subtle font-monospace rounded-pill"
                               style={{
