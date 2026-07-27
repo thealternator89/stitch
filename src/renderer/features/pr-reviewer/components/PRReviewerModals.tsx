@@ -2,28 +2,23 @@ import React from 'react';
 import { ReviewComment } from '../../../../types';
 
 interface EditCommentModalProps {
-  editingCommentIndex: number;
+  editingComment: ReviewComment;
   editedCommentText: string;
   setEditedCommentText: (text: string) => void;
   onCancel: () => void;
-  onPostComment: (
-    comment: ReviewComment,
-    index: number,
-    updatedText: string,
-  ) => void;
-  comments: ReviewComment[];
-  isPostingComment: Record<number, boolean>;
+  onPostComment: (comment: ReviewComment, updatedText: string) => void;
+  isPostingComment: Record<string, boolean>;
 }
 
 export const EditCommentModal: React.FC<EditCommentModalProps> = ({
-  editingCommentIndex,
+  editingComment,
   editedCommentText,
   setEditedCommentText,
   onCancel,
   onPostComment,
-  comments,
   isPostingComment,
 }) => {
+  const commentId = editingComment.id || '';
   return (
     <div className="env-error-overlay">
       <div
@@ -60,16 +55,10 @@ export const EditCommentModal: React.FC<EditCommentModalProps> = ({
           </button>
           <button
             className="btn btn-sm btn-primary px-4"
-            onClick={() =>
-              onPostComment(
-                comments[editingCommentIndex],
-                editingCommentIndex,
-                editedCommentText,
-              )
-            }
-            disabled={isPostingComment[editingCommentIndex]}
+            onClick={() => onPostComment(editingComment, editedCommentText)}
+            disabled={commentId ? isPostingComment[commentId] : false}
           >
-            {isPostingComment[editingCommentIndex] ? (
+            {commentId && isPostingComment[commentId] ? (
               <>
                 <span className="spinner-border spinner-border-sm me-1"></span>
                 Posting...

@@ -72,14 +72,14 @@ const PRReviewer: React.FC = () => {
     Record<string | number, boolean>
   >({});
   const [isPostingComment, setIsPostingComment] = useState<
-    Record<number, boolean>
+    Record<string, boolean>
   >({});
 
   // Modals
   const [showDirtyModal, setShowDirtyModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [showNoPhasesModal, setShowNoPhasesModal] = useState(false);
-  const [editingCommentIndex, setEditingCommentIndex] = useState<number | null>(
+  const [editingComment, setEditingComment] = useState<ReviewComment | null>(
     null,
   );
   const [editedCommentText, setEditedCommentText] = useState<string>('');
@@ -544,8 +544,14 @@ const PRReviewer: React.FC = () => {
           commentObj &&
           (commentObj.type === 'general' || commentObj.type === 'line')
         ) {
-          localComments.push(commentObj);
-          setComments((prev) => [...prev, commentObj]);
+          const commentWithId = {
+            ...commentObj,
+            id:
+              commentObj.id ||
+              `raw-${localComments.length}-${Date.now()}-${Math.random()}`,
+          };
+          localComments.push(commentWithId);
+          setComments((prev) => [...prev, commentWithId]);
           setLastStatusTime(new Date());
         }
       } catch (err) {
@@ -593,7 +599,13 @@ const PRReviewer: React.FC = () => {
             selectedPersona,
           );
           if (criticRes && criticRes.result) {
-            setCritiquedComments(criticRes.result);
+            const critiquedWithIds = criticRes.result.map(
+              (c: ReviewComment, idx: number) => ({
+                ...c,
+                id: c.id || `critic-${idx}-${Date.now()}-${Math.random()}`,
+              }),
+            );
+            setCritiquedComments(critiquedWithIds);
             setHasCritiqued(true);
             setCommentViewMode('critiqued');
             setPhaseProgress((prev) =>
@@ -699,18 +711,23 @@ const PRReviewer: React.FC = () => {
     setShowErrorModal(true);
   };
 
-  const handleDismissComment = (index: number) => {
-    setCollapsedComments((prev) => ({ ...prev, [index]: true }));
+  const handleDismissComment = (comment: ReviewComment) => {
+    const key = comment.id || '';
+    if (key) {
+      setCollapsedComments((prev) => ({ ...prev, [key]: true }));
+    }
   };
 
   const handlePostComment = async (
     comment: ReviewComment,
-    index: number,
     updatedText?: string,
   ) => {
     if (!selectedPR) return;
 
-    setIsPostingComment((prev) => ({ ...prev, [index]: true }));
+    const commentId = comment.id || '';
+    if (commentId) {
+      setIsPostingComment((prev) => ({ ...prev, [commentId]: true }));
+    }
     try {
       const prIdentifier =
         activeTab === 'manual' ? manualPrUrlOrId : selectedPR.id;
@@ -731,8 +748,8 @@ const PRReviewer: React.FC = () => {
 
       // Mark as posted in both lists
       const updateList = (prev: ReviewComment[]) =>
-        prev.map((c, i) =>
-          i === index ||
+        prev.map((c) =>
+          (commentId && c.id === commentId) ||
           (c.comment === comment.comment &&
             c.file === comment.file &&
             c.line === comment.line)
@@ -742,14 +759,18 @@ const PRReviewer: React.FC = () => {
       setComments(updateList);
       setCritiquedComments(updateList);
 
-      setCollapsedComments((prev) => ({ ...prev, [index]: true }));
-      setEditingCommentIndex(null);
+      if (commentId) {
+        setCollapsedComments((prev) => ({ ...prev, [commentId]: true }));
+      }
+      setEditingComment(null);
     } catch (err: unknown) {
       console.error('Failed to post comment:', err);
       const msg = err instanceof Error ? err.message : String(err);
       showError(msg);
     } finally {
-      setIsPostingComment((prev) => ({ ...prev, [index]: false }));
+      if (commentId) {
+        setIsPostingComment((prev) => ({ ...prev, [commentId]: false }));
+      }
     }
   };
 
@@ -860,9 +881,9 @@ const PRReviewer: React.FC = () => {
                   isPostingComment={isPostingComment}
                   onDismissComment={handleDismissComment}
                   onPostComment={handlePostComment}
-                  onStartEditComment={(index, commentText) => {
-                    setEditingCommentIndex(index);
-                    setEditedCommentText(commentText);
+                  onStartEditComment={(comment) => {
+                    setEditingComment(comment);
+                    setEditedCommentText(comment.comment);
                   }}
                   isHeaderCollapsed={isHeaderCollapsed}
                 />
@@ -872,14 +893,13 @@ const PRReviewer: React.FC = () => {
         )}
       </div>
 
-      {editingCommentIndex !== null && (
+      {editingComment !== null && (
         <EditCommentModal
-          editingCommentIndex={editingCommentIndex}
+          editingComment={editingComment}
           editedCommentText={editedCommentText}
           setEditedCommentText={setEditedCommentText}
-          onCancel={() => setEditingCommentIndex(null)}
+          onCancel={() => setEditingComment(null)}
           onPostComment={handlePostComment}
-          comments={comments}
           isPostingComment={isPostingComment}
         />
       )}
