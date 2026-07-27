@@ -166,6 +166,7 @@ export interface ReviewPhase {
 }
 
 export interface ReviewComment {
+  id?: string;
   type: 'general' | 'line';
   file?: string;
   line?: number;

@@ -17,10 +17,10 @@ interface PRReviewCommentsProps {
   rejectedCritiquedComments: ReviewComment[];
   collapsedComments: Record<string | number, boolean>;
   onToggleCollapse: (key: string | number) => void;
-  isPostingComment: Record<number, boolean>;
-  onDismissComment: (index: number) => void;
-  onPostComment: (comment: ReviewComment, index: number) => void;
-  onStartEditComment: (index: number, commentText: string) => void;
+  isPostingComment: Record<string, boolean>;
+  onDismissComment: (comment: ReviewComment) => void;
+  onPostComment: (comment: ReviewComment) => void;
+  onStartEditComment: (comment: ReviewComment) => void;
   isHeaderCollapsed: boolean;
 }
 
@@ -173,11 +173,12 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
             ) : (
               <div className="comments-list">
                 {displayedComments.map((comment, index) => {
+                  const commentId = comment.id || index;
                   const isLine = comment.type === 'line';
-                  if (collapsedComments[index]) {
+                  if (collapsedComments[commentId]) {
                     return (
                       <div
-                        key={index}
+                        key={commentId}
                         className="card shadow-sm border-0 mb-2 bg-body-secondary opacity-75"
                       >
                         <div className="card-body p-2 d-flex align-items-center justify-content-between">
@@ -228,7 +229,7 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                           </div>
                           <button
                             className="btn btn-sm btn-link text-decoration-none p-0 px-2"
-                            onClick={() => onToggleCollapse(index)}
+                            onClick={() => onToggleCollapse(commentId)}
                           >
                             <i className="fas fa-chevron-down me-1"></i> Expand
                           </button>
@@ -239,7 +240,7 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
 
                   return (
                     <div
-                      key={index}
+                      key={commentId}
                       className={`card shadow-sm border-0 mb-3 ${
                         isLine
                           ? 'border-start border-4 border-primary'
@@ -354,7 +355,7 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                         <div className="d-flex justify-content-end gap-2 mt-3 pt-2 border-top border-secondary-subtle">
                           <button
                             className="btn btn-sm btn-outline-secondary"
-                            onClick={() => onDismissComment(index)}
+                            onClick={() => onDismissComment(comment)}
                           >
                             <i className="fas fa-eye-slash me-1"></i>
                             Dismiss
@@ -362,10 +363,12 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                           <div className="btn-group" role="group">
                             <button
                               className="btn btn-sm btn-primary"
-                              onClick={() => onPostComment(comment, index)}
-                              disabled={isPostingComment[index]}
+                              onClick={() => onPostComment(comment)}
+                              disabled={
+                                commentId ? isPostingComment[commentId] : false
+                              }
                             >
-                              {isPostingComment[index] ? (
+                              {commentId && isPostingComment[commentId] ? (
                                 <>
                                   <span className="spinner-border spinner-border-sm me-1"></span>
                                   Posting...
@@ -379,10 +382,10 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                             </button>
                             <button
                               className="btn btn-sm btn-primary"
-                              onClick={() =>
-                                onStartEditComment(index, comment.comment)
+                              onClick={() => onStartEditComment(comment)}
+                              disabled={
+                                commentId ? isPostingComment[commentId] : false
                               }
-                              disabled={isPostingComment[index]}
                               title="Edit comment before posting"
                             >
                               <i className="fas fa-edit"></i>
@@ -403,13 +406,13 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                         Rejected Comments ({rejectedCritiquedComments.length})
                       </h6>
                       {rejectedCritiquedComments.map((comment, rIdx) => {
-                        const keyIndex = `rejected-${rIdx}`;
+                        const commentId = comment.id || `rejected-${rIdx}`;
                         const isCollapsed =
-                          collapsedComments[keyIndex] !== false;
+                          collapsedComments[commentId] !== false;
                         const isLine = comment.type === 'line';
                         return (
                           <div
-                            key={keyIndex}
+                            key={commentId}
                             className="card shadow-sm border-0 mb-2 bg-body-tertiary opacity-75"
                           >
                             <div className="card-body p-3">
@@ -436,7 +439,7 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                                 </div>
                                 <button
                                   className="btn btn-sm btn-link text-decoration-none p-0 px-2 ms-2"
-                                  onClick={() => onToggleCollapse(keyIndex)}
+                                  onClick={() => onToggleCollapse(commentId)}
                                 >
                                   <i
                                     className={`fas fa-chevron-${isCollapsed ? 'down' : 'up'} me-1`}
