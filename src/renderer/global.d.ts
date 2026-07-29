@@ -71,6 +71,14 @@ export interface IElectronAPI {
   sendElaborationAnswer: (ticketId: string, answer: string) => Promise<string>;
   stopStoryElaboration: (ticketId: string) => Promise<CopilotUsage | null>;
   onElaborationLine: (callback: (line: string) => void) => () => void;
+  startTShirtEstimation: (
+    description: string,
+    repoPath: string | null,
+    modelOverride: string,
+    branch?: string,
+  ) => Promise<string>;
+  stopTShirtEstimation: (sessionId: string) => Promise<CopilotUsage | null>;
+  onTShirtEstimationLine: (callback: (line: string) => void) => () => void;
   getPRDetails: (repoPath: string, prUrlOrId: string) => Promise<PRMetadata>;
   checkoutPR: (
     repoPath: string,

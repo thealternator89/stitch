@@ -5,6 +5,7 @@ import TestCaseWriter from './features/test-case-writer/TestCaseWriter';
 import StoryWriter from './features/story-writer/StoryWriter';
 import StoryElaborator from './features/story-elaborator/StoryElaborator';
 import PRReviewer from './features/pr-reviewer/PRReviewer';
+import TShirtEstimator from './features/tshirt-estimator/TShirtEstimator';
 import Settings from './features/settings/components/Settings';
 import { TimeoutProvider } from './context/TimeoutContext';
 import { UpdateStatus, EnvironmentCheckResult, CopilotAuth } from '../types';
@@ -183,6 +184,7 @@ const App: React.FC = () => {
             <Route path="/story-elaborator" element={<StoryElaborator />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/pr-reviewer" element={<PRReviewer />} />
+            <Route path="/tshirt-estimator" element={<TShirtEstimator />} />
           </Routes>
         </div>
 
