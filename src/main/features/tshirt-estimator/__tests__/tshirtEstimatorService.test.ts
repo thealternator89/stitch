@@ -11,29 +11,12 @@ describe('TShirtEstimator feature', () => {
   };
 
   describe('buildTShirtEstimatorPrompt', () => {
-    it('should generate estimator prompt when hasRepo is true', () => {
-      const prompt = buildTShirtEstimatorPrompt(
-        'Implement feature X',
-        defaultSettings,
-        true,
-      );
+    it('should generate estimator prompt', () => {
+      const prompt = buildTShirtEstimatorPrompt('Implement feature X');
 
       expect(prompt).toContain('Implement feature X');
       expect(prompt).toContain('You have access to the local codebase');
-      expect(prompt).not.toContain(
-        'You DO NOT have access to a local codebase',
-      );
-    });
-
-    it('should generate estimator prompt when hasRepo is false', () => {
-      const prompt = buildTShirtEstimatorPrompt(
-        'Implement feature X',
-        defaultSettings,
-        false,
-      );
-
-      expect(prompt).toContain('You DO NOT have access to a local codebase');
-      expect(prompt).not.toContain('You have access to the local codebase');
+      expect(prompt).toContain('You are forbidden from modifying');
     });
   });
 
@@ -74,10 +57,21 @@ describe('TShirtEstimator feature', () => {
       vi.restoreAllMocks();
     });
 
-    it('should start estimation and return session details', async () => {
+    it('should throw an error if repo path is not provided', async () => {
+      await expect(
+        service.startTShirtEstimation(
+          'Some change description',
+          null,
+          'gpt-4',
+          defaultSettings,
+        ),
+      ).rejects.toThrow('Local repository path is required for estimation.');
+    });
+
+    it('should start estimation and return session details when repo path is provided', async () => {
       const result = await service.startTShirtEstimation(
         'Some change description',
-        null,
+        '/root',
         'gpt-4',
         defaultSettings,
       );
@@ -90,7 +84,7 @@ describe('TShirtEstimator feature', () => {
         undefined,
         'gpt-4',
         expect.objectContaining({
-          availableTools: [],
+          workingDirectory: '/root',
         }),
       );
     });

@@ -33,6 +33,10 @@ export class TShirtEstimatorService {
     branch?: string,
     onLine?: (line: string) => void,
   ): Promise<string> {
+    if (!repoPath || !repoPath.trim()) {
+      throw new Error('Local repository path is required for estimation.');
+    }
+
     // Generate a unique ID for this estimation session
     const sessionId = `tshirt_${Date.now()}`;
 
@@ -106,13 +110,9 @@ export class TShirtEstimatorService {
         await this.copilotService.createClientAndSession(
           settings.copilotToken,
           modelOverride,
-          effectiveRepoPath
-            ? {
-                workingDirectory: effectiveRepoPath,
-              }
-            : {
-                availableTools: [],
-              },
+          {
+            workingDirectory: effectiveRepoPath,
+          },
         );
       session.label = 'T-Shirt Size Estimator';
 
@@ -124,11 +124,7 @@ export class TShirtEstimatorService {
         worktreeInfo,
       });
 
-      const prompt = buildTShirtEstimatorPrompt(
-        description,
-        settings,
-        !!repoPath,
-      );
+      const prompt = buildTShirtEstimatorPrompt(description);
 
       const result = await this.copilotService.sendAndCollectStream(
         session,

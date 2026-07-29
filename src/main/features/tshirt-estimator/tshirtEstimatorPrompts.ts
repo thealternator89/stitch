@@ -1,23 +1,8 @@
-import { AppSettings } from '../../../types';
-
-export function buildTShirtEstimatorPrompt(
-  description: string,
-  settings: AppSettings,
-  hasRepo: boolean,
-): string {
-  let repoInstructions: string;
-  if (hasRepo) {
-    repoInstructions = `
+export function buildTShirtEstimatorPrompt(description: string): string {
+  const repoInstructions = `
 You have access to the local codebase of the project through your built-in tools (such as reading files and browsing directories).
 Use these tools to search, analyze, and inspect the codebase files to understand the project structure and existing implementations before formulating your estimate.
 `;
-  } else {
-    repoInstructions = `
-You DO NOT have access to a local codebase or repository.
-Base your estimate and reasoning entirely on the description provided by the user.
-Do NOT attempt to run any filesystem or command tools, as no repository context is available.
-`;
-  }
 
   return `
 You are a software engineering expert and a T-Shirt Size Estimator. Your task is to estimate the effort size and complexity of the proposed change described below.
@@ -27,7 +12,7 @@ ${description}
 
 ${repoInstructions}
 
-If you have access to the repository, you are forbidden from modifying, creating, or deleting any files. You must only read.
+You are forbidden from modifying, creating, or deleting any files. You must only read.
 
 Your estimation should categorize the change into one of the following T-shirt sizes:
 - XS (Extra Small): Tiny change (e.g., config tweak, typo fix, single line change). Usually < 1 hour.
@@ -49,12 +34,12 @@ You must choose one of the following JSON formats for each line you output:
    \`{"type": "estimate", "size": "XS|S|M|L|XL", "text": "Detailed reasoning explaining your estimate, what files/components will need modification, potential complexities, and verification steps in markdown format."}\`
 
 Follow this process:
-1. If a repository is available, inspect the files using your tools to identify where the change will reside and how complex the existing code is.
+1. Inspect the files using your tools to identify where the change will reside and how complex the existing code is.
 2. If you are still analyzing or reading files, call your filesystem/grep tools to continue. Each turn where you do not call a tool must present the final estimate. Do not stop without either calling a tool or presenting the final estimate.
 3. Once your analysis is done, return the "estimate" message in JSONL format.
 
 You are forbidden from ending the interaction without returning the "estimate" message in JSONL format.
 
-Start by analyzing the proposed change details and/or repository, and output a status update followed by a tool call or the final estimate.
+Start by analyzing the proposed change details and repository, and output a status update followed by a tool call or the final estimate.
 `;
 }

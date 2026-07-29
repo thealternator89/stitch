@@ -141,6 +141,10 @@ const TShirtEstimator: React.FC = () => {
       setError('Please provide a short description of the proposed change.');
       return;
     }
+    if (!repoPath.trim()) {
+      setError('Please select a local repository path.');
+      return;
+    }
 
     // Clean up any previous session/listener first
     if (unsubscribeRef.current) {
@@ -309,7 +313,7 @@ const TShirtEstimator: React.FC = () => {
               {/* Repository Path */}
               <div className="mb-3">
                 <label className="form-label fw-medium text-secondary">
-                  Local Repository Path (Optional)
+                  Local Repository Path (Required)
                 </label>
                 <div className="input-group">
                   <input
@@ -330,8 +334,9 @@ const TShirtEstimator: React.FC = () => {
                   </button>
                 </div>
                 <div className="form-text text-muted small mt-1">
-                  If provided, Copilot can analyze the existing codebase
-                  structures to make a more accurate estimate.
+                  Provide the path to the local git repository. Copilot will
+                  analyze its codebase structure and files to make a precise
+                  estimate.
                 </div>
               </div>
 
@@ -362,7 +367,7 @@ const TShirtEstimator: React.FC = () => {
                   className="btn text-white btn-lg w-100 py-3 mt-2 shadow-sm hover-grow"
                   style={{ backgroundColor: '#4f46e5' }}
                   onClick={handleStartEstimation}
-                  disabled={!description.trim()}
+                  disabled={!description.trim() || !repoPath.trim()}
                 >
                   <i className="fas fa-calculator me-2"></i>
                   Start Estimation
