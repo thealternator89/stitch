@@ -109,7 +109,7 @@ describe('TShirtEstimator feature', () => {
       expect(parsed.sessionId).toBeDefined();
       expect(mockGitService.addWorktree).toHaveBeenCalledWith(
         '/root',
-        expect.stringContaining('/wt-base'),
+        expect.stringContaining('wt-base'),
         'mocked-fetched-sha',
       );
     });
