@@ -26,6 +26,7 @@ Every output line MUST be a single, standalone, valid JSON object. Do NOT wrap t
 All double quotes inside string values must be escaped as \\". All actual newlines inside string values must be escaped as \\n.
 
 For any status updates, progress updates, or internal thoughts that you want to show to the user, you MUST call the "report_intent" tool with the details of what you are doing (e.g., calling report_intent(intent: "Analyzing codebase / reading package.json...")). You are forbidden from outputting status updates as JSON lines.
+You are highly encouraged to report your status frequently.
 
 You must choose one of the following JSON formats for each line you output:
 1. The Final Estimate (when your analysis is complete. In this case, output a single JSON object):

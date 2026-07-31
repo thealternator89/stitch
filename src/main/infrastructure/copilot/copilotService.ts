@@ -363,6 +363,7 @@ export class CopilotService {
 
         resolvePromise(fullContent);
       } else if (event.type === 'tool.execution_start') {
+        console.dir(event, { depth: 4 });
         const toolName = event.data.toolName;
         activeToolCalls.set(event.data.toolCallId, toolName);
         resetTimeout();

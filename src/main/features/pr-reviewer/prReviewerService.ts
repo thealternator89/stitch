@@ -21,6 +21,7 @@ import { IssueTrackerProvider } from '../../infrastructure/providers/IssueTracke
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
 import { CodeReviewProvider } from '../../infrastructure/providers/CodeReviewProvider';
 import { createRequestDocumentationTool } from '../../infrastructure/copilot/tools/documentationTool';
+import { createReportIntentTool } from '../../infrastructure/copilot/tools/reportIntentTool';
 
 export function buildCriticPrompt(
   comments: ReviewComment[],
@@ -1034,16 +1035,20 @@ export class PRReviewerService {
           const attachStory =
             phase.attach && phase.attach.toLowerCase().includes('story');
 
-          const sessionOpts = attachStory
-            ? {
-                workingDirectory: effectiveRepoPath,
-                tools: [
-                  createRequestDocumentationTool(this.getDocProvider, () =>
-                    options.onLine ? wrappedOnLine : undefined,
-                  ),
-                ],
-              }
-            : { workingDirectory: effectiveRepoPath };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tools: any[] = [createReportIntentTool()];
+          if (attachStory) {
+            tools.push(
+              createRequestDocumentationTool(this.getDocProvider, () =>
+                options.onLine ? wrappedOnLine : undefined,
+              ),
+            );
+          }
+
+          const sessionOpts = {
+            workingDirectory: effectiveRepoPath,
+            tools,
+          };
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let clientAndSession: { client: any; session: any } | null;
@@ -1125,6 +1130,7 @@ export class PRReviewerService {
           };
 
           try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const streamArgs: [any, string, any?, any?] = options.onLine
               ? [session, prompt, wrappedOnLine, onToolCallback]
               : [session, prompt, undefined];

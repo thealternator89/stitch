@@ -3,6 +3,7 @@ import { AppSettings, CopilotUsage } from '../../../types';
 import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { GitService } from '../../infrastructure/git/gitService';
 import { buildTShirtEstimatorPrompt } from './tshirtEstimatorPrompts';
+import { createReportIntentTool } from '../../infrastructure/copilot/tools/reportIntentTool';
 import fs from 'fs';
 import path from 'path';
 
@@ -112,6 +113,7 @@ export class TShirtEstimatorService {
           modelOverride,
           {
             workingDirectory: effectiveRepoPath,
+            tools: [createReportIntentTool()],
           },
         );
       session.label = 'T-Shirt Size Estimator';

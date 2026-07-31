@@ -304,7 +304,7 @@ describe('PRReviewerService', () => {
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         'mock-token',
         'gpt-4',
-        { workingDirectory: '/mock/repo' },
+        expect.objectContaining({ workingDirectory: '/mock/repo' }),
       );
 
       const expectedPrompt = buildPhaseReviewPrompt(
@@ -807,7 +807,7 @@ describe('PRReviewerService', () => {
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         'mock-token',
         'gemini-2.0-flash',
-        { workingDirectory: '/mock/repo' },
+        expect.objectContaining({ workingDirectory: '/mock/repo' }),
       );
     });
   });
