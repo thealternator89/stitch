@@ -188,15 +188,6 @@ const StoryElaborator: React.FC = () => {
         const data = JSON.parse(trimmed);
         if (data.type === 'status') {
           setFeed((prev) => [...prev, { type: 'status', text: data.text }]);
-        } else if (data.type === 'tool') {
-          if (data.status === 'end' && data.success) {
-            return; // don't clog status with "end" logs unless it fails
-          }
-          const statusText =
-            data.status === 'end'
-              ? `Tool failed: ${data.name} ${data.error ? `- ${data.error}` : ''}`
-              : `Tool: ${data.name}`;
-          setFeed((prev) => [...prev, { type: 'status', text: statusText }]);
         } else if (data.type === 'question') {
           setIsGenerating(false);
           setIsWaitingForUser(true);

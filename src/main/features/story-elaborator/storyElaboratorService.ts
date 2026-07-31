@@ -5,6 +5,7 @@ import { DocumentationProvider } from '../../infrastructure/providers/Documentat
 import { buildStoryElaboratorPrompt } from './storyElaboratorPrompts';
 import { createRequestDocumentationTool } from '../../infrastructure/copilot/tools/documentationTool';
 import { createReportIntentTool } from '../../infrastructure/copilot/tools/reportIntentTool';
+import { formatToolStatus } from '../../infrastructure/copilot/tools/toolStatusFormatter';
 import { GitService } from '../../infrastructure/git/gitService';
 import fs from 'fs';
 import path from 'path';
@@ -232,27 +233,15 @@ export class StoryElaboratorService {
       args?: any,
     ) => {
       if (onLine) {
-        if (tool === 'report_intent') {
-          if (type === 'start' && args?.intent) {
-            onLine(
-              JSON.stringify({
-                type: 'status',
-                text: args.intent,
-              }),
-            );
-          }
-          return;
+        const statusText = formatToolStatus(type, tool, success, error, args);
+        if (statusText) {
+          onLine(
+            JSON.stringify({
+              type: 'status',
+              text: statusText,
+            }),
+          );
         }
-        onLine(
-          JSON.stringify({
-            type: 'tool',
-            status: type,
-            name: tool,
-            success,
-            error,
-            arguments: args,
-          }),
-        );
       }
     };
 
