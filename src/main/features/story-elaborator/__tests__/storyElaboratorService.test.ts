@@ -121,10 +121,16 @@ describe('StoryElaborator feature', () => {
         undefined,
         'gpt-4',
         expect.objectContaining({
-          availableTools: ['custom:request_documentation'],
+          availableTools: [
+            'custom:request_documentation',
+            'custom:report_intent',
+          ],
           tools: expect.arrayContaining([
             expect.objectContaining({
               name: 'request_documentation',
+            }),
+            expect.objectContaining({
+              name: 'report_intent',
             }),
           ]),
         }),
@@ -262,6 +268,9 @@ describe('StoryElaborator feature', () => {
           tools: expect.arrayContaining([
             expect.objectContaining({
               name: 'request_documentation',
+            }),
+            expect.objectContaining({
+              name: 'report_intent',
             }),
           ]),
         }),

@@ -304,7 +304,7 @@ describe('PRReviewerService', () => {
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         'mock-token',
         'gpt-4',
-        { workingDirectory: '/mock/repo' },
+        expect.objectContaining({ workingDirectory: '/mock/repo' }),
       );
 
       const expectedPrompt = buildPhaseReviewPrompt(
@@ -316,6 +316,7 @@ describe('PRReviewerService', () => {
       expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
         mockSession,
         expectedPrompt,
+        expect.any(Function),
         expect.any(Function),
       );
 
@@ -806,7 +807,7 @@ describe('PRReviewerService', () => {
       expect(mockCopilotService.createClientAndSession).toHaveBeenCalledWith(
         'mock-token',
         'gemini-2.0-flash',
-        { workingDirectory: '/mock/repo' },
+        expect.objectContaining({ workingDirectory: '/mock/repo' }),
       );
     });
   });
@@ -1577,6 +1578,7 @@ describe('PRReviewerService', () => {
         mockSession,
         expectedPrompt,
         expect.any(Function),
+        expect.any(Function),
       );
     });
 
@@ -1646,6 +1648,7 @@ describe('PRReviewerService', () => {
       expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
         mockSession,
         expectedPrompt,
+        expect.any(Function),
         expect.any(Function),
       );
     });

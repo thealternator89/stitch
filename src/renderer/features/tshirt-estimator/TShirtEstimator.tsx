@@ -179,16 +179,6 @@ const TShirtEstimator: React.FC = () => {
           const data = JSON.parse(trimmed);
           if (data.type === 'status') {
             setLogs((prev) => [...prev, { type: 'status', text: data.text }]);
-          } else if (data.type === 'tool') {
-            let statusText = '';
-            if (data.status === 'end' && data.success) {
-              return; // don't clog logs with end success messages
-            }
-            statusText =
-              data.status === 'end'
-                ? `Tool failed: ${data.name} ${data.error ? `- ${data.error}` : ''}`
-                : `Tool: ${data.name}`;
-            setLogs((prev) => [...prev, { type: 'status', text: statusText }]);
           } else if (data.type === 'estimate') {
             setSize(data.size);
             setReasoning(data.text);

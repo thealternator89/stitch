@@ -3,6 +3,8 @@ import { AppSettings, CopilotUsage } from '../../../types';
 import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { GitService } from '../../infrastructure/git/gitService';
 import { buildTShirtEstimatorPrompt } from './tshirtEstimatorPrompts';
+import { createReportIntentTool } from '../../infrastructure/copilot/tools/reportIntentTool';
+import { formatToolStatus } from '../../infrastructure/copilot/tools/toolStatusFormatter';
 import fs from 'fs';
 import path from 'path';
 
@@ -112,6 +114,7 @@ export class TShirtEstimatorService {
           modelOverride,
           {
             workingDirectory: effectiveRepoPath,
+            tools: [createReportIntentTool()],
           },
         );
       session.label = 'T-Shirt Size Estimator';
@@ -132,16 +135,21 @@ export class TShirtEstimatorService {
         onLine,
         (type, tool, success, error, args) => {
           if (onLine) {
-            onLine(
-              JSON.stringify({
-                type: 'tool',
-                status: type,
-                name: tool,
-                success,
-                error,
-                arguments: args,
-              }),
+            const statusText = formatToolStatus(
+              type,
+              tool,
+              success,
+              error,
+              args,
             );
+            if (statusText) {
+              onLine(
+                JSON.stringify({
+                  type: 'status',
+                  text: statusText,
+                }),
+              );
+            }
           }
         },
       );

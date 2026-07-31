@@ -4,6 +4,8 @@ import { CopilotService } from '../../infrastructure/copilot/copilotService';
 import { DocumentationProvider } from '../../infrastructure/providers/DocumentationProvider';
 import { buildStoryElaboratorPrompt } from './storyElaboratorPrompts';
 import { createRequestDocumentationTool } from '../../infrastructure/copilot/tools/documentationTool';
+import { createReportIntentTool } from '../../infrastructure/copilot/tools/reportIntentTool';
+import { formatToolStatus } from '../../infrastructure/copilot/tools/toolStatusFormatter';
 import { GitService } from '../../infrastructure/git/gitService';
 import fs from 'fs';
 import path from 'path';
@@ -111,6 +113,8 @@ export class StoryElaboratorService {
         }
       }
 
+      const reportIntentTool = createReportIntentTool();
+
       const { client, session } =
         await this.copilotService.createClientAndSession(
           settings.copilotToken,
@@ -118,11 +122,14 @@ export class StoryElaboratorService {
           effectiveRepoPath
             ? {
                 workingDirectory: effectiveRepoPath,
-                tools: [requestDocumentationTool],
+                tools: [requestDocumentationTool, reportIntentTool],
               }
             : {
-                availableTools: ['custom:request_documentation'],
-                tools: [requestDocumentationTool],
+                availableTools: [
+                  'custom:request_documentation',
+                  'custom:report_intent',
+                ],
+                tools: [requestDocumentationTool, reportIntentTool],
               },
         );
       session.label = 'Story Elaborator';
@@ -226,16 +233,15 @@ export class StoryElaboratorService {
       args?: any,
     ) => {
       if (onLine) {
-        onLine(
-          JSON.stringify({
-            type: 'tool',
-            status: type,
-            name: tool,
-            success,
-            error,
-            arguments: args,
-          }),
-        );
+        const statusText = formatToolStatus(type, tool, success, error, args);
+        if (statusText) {
+          onLine(
+            JSON.stringify({
+              type: 'status',
+              text: statusText,
+            }),
+          );
+        }
       }
     };
 
