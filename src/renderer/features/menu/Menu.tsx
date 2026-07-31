@@ -41,7 +41,10 @@ const Menu: React.FC<MenuProps> = ({
             </div>
             <div className="d-flex flex-column gap-3">
               <div className="menu-tool-card">
-                <h4 className="menu-tool-title">T-Shirt Size Estimator</h4>
+                <h4 className="menu-tool-title">
+                  <i className="fas fa-shirt me-2 text-secondary"></i>
+                  T-Shirt Size Estimator
+                </h4>
                 <p className="menu-tool-desc">
                   Estimate the effort size and complexity of a proposed change.
                 </p>
@@ -67,7 +70,10 @@ const Menu: React.FC<MenuProps> = ({
             </div>
             <div className="d-flex flex-column gap-3">
               <div className="menu-tool-card">
-                <h4 className="menu-tool-title">Story Writer</h4>
+                <h4 className="menu-tool-title">
+                  <i className="fas fa-book-open me-2 text-secondary"></i>
+                  Story Writer
+                </h4>
                 <p className="menu-tool-desc">
                   Generate stories from requirements.
                 </p>
@@ -81,7 +87,10 @@ const Menu: React.FC<MenuProps> = ({
                 </div>
               </div>
               <div className="menu-tool-card">
-                <h4 className="menu-tool-title">Test Case Writer</h4>
+                <h4 className="menu-tool-title">
+                  <i className="fas fa-pen-to-square me-2 text-secondary"></i>
+                  Test Case Writer
+                </h4>
                 <p className="menu-tool-desc">
                   Create test cases for your stories.
                 </p>
@@ -107,7 +116,10 @@ const Menu: React.FC<MenuProps> = ({
             </div>
             <div className="d-flex flex-column gap-3">
               <div className="menu-tool-card">
-                <h4 className="menu-tool-title">Story Elaborator</h4>
+                <h4 className="menu-tool-title">
+                  <i className="fas fa-brain me-2 text-secondary"></i>
+                  Story Elaborator
+                </h4>
                 <p className="menu-tool-desc">
                   Reveal unclear story details and build an implementation plan.
                 </p>
@@ -133,7 +145,10 @@ const Menu: React.FC<MenuProps> = ({
             </div>
             <div className="d-flex flex-column gap-3">
               <div className="menu-tool-card">
-                <h4 className="menu-tool-title">PR Reviewer</h4>
+                <h4 className="menu-tool-title">
+                  <i className="fas fa-code-pull-request me-2 text-secondary"></i>
+                  PR Reviewer
+                </h4>
                 <p className="menu-tool-desc">
                   Review pull requests and branch differences locally.
                 </p>
