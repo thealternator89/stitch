@@ -16,14 +16,14 @@ const Menu: React.FC<MenuProps> = ({
   onOpenChangelog,
 }) => {
   return (
-    <div className="container mt-4 p-3">
-      {/* Header section with smaller, left-aligned logo and right-aligned settings button */}
-      <div className="d-flex justify-content-between align-items-center mb-5 mt-2 pb-3 border-bottom">
+    <div className="container mt-2 p-3">
+      {/* Header section with left-aligned logo and right-aligned settings button */}
+      <div className="d-flex justify-content-between align-items-center mb-4 mt-0 pb-3 border-bottom">
         <img
           src={logo}
           alt="Stitch Logo"
           className="img-fluid"
-          style={{ maxHeight: '48px', objectFit: 'contain' }}
+          style={{ maxHeight: '96px', objectFit: 'contain' }}
         />
         <Link to="/settings" className="btn btn-outline-secondary">
           <i className="fas fa-cog me-2"></i>
