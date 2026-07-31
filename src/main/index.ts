@@ -22,6 +22,7 @@ import { CodeReviewProvider } from './infrastructure/providers/CodeReviewProvide
 import { StoryWriterService } from './features/story-writer/storyWriterService';
 import { TestCaseWriterService } from './features/test-case-writer/testCaseWriterService';
 import { StoryElaboratorService } from './features/story-elaborator/storyElaboratorService';
+import { TShirtEstimatorService } from './features/tshirt-estimator/tshirtEstimatorService';
 import { PromptComplexityService } from './features/settings/promptComplexityService';
 import { GitService } from './infrastructure/git/gitService';
 import { PRReviewerService } from './features/pr-reviewer/prReviewerService';
@@ -81,6 +82,10 @@ const storyElaboratorService = new StoryElaboratorService(
   },
 );
 const promptComplexityService = new PromptComplexityService(copilotService);
+const tShirtEstimatorService = new TShirtEstimatorService(
+  copilotService,
+  gitService,
+);
 const prReviewerService = new PRReviewerService(
   gitService,
   copilotService,
@@ -397,6 +402,27 @@ ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
 
 ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
   return storyElaboratorService.stopStoryElaboration(ticketId);
+});
+
+ipcMain.handle(
+  'start-tshirt-estimation',
+  async (event, description, repoPath, modelOverride, branch) => {
+    const settings = await getDecryptedSettings();
+    return tShirtEstimatorService.startTShirtEstimation(
+      description,
+      repoPath,
+      modelOverride,
+      settings,
+      branch,
+      (line: string) => {
+        event.sender.send('tshirt-estimation-line', line);
+      },
+    );
+  },
+);
+
+ipcMain.handle('stop-tshirt-estimation', async (event, sessionId) => {
+  return tShirtEstimatorService.stopTShirtEstimation(sessionId);
 });
 
 ipcMain.handle(
@@ -760,4 +786,5 @@ app.on('activate', () => {
 
 app.on('will-quit', async () => {
   await storyElaboratorService.cleanup();
+  await tShirtEstimatorService.cleanup();
 });

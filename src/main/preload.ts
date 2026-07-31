@@ -102,6 +102,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('elaboration-line', listener);
     };
   },
+  startTShirtEstimation: (
+    description: string,
+    repoPath: string | null,
+    modelOverride: string,
+    branch?: string,
+  ) =>
+    ipcRenderer.invoke(
+      'start-tshirt-estimation',
+      description,
+      repoPath,
+      modelOverride,
+      branch,
+    ),
+  stopTShirtEstimation: (sessionId: string) =>
+    ipcRenderer.invoke('stop-tshirt-estimation', sessionId),
+  onTShirtEstimationLine: (callback: (line: string) => void) => {
+    const listener = (_event: unknown, line: string) => callback(line);
+    ipcRenderer.on('tshirt-estimation-line', listener);
+    return () => {
+      ipcRenderer.removeListener('tshirt-estimation-line', listener);
+    };
+  },
   getPRDetails: (repoPath: string, prUrlOrId: string): Promise<PRMetadata> =>
     ipcRenderer.invoke('pr-reviewer:get-details', repoPath, prUrlOrId),
   checkoutPR: (

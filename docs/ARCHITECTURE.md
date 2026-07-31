@@ -96,6 +96,7 @@ locally on the machine.
   - For single-shot tools, lines are pushed via `test-case-line` and `story-line` IPC events.
   - For the **PR Reviewer**, review comments and status outputs are parsed as JSONL lines (`type: "status"`, `type: "general"`, or `type: "line"`). When a `line` comment is parsed, the backend dynamically resolves context lines using `extractFileContextSync` and enriches the JSON object before pushing it to the UI.
   - For the **Story Elaborator**, lines are emitted via `elaboration-line`. The communication uses a strict JSON Lines (JSONL) protocol, streaming objects of type `status` (thoughts and directory search updates), `question` (with suggested answers for the user), or `plan` (the finalized implementation plan).
+  - For the **T-Shirt Size Estimator**, lines are emitted via `tshirt-estimation-line`. The communication uses a strict JSON Lines (JSONL) protocol, streaming objects of type `status` (thoughts and tool progress updates) or `estimate` (the final effort estimate with size and reasoning).
   - Inside `sendAndCollectStream`, a newline buffer fallback processes block-delivered responses when incremental token deltas are skipped during tool executions, ensuring smooth UI status tracking.
 - **Usage Metrics Tracking**:
   - For each Copilot session, `CopilotService` listens to the `assistant.usage` event emitted by the Copilot agent.
@@ -116,6 +117,7 @@ locally on the machine.
     - When Git Worktree Support is enabled, Stitch creates separate, temporary git worktree checkouts under a user-configured base directory (`gitWorktreeBaseDir`).
     - For the **PR Reviewer**, it creates an isolated worktree formatted as `<repo_name>_pr_<prNumber>` checkout at the target commit SHA, performing diffs and reviews there without touching the user's active workspace.
     - For the **Story Elaborator**, it fetches the remote target branch from origin, parses its `FETCH_HEAD` SHA, and creates an isolated worktree formatted as `<repo_name>_ticket_<ticketId>` checkout at that commit. This lets the elaborator analyze code and write its implementation plan safely.
+    - For the **T-Shirt Size Estimator**, it fetches the remote target branch and creates an isolated worktree formatted as `<repo_name>_tshirt_<sessionId>` to inspect code files and construct the estimate without modifying workspace files.
     - **Cleanup and Pruning**: Active worktrees are removed (`git worktree remove --force`) and pruned (`git worktree prune`) on completion, cancellation, or error. Settings also exposes a manual worktree scanner and cleanup button to safely purge orphaned worktree folders.
   - **PR Reviewer Git Lifecycle & Session Safety (when Worktrees are Disabled):**
     - To prevent systems from sleeping during multi-phase reviews, Stitch starts an Electron `powerSaveBlocker` during execution.
@@ -129,7 +131,7 @@ locally on the machine.
 
 To prevent tool-specific logic, UI files, prompts, and backend coordination from spreading across technical layers, the project follows a **Vertical Slice Architecture**:
 
-1. **Symmetrical Feature Slices**: Feature directories under `src/main/features/` and `src/renderer/features/` encapsulate domain-specific code (e.g. `story-writer`, `test-case-writer`, `story-elaborator`, `pr-reviewer`, `settings`, `menu`).
+1. **Symmetrical Feature Slices**: Feature directories under `src/main/features/` and `src/renderer/features/` encapsulate domain-specific code (e.g. `story-writer`, `test-case-writer`, `story-elaborator`, `tshirt-estimator`, `pr-reviewer`, `settings`, `menu`).
 2. **Containment of Prompts**: Rather than using a single centralized prompt file, prompts are contained inside their respective main process feature slices (e.g., `storyWriterPrompts.ts`). The prompt validation logic (`checkPromptComplexity`) is centralized inside the `settings` feature slice (`promptComplexityService.ts`) which imports prompt templates from the individual slices to validate complexity.
 3. **Decoupled Infrastructure**: Shared, low-level integration services (like `AzureDevOpsService`, `GitHubService`, `ConfluenceService`, `CodeReviewProvider` implementations, and `CopilotService` connection lifecycle management) reside inside `src/main/infrastructure/`. Feature services leverage these services via constructor dependency injection, keeping tool logic fully decoupled from infrastructure.
 
@@ -171,6 +173,8 @@ support modern ESM-only libraries like `electron-store` and
 - `start-story-elaboration`: Spawns a stateful `@github/copilot-sdk` session for the Story Elaborator, configured with ticket details, branch selection, and workspace context. Streams lines via `elaboration-line`.
 - `send-elaboration-answer`: Sends subsequent replies/responses to the ongoing story elaboration session.
 - `stop-story-elaboration`: Cleans up and destroys an active story elaboration session.
+- `start-tshirt-estimation`: Spawns a stateful `@github/copilot-sdk` session for the T-Shirt Size Estimator, configured with change description and workspace context. Streams lines via `tshirt-estimation-line`.
+- `stop-tshirt-estimation`: Cleans up and destroys an active T-Shirt size estimation session, pruning its temporary git worktree.
 - `pr-reviewer:get-details`: Fetches PR metadata, target/source branch references, and linked work item references via `CodeReviewProvider`.
 - `pr-reviewer:checkout`: Sanitizes repository state, checks out the PR branch (with worktree support if configured), and returns comparison details.
 - `pr-reviewer:get-diff-files`: Lists all modified files in the repository between HEAD and the target branch.
