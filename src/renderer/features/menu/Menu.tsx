@@ -16,135 +16,136 @@ const Menu: React.FC<MenuProps> = ({
   onOpenChangelog,
 }) => {
   return (
-    <div className="container mt-4 position-relative p-3">
-      <div className="position-absolute top-0 end-0">
+    <div className="container mt-4 p-3">
+      {/* Header section with smaller, left-aligned logo and right-aligned settings button */}
+      <div className="d-flex justify-content-between align-items-center mb-5 mt-2 pb-3 border-bottom">
+        <img
+          src={logo}
+          alt="Stitch Logo"
+          className="img-fluid"
+          style={{ maxHeight: '48px', objectFit: 'contain' }}
+        />
         <Link to="/settings" className="btn btn-outline-secondary">
           <i className="fas fa-cog me-2"></i>
           Settings
         </Link>
       </div>
 
-      <div className="text-center mb-5 mt-2">
-        <img
-          src={logo}
-          alt="Stitch Logo"
-          className="img-fluid"
-          style={{ maxHeight: '240px' }}
-        />
-      </div>
+      <div className="row g-4">
+        {/* Ideation Column */}
+        <div className="col-md-3 mb-4">
+          <div className="menu-column menu-column-ideation">
+            <div className="menu-column-header">
+              <i className="fas fa-lightbulb menu-column-icon"></i>
+              <h3 className="menu-column-title">Ideation</h3>
+            </div>
+            <div className="d-flex flex-column gap-3">
+              <div className="menu-tool-card">
+                <h4 className="menu-tool-title">T-Shirt Size Estimator</h4>
+                <p className="menu-tool-desc">
+                  Estimate the effort size and complexity of a proposed change.
+                </p>
+                <div className="mt-auto">
+                  <Link
+                    to="/tshirt-estimator"
+                    className="btn btn-outline-indigo w-100 btn-sm"
+                  >
+                    Open
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <div className="row justify-content-center">
-        <div className="col-md-4 mb-4">
-          <div className="card shadow-sm h-100">
-            <div className="card-body d-flex flex-column">
-              <h5 className="card-title text-primary">
-                <i className="fas fa-pen-to-square me-2"></i>
-                Test Case Writer
-              </h5>
-              <p className="card-text text-muted">
-                Create test cases for your stories.
-              </p>
-              <div className="mt-auto">
-                <Link
-                  to="/test-case-writer"
-                  className="btn btn-outline-primary w-100"
-                >
-                  Open
-                </Link>
+        {/* Design Column */}
+        <div className="col-md-3 mb-4">
+          <div className="menu-column menu-column-design">
+            <div className="menu-column-header">
+              <i className="fas fa-palette menu-column-icon"></i>
+              <h3 className="menu-column-title">Design</h3>
+            </div>
+            <div className="d-flex flex-column gap-3">
+              <div className="menu-tool-card">
+                <h4 className="menu-tool-title">Story Writer</h4>
+                <p className="menu-tool-desc">
+                  Generate stories from requirements.
+                </p>
+                <div className="mt-auto">
+                  <Link
+                    to="/story-writer"
+                    className="btn btn-outline-indigo w-100 btn-sm"
+                  >
+                    Open
+                  </Link>
+                </div>
+              </div>
+              <div className="menu-tool-card">
+                <h4 className="menu-tool-title">Test Case Writer</h4>
+                <p className="menu-tool-desc">
+                  Create test cases for your stories.
+                </p>
+                <div className="mt-auto">
+                  <Link
+                    to="/test-case-writer"
+                    className="btn btn-outline-indigo w-100 btn-sm"
+                  >
+                    Open
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="col-md-4 mb-4">
-          <div className="card shadow-sm h-100">
-            <div className="card-body d-flex flex-column">
-              <h5 className="card-title text-primary">
-                <i className="fas fa-book-open me-2"></i>
-                Story Writer
-              </h5>
-              <p className="card-text text-muted">
-                Generate stories from requirements.
-              </p>
-              <div className="mt-auto">
-                <Link
-                  to="/story-writer"
-                  className="btn btn-outline-primary w-100"
-                >
-                  Open
-                </Link>
+
+        {/* Build Column */}
+        <div className="col-md-3 mb-4">
+          <div className="menu-column menu-column-build">
+            <div className="menu-column-header">
+              <i className="fas fa-code menu-column-icon"></i>
+              <h3 className="menu-column-title">Build</h3>
+            </div>
+            <div className="d-flex flex-column gap-3">
+              <div className="menu-tool-card">
+                <h4 className="menu-tool-title">Story Elaborator</h4>
+                <p className="menu-tool-desc">
+                  Reveal unclear story details and build an implementation plan.
+                </p>
+                <div className="mt-auto">
+                  <Link
+                    to="/story-elaborator"
+                    className="btn btn-outline-indigo w-100 btn-sm"
+                  >
+                    Open
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="col-md-4 mb-4">
-          <div className="card shadow-sm h-100">
-            <div className="card-body d-flex flex-column">
-              <h5 className="card-title text-primary">
-                <i className="fas fa-brain me-2"></i>
-                Story Elaborator
-              </h5>
-              <p className="card-text text-muted">
-                Reveal unclear story details and build an implementation plan.
-              </p>
-              <div className="mt-auto">
-                <Link
-                  to="/story-elaborator"
-                  className="btn btn-outline-primary w-100"
-                >
-                  Open
-                </Link>
-              </div>
+
+        {/* Review Column */}
+        <div className="col-md-3 mb-4">
+          <div className="menu-column menu-column-review">
+            <div className="menu-column-header">
+              <i className="fas fa-clipboard-check menu-column-icon"></i>
+              <h3 className="menu-column-title">Review</h3>
             </div>
-          </div>
-        </div>
-        <div className="col-md-4 mb-4">
-          <div className="card shadow-sm h-100">
-            <div className="card-body d-flex flex-column">
-              <h5 className="card-title text-primary">
-                <i className="fas fa-code-pull-request me-2"></i>
-                PR Reviewer
-              </h5>
-              <p className="card-text text-muted">
-                Review pull requests and branch differences locally.
-              </p>
-              <div className="mt-auto">
-                <Link
-                  to="/pr-reviewer"
-                  className="btn btn-outline-primary w-100"
-                >
-                  Open
-                </Link>
+            <div className="d-flex flex-column gap-3">
+              <div className="menu-tool-card">
+                <h4 className="menu-tool-title">PR Reviewer</h4>
+                <p className="menu-tool-desc">
+                  Review pull requests and branch differences locally.
+                </p>
+                <div className="mt-auto">
+                  <Link
+                    to="/pr-reviewer"
+                    className="btn btn-outline-indigo w-100 btn-sm"
+                  >
+                    Open
+                  </Link>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-4 mb-4">
-          <div className="card shadow-sm h-100">
-            <div className="card-body d-flex flex-column">
-              <h5 className="card-title text-primary">
-                <i className="fas fa-shirt me-2"></i>
-                T-Shirt Size Estimator
-              </h5>
-              <p className="card-text text-muted">
-                Estimate the effort size and complexity of a proposed change.
-              </p>
-              <div className="mt-auto">
-                <Link
-                  to="/tshirt-estimator"
-                  className="btn btn-outline-primary w-100"
-                >
-                  Open
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Placeholder for future tools */}
-        <div className="col-md-4 mb-4">
-          <div className="card shadow-sm h-100 border-dashed">
-            <div className="card-body d-flex flex-column justify-content-center align-items-center opacity-50 mt-4 mb-4">
-              <i className="fas fa-plus-circle fa-2x mb-2"></i>
-              <p className="card-text">More tools coming soon...</p>
             </div>
           </div>
         </div>
