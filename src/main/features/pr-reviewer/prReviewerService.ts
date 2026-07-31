@@ -1125,14 +1125,9 @@ export class PRReviewerService {
           };
 
           try {
-            const streamArgs: any[] = [
-              session,
-              prompt,
-              options.onLine ? wrappedOnLine : undefined,
-            ];
-            if (options.onLine) {
-              streamArgs.push(onToolCallback);
-            }
+            const streamArgs: [any, string, any?, any?] = options.onLine
+              ? [session, prompt, wrappedOnLine, onToolCallback]
+              : [session, prompt, undefined];
             const res = await this.copilotService.sendAndCollectStream(
               ...streamArgs,
             );
