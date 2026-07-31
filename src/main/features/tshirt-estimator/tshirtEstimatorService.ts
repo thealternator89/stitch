@@ -132,6 +132,17 @@ export class TShirtEstimatorService {
         onLine,
         (type, tool, success, error, args) => {
           if (onLine) {
+            if (tool === 'report_intent') {
+              if (type === 'start' && args?.intent) {
+                onLine(
+                  JSON.stringify({
+                    type: 'status',
+                    text: args.intent,
+                  }),
+                );
+              }
+              return;
+            }
             onLine(
               JSON.stringify({
                 type: 'tool',

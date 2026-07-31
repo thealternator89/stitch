@@ -172,16 +172,12 @@ Only output a general comment if you have constructive feedback, suggestions, or
   "comment": "Your line-specific review comment in Markdown format"
 }
 
-3. For reporting status updates (e.g., when you start checking a file, analyze a function, or run check guidelines):
-{
-  "type": "status",
-  "status": "A brief message describing what you are currently doing (e.g., 'Checking authService.ts for potential logic flaws')"
-}
+For any status updates, progress updates, or internal thoughts that you want to show to the user, you MUST call the "report_intent" tool with the details of what you are doing (e.g., calling report_intent(intent: "Checking authService.ts for potential logic flaws")). You are forbidden from outputting status updates as JSON lines.
 
 Ensure the "line" number corresponds to the line in the modified version of the file (after applying the diff). The "context" field must be an integer indicating how many surrounding lines of code to display before and after this line (e.g. 0 to display only line 42, or 5 to display 5 lines before, line 42, and 5 lines after).
 You MUST only suggest line-specific comments (type: 'line') on lines that were actually changed (added or modified) as shown in the git history. Do not comment on unchanged lines.
 
-You are highly encouraged to output status updates (type: 'status') periodically as you proceed to let the user know what you are doing.
+You are highly encouraged to call the "report_intent" tool periodically as you proceed to let the user know what you are doing.
 If you have no issues or feedback to report for a phase, simply do not output any review comments (general or line-specific) at all for that phase.
 
 Begin your review now.`;
@@ -1100,6 +1096,19 @@ export class PRReviewerService {
             args?: any,
           ) => {
             if (options.onLine) {
+              if (tool === 'report_intent') {
+                if (type === 'start' && args?.intent) {
+                  options.onLine(
+                    JSON.stringify({
+                      type: 'status',
+                      status: args.intent,
+                      phaseId: phase.id,
+                      phaseTitle: phase.title,
+                    }),
+                  );
+                }
+                return;
+              }
               options.onLine(
                 JSON.stringify({
                   type: 'tool',
@@ -1116,11 +1125,16 @@ export class PRReviewerService {
           };
 
           try {
-            const res = await this.copilotService.sendAndCollectStream(
+            const streamArgs: any[] = [
               session,
               prompt,
               options.onLine ? wrappedOnLine : undefined,
-              ...(attachStory ? [onToolCallback] : []),
+            ];
+            if (options.onLine) {
+              streamArgs.push(onToolCallback);
+            }
+            const res = await this.copilotService.sendAndCollectStream(
+              ...streamArgs,
             );
             results[phaseIdx] = `\n--- Phase ${phase.title} Result ---\n${res}`;
           } catch (err) {

@@ -317,6 +317,7 @@ describe('PRReviewerService', () => {
         mockSession,
         expectedPrompt,
         expect.any(Function),
+        expect.any(Function),
       );
 
       expect(mockSession.disconnect).toHaveBeenCalled();
@@ -1577,6 +1578,7 @@ describe('PRReviewerService', () => {
         mockSession,
         expectedPrompt,
         expect.any(Function),
+        expect.any(Function),
       );
     });
 
@@ -1646,6 +1648,7 @@ describe('PRReviewerService', () => {
       expect(mockCopilotService.sendAndCollectStream).toHaveBeenCalledWith(
         mockSession,
         expectedPrompt,
+        expect.any(Function),
         expect.any(Function),
       );
     });

@@ -25,12 +25,10 @@ Your communication protocol with the host application is strictly JSON Lines (JS
 Every output line MUST be a single, standalone, valid JSON object. Do NOT wrap the JSON objects in an array. Do NOT output markdown fences (like \`\`\`json) wrapping your JSONL output.
 All double quotes inside string values must be escaped as \\". All actual newlines inside string values must be escaped as \\n.
 
-You must choose one of the following JSON formats for each line you output:
-1. Status Updates (for describing your internal thoughts, what files you are reading, or progress):
-   \`{"type": "status", "text": "Analyzing codebase / reading package.json..."}\`
-   *IMPORTANT*: You must never output only status updates in a turn and then stop. If you output a status update, you must either call a tool in the same turn to continue your work (e.g. read a file, list files, search), or you must end your output with the final estimate (type: 'estimate'). Ending a turn with only a status update and no tool call or estimate is forbidden, as it will leave the session stuck.
+For any status updates, progress updates, or internal thoughts that you want to show to the user, you MUST call the "report_intent" tool with the details of what you are doing (e.g., calling report_intent(intent: "Analyzing codebase / reading package.json...")). You are forbidden from outputting status updates as JSON lines.
 
-2. The Final Estimate (when your analysis is complete. In this case, output a single JSON object):
+You must choose one of the following JSON formats for each line you output:
+1. The Final Estimate (when your analysis is complete. In this case, output a single JSON object):
    \`{"type": "estimate", "size": "XS|S|M|L|XL", "text": "Detailed reasoning explaining your estimate, what files/components will need modification, potential complexities, and verification steps in markdown format."}\`
 
 Follow this process:
@@ -40,6 +38,6 @@ Follow this process:
 
 You are forbidden from ending the interaction without returning the "estimate" message in JSONL format.
 
-Start by analyzing the proposed change details and repository, and output a status update followed by a tool call or the final estimate.
+Start by analyzing the proposed change details and repository, and call the "report_intent" tool followed by a tool call or the final estimate.
 `;
 }
