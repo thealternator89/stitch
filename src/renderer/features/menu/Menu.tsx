@@ -65,8 +65,8 @@ const Menu: React.FC<MenuProps> = ({
         <div className="col-sm-6 col-lg-3 mb-4">
           <div className="menu-column menu-column-design">
             <div className="menu-column-header">
-              <i className="fas fa-palette menu-column-icon"></i>
-              <h3 className="menu-column-title">Design</h3>
+              <i className="fas fa-pen-ruler menu-column-icon"></i>
+              <h3 className="menu-column-title">Solution Design</h3>
             </div>
             <div className="d-flex flex-column gap-3">
               <div className="menu-tool-card">
