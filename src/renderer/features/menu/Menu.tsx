@@ -33,7 +33,7 @@ const Menu: React.FC<MenuProps> = ({
 
       <div className="row g-4">
         {/* Ideation Column */}
-        <div className="col-md-3 mb-4">
+        <div className="col-sm-6 col-lg-3 mb-4">
           <div className="menu-column menu-column-ideation">
             <div className="menu-column-header">
               <i className="fas fa-lightbulb menu-column-icon"></i>
@@ -59,7 +59,7 @@ const Menu: React.FC<MenuProps> = ({
         </div>
 
         {/* Design Column */}
-        <div className="col-md-3 mb-4">
+        <div className="col-sm-6 col-lg-3 mb-4">
           <div className="menu-column menu-column-design">
             <div className="menu-column-header">
               <i className="fas fa-palette menu-column-icon"></i>
@@ -99,7 +99,7 @@ const Menu: React.FC<MenuProps> = ({
         </div>
 
         {/* Build Column */}
-        <div className="col-md-3 mb-4">
+        <div className="col-sm-6 col-lg-3 mb-4">
           <div className="menu-column menu-column-build">
             <div className="menu-column-header">
               <i className="fas fa-code menu-column-icon"></i>
@@ -125,7 +125,7 @@ const Menu: React.FC<MenuProps> = ({
         </div>
 
         {/* Review Column */}
-        <div className="col-md-3 mb-4">
+        <div className="col-sm-6 col-lg-3 mb-4">
           <div className="menu-column menu-column-review">
             <div className="menu-column-header">
               <i className="fas fa-clipboard-check menu-column-icon"></i>
