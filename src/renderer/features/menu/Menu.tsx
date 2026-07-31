@@ -16,7 +16,7 @@ const Menu: React.FC<MenuProps> = ({
   onOpenChangelog,
 }) => {
   return (
-    <div className="container mt-2 p-3">
+    <div className="container mt-2 p-3 menu-container">
       {/* Header section with left-aligned logo and right-aligned settings button */}
       <div className="d-flex justify-content-between align-items-center mb-4 mt-0 pb-3 border-bottom">
         <img
@@ -31,7 +31,7 @@ const Menu: React.FC<MenuProps> = ({
         </Link>
       </div>
 
-      <div className="row g-4">
+      <div className="row g-4 menu-row">
         {/* Ideation Column */}
         <div className="col-sm-6 col-lg-3 mb-4">
           <div className="menu-column menu-column-ideation">
