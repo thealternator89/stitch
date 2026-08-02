@@ -327,187 +327,266 @@ const UsageHistory: React.FC = () => {
         ) : (
           /* History Accordion List */
           <div className="d-flex flex-column gap-3">
-            {filteredHistory.map((session) => {
-              const isExpanded = !!expandedSessions[session.id];
+            {(() => {
+              const maxSessionTokens = Math.max(
+                ...filteredHistory.map((s) =>
+                  s.llmUsages
+                    ? s.llmUsages.reduce(
+                        (acc, u) => acc + u.inputTokens + u.outputTokens,
+                        0,
+                      )
+                    : 0,
+                ),
+                0,
+              );
 
-              // Calculate cache stats for this session
-              let sessInput = 0;
-              let sessCached = 0;
-              let sessOutput = 0;
-              if (session.llmUsages) {
-                session.llmUsages.forEach((u) => {
-                  sessInput += u.inputTokens;
-                  sessCached += u.cacheReadTokens;
-                  sessOutput += u.outputTokens;
-                });
-              }
-              const sessCachePercent =
-                sessInput > 0 ? Math.round((sessCached / sessInput) * 100) : 0;
+              return filteredHistory.map((session) => {
+                const isExpanded = !!expandedSessions[session.id];
 
-              return (
-                <div
-                  key={session.id}
-                  className="card shadow-sm border-0 overflow-hidden history-card"
-                >
+                // Calculate cache stats for this session
+                let sessInput = 0;
+                let sessCached = 0;
+                let sessOutput = 0;
+                if (session.llmUsages) {
+                  session.llmUsages.forEach((u) => {
+                    sessInput += u.inputTokens;
+                    sessCached += u.cacheReadTokens;
+                    sessOutput += u.outputTokens;
+                  });
+                }
+                const sessCachePercent =
+                  sessInput > 0
+                    ? Math.round((sessCached / sessInput) * 100)
+                    : 0;
+
+                const sessTotal = sessInput + sessOutput;
+                const relativePercent =
+                  maxSessionTokens > 0
+                    ? (sessTotal / maxSessionTokens) * 100
+                    : 0;
+                const visualPercent =
+                  sessTotal > 0 ? Math.max(relativePercent, 6) : 0;
+                const inputWidth =
+                  sessTotal > 0 ? (sessInput / sessTotal) * visualPercent : 0;
+                const outputWidth =
+                  sessTotal > 0 ? (sessOutput / sessTotal) * visualPercent : 0;
+
+                return (
                   <div
-                    className="card-header bg-body p-3 d-flex align-items-center justify-content-between cursor-pointer border-0"
-                    onClick={() => toggleExpand(session.id)}
-                    style={{ userSelect: 'none' }}
+                    key={session.id}
+                    className="card shadow-sm border-0 overflow-hidden history-card"
                   >
-                    <div className="d-flex align-items-center gap-3 flex-grow-1 flex-wrap">
-                      <div className="history-tool-icon-wrapper">
-                        <i
-                          className={`fas ${getToolIcon(session.toolName)} fs-5`}
-                        ></i>
-                      </div>
-
-                      <div className="flex-grow-1 min-w-150">
-                        <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                          <h6 className="mb-0 fw-bold text-body">
-                            {session.toolName}
-                          </h6>
-                          {session.contextReference && (
-                            <span className="badge bg-secondary-subtle text-secondary-emphasis border px-2 py-1 small">
-                              {session.contextReference}
-                            </span>
-                          )}
+                    <div
+                      className="card-header bg-body p-3 d-flex align-items-center justify-content-between cursor-pointer border-0"
+                      onClick={() => toggleExpand(session.id)}
+                      style={{ userSelect: 'none' }}
+                    >
+                      <div className="d-flex align-items-center gap-3 flex-grow-1 flex-wrap">
+                        <div className="history-tool-icon-wrapper">
+                          <i
+                            className={`fas ${getToolIcon(session.toolName)} fs-5`}
+                          ></i>
                         </div>
-                        <div className="text-muted small">
-                          <i className="far fa-clock me-1"></i>{' '}
-                          {formatTimestamp(session.timestamp)}
+
+                        <div
+                          className="flex-grow-1 min-w-150"
+                          style={{ maxWidth: '240px' }}
+                        >
+                          <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                            <h6 className="mb-0 fw-bold text-body">
+                              {session.toolName}
+                            </h6>
+                            {session.contextReference && (
+                              <span className="badge bg-secondary-subtle text-secondary-emphasis border px-2 py-1 small">
+                                {session.contextReference}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-muted small">
+                            <i className="far fa-clock me-1"></i>{' '}
+                            {formatTimestamp(session.timestamp)}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="me-4 text-start min-w-100">
-                        <span className="text-muted small d-block">Tokens</span>
-                        <strong className="text-secondary-emphasis">
-                          {(sessInput + sessOutput).toLocaleString()}
-                        </strong>
-                      </div>
-
-                      <div className="me-4 text-start min-w-120">
-                        <span className="text-muted small d-block">
-                          AI Output
-                        </span>
-                        <strong className="text-secondary-emphasis">
-                          {session.aiOutput || '-'}
-                        </strong>
-                      </div>
-
-                      <div className="me-4 text-start min-w-120">
-                        <span className="text-muted small d-block">Pushed</span>
-                        {session.pushed ? (
-                          <span className="text-success fw-semibold">
-                            <i className="fas fa-circle-check me-1"></i>{' '}
-                            {session.pushed}
+                        {/* Context Size Relative Visualizer */}
+                        <div
+                          className="d-none d-lg-flex flex-column justify-content-center flex-grow-1 mx-4"
+                          style={{ maxWidth: '180px' }}
+                        >
+                          <span className="text-muted small mb-1">
+                            Context Size
                           </span>
-                        ) : (
-                          <span className="text-muted">-</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <button className="btn btn-sm btn-link text-secondary-emphasis px-2">
-                      <i
-                        className={`fas fa-chevron-${isExpanded ? 'up' : 'down'} transition-transform`}
-                      ></i>
-                    </button>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="card-body bg-body-tertiary border-top p-4 animate__animated animate__fadeIn">
-                      <h6 className="fw-semibold text-secondary mb-3">
-                        <i className="fas fa-chart-pie me-2"></i>LLM Usage
-                        Breakdown
-                      </h6>
-
-                      <div className="table-responsive">
-                        <table className="table table-sm table-hover align-middle mb-0 text-start bg-body border rounded">
-                          <thead>
-                            <tr className="table-light">
-                              <th>Phase / Label</th>
-                              <th>Model</th>
-                              <th className="text-end">Input Tokens</th>
-                              <th className="text-end">Output Tokens</th>
-                              <th className="text-end">Cached Tokens</th>
-                              <th className="text-end">% Cached</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {session.llmUsages &&
-                            session.llmUsages.length > 0 ? (
+                          <div
+                            className="progress"
+                            style={{
+                              height: '8px',
+                              backgroundColor:
+                                'rgba(var(--bs-body-color-rgb), 0.1)',
+                              borderRadius: '4px',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {sessTotal > 0 ? (
                               <>
-                                {session.llmUsages.map((usage, index) => {
-                                  const usageCachePercent =
-                                    usage.inputTokens > 0
-                                      ? Math.round(
-                                          (usage.cacheReadTokens /
-                                            usage.inputTokens) *
-                                            100,
-                                        )
-                                      : 0;
-                                  return (
-                                    <tr key={`${usage.id}-${index}`}>
-                                      <td className="fw-semibold">
-                                        {usage.label}
-                                      </td>
-                                      <td>
-                                        <span className="badge bg-secondary-subtle text-secondary border">
-                                          {usage.model}
-                                        </span>
-                                      </td>
-                                      <td className="text-end font-monospace">
-                                        {usage.inputTokens.toLocaleString()}
-                                      </td>
-                                      <td className="text-end font-monospace">
-                                        {usage.outputTokens.toLocaleString()}
-                                      </td>
-                                      <td className="text-end font-monospace">
-                                        {usage.cacheReadTokens.toLocaleString()}
-                                      </td>
-                                      <td className="text-end font-monospace text-muted">
-                                        {usageCachePercent}%
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                                {session.llmUsages.length > 1 && (
-                                  <tr className="table-light fw-bold border-top">
-                                    <td>Total</td>
-                                    <td></td>
-                                    <td className="text-end font-monospace">
-                                      {sessInput.toLocaleString()}
-                                    </td>
-                                    <td className="text-end font-monospace">
-                                      {sessOutput.toLocaleString()}
-                                    </td>
-                                    <td className="text-end font-monospace">
-                                      {sessCached.toLocaleString()}
-                                    </td>
-                                    <td className="text-end font-monospace text-muted">
-                                      {sessCachePercent}%
-                                    </td>
-                                  </tr>
-                                )}
+                                <div
+                                  className="progress-bar bg-success bg-gradient"
+                                  role="progressbar"
+                                  style={{ width: `${inputWidth}%` }}
+                                  title={`Input: ${sessInput.toLocaleString()} tokens`}
+                                ></div>
+                                <div
+                                  className="progress-bar bg-info bg-gradient"
+                                  role="progressbar"
+                                  style={{ width: `${outputWidth}%` }}
+                                  title={`Output: ${sessOutput.toLocaleString()} tokens`}
+                                ></div>
                               </>
                             ) : (
-                              <tr>
-                                <td
-                                  colSpan={6}
-                                  className="text-center text-muted py-3"
-                                >
-                                  No LLM usage records found for this session.
-                                </td>
-                              </tr>
+                              <div
+                                className="text-center w-100 text-muted small"
+                                style={{ fontSize: '9px', lineHeight: '8px' }}
+                              >
+                                -
+                              </div>
                             )}
-                          </tbody>
-                        </table>
+                          </div>
+                        </div>
+
+                        <div className="me-4 text-start min-w-100">
+                          <span className="text-muted small d-block">
+                            Tokens
+                          </span>
+                          <strong className="text-secondary-emphasis">
+                            {(sessInput + sessOutput).toLocaleString()}
+                          </strong>
+                        </div>
+
+                        <div className="me-4 text-start min-w-120">
+                          <span className="text-muted small d-block">
+                            AI Output
+                          </span>
+                          <strong className="text-secondary-emphasis">
+                            {session.aiOutput || '-'}
+                          </strong>
+                        </div>
+
+                        <div className="me-4 text-start min-w-120">
+                          <span className="text-muted small d-block">
+                            Pushed
+                          </span>
+                          {session.pushed ? (
+                            <span className="text-success fw-semibold">
+                              <i className="fas fa-circle-check me-1"></i>{' '}
+                              {session.pushed}
+                            </span>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
+                        </div>
                       </div>
+
+                      <button className="btn btn-sm btn-link text-secondary-emphasis px-2">
+                        <i
+                          className={`fas fa-chevron-${isExpanded ? 'up' : 'down'} transition-transform`}
+                        ></i>
+                      </button>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+
+                    {isExpanded && (
+                      <div className="card-body bg-body-tertiary border-top p-4 animate__animated animate__fadeIn">
+                        <h6 className="fw-semibold text-secondary mb-3">
+                          <i className="fas fa-chart-pie me-2"></i>LLM Usage
+                          Breakdown
+                        </h6>
+
+                        <div className="table-responsive">
+                          <table className="table table-sm table-hover align-middle mb-0 text-start bg-body border rounded">
+                            <thead>
+                              <tr className="table-light">
+                                <th>Phase / Label</th>
+                                <th>Model</th>
+                                <th className="text-end">Input Tokens</th>
+                                <th className="text-end">Output Tokens</th>
+                                <th className="text-end">Cached Tokens</th>
+                                <th className="text-end">% Cached</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {session.llmUsages &&
+                              session.llmUsages.length > 0 ? (
+                                <>
+                                  {session.llmUsages.map((usage, index) => {
+                                    const usageCachePercent =
+                                      usage.inputTokens > 0
+                                        ? Math.round(
+                                            (usage.cacheReadTokens /
+                                              usage.inputTokens) *
+                                              100,
+                                          )
+                                        : 0;
+                                    return (
+                                      <tr key={`${usage.id}-${index}`}>
+                                        <td className="fw-semibold">
+                                          {usage.label}
+                                        </td>
+                                        <td>
+                                          <span className="badge bg-secondary-subtle text-secondary border">
+                                            {usage.model}
+                                          </span>
+                                        </td>
+                                        <td className="text-end font-monospace">
+                                          {usage.inputTokens.toLocaleString()}
+                                        </td>
+                                        <td className="text-end font-monospace">
+                                          {usage.outputTokens.toLocaleString()}
+                                        </td>
+                                        <td className="text-end font-monospace">
+                                          {usage.cacheReadTokens.toLocaleString()}
+                                        </td>
+                                        <td className="text-end font-monospace text-muted">
+                                          {usageCachePercent}%
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                  {session.llmUsages.length > 1 && (
+                                    <tr className="table-light fw-bold border-top">
+                                      <td>Total</td>
+                                      <td></td>
+                                      <td className="text-end font-monospace">
+                                        {sessInput.toLocaleString()}
+                                      </td>
+                                      <td className="text-end font-monospace">
+                                        {sessOutput.toLocaleString()}
+                                      </td>
+                                      <td className="text-end font-monospace">
+                                        {sessCached.toLocaleString()}
+                                      </td>
+                                      <td className="text-end font-monospace text-muted">
+                                        {sessCachePercent}%
+                                      </td>
+                                    </tr>
+                                  )}
+                                </>
+                              ) : (
+                                <tr>
+                                  <td
+                                    colSpan={6}
+                                    className="text-center text-muted py-3"
+                                  >
+                                    No LLM usage records found for this session.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
       </div>
