@@ -303,10 +303,12 @@ const UsageHistory: React.FC = () => {
               // Calculate cache stats for this session
               let sessInput = 0;
               let sessCached = 0;
+              let sessOutput = 0;
               if (session.llmUsages) {
                 session.llmUsages.forEach((u) => {
                   sessInput += u.inputTokens;
                   sessCached += u.cacheReadTokens;
+                  sessOutput += u.outputTokens;
                 });
               }
               const sessCachePercent =
@@ -397,40 +399,60 @@ const UsageHistory: React.FC = () => {
                           <tbody>
                             {session.llmUsages &&
                             session.llmUsages.length > 0 ? (
-                              session.llmUsages.map((usage, index) => {
-                                const usageCachePercent =
-                                  usage.inputTokens > 0
-                                    ? Math.round(
-                                        (usage.cacheReadTokens /
-                                          usage.inputTokens) *
-                                          100,
-                                      )
-                                    : 0;
-                                return (
-                                  <tr key={`${usage.id}-${index}`}>
-                                    <td className="fw-semibold">
-                                      {usage.label}
-                                    </td>
-                                    <td>
-                                      <span className="badge bg-secondary-subtle text-secondary border">
-                                        {usage.model}
-                                      </span>
+                              <>
+                                {session.llmUsages.map((usage, index) => {
+                                  const usageCachePercent =
+                                    usage.inputTokens > 0
+                                      ? Math.round(
+                                          (usage.cacheReadTokens /
+                                            usage.inputTokens) *
+                                            100,
+                                        )
+                                      : 0;
+                                  return (
+                                    <tr key={`${usage.id}-${index}`}>
+                                      <td className="fw-semibold">
+                                        {usage.label}
+                                      </td>
+                                      <td>
+                                        <span className="badge bg-secondary-subtle text-secondary border">
+                                          {usage.model}
+                                        </span>
+                                      </td>
+                                      <td className="text-end font-monospace">
+                                        {usage.inputTokens.toLocaleString()}
+                                      </td>
+                                      <td className="text-end font-monospace">
+                                        {usage.outputTokens.toLocaleString()}
+                                      </td>
+                                      <td className="text-end font-monospace">
+                                        {usage.cacheReadTokens.toLocaleString()}
+                                      </td>
+                                      <td className="text-end font-monospace text-muted">
+                                        {usageCachePercent}%
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {session.llmUsages.length > 1 && (
+                                  <tr className="table-light fw-bold border-top">
+                                    <td>Total</td>
+                                    <td></td>
+                                    <td className="text-end font-monospace">
+                                      {sessInput.toLocaleString()}
                                     </td>
                                     <td className="text-end font-monospace">
-                                      {usage.inputTokens.toLocaleString()}
+                                      {sessOutput.toLocaleString()}
                                     </td>
                                     <td className="text-end font-monospace">
-                                      {usage.outputTokens.toLocaleString()}
-                                    </td>
-                                    <td className="text-end font-monospace">
-                                      {usage.cacheReadTokens.toLocaleString()}
+                                      {sessCached.toLocaleString()}
                                     </td>
                                     <td className="text-end font-monospace text-muted">
-                                      {usageCachePercent}%
+                                      {sessCachePercent}%
                                     </td>
                                   </tr>
-                                );
-                              })
+                                )}
+                              </>
                             ) : (
                               <tr>
                                 <td
@@ -444,28 +466,6 @@ const UsageHistory: React.FC = () => {
                           </tbody>
                         </table>
                       </div>
-
-                      {sessInput > 0 && (
-                        <div className="d-flex justify-content-between align-items-center mt-3 pt-2 border-top text-muted small">
-                          <span>
-                            Cache performance:{' '}
-                            <strong>{sessCachePercent}%</strong> of input tokens
-                            served from cache.
-                          </span>
-                          <span>
-                            Total session tokens:{' '}
-                            <strong>
-                              {(
-                                sessInput +
-                                (session.llmUsages?.reduce(
-                                  (acc, u) => acc + u.outputTokens,
-                                  0,
-                                ) || 0)
-                              ).toLocaleString()}
-                            </strong>
-                          </span>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
