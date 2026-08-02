@@ -1020,6 +1020,19 @@ app.on('ready', async () => {
   // Initialize SQLite Database
   try {
     databaseService.initializeDatabase();
+    // Non-blocking cleanup of sessions older than 30 days (delayed to prevent startup contention)
+    setTimeout(() => {
+      try {
+        const deletedCount = databaseService.deleteOldSessions(30);
+        if (deletedCount > 0) {
+          console.log(
+            `Cleaned up ${deletedCount} database sessions older than 30 days.`,
+          );
+        }
+      } catch (err) {
+        console.error('Failed to run automated database history cleanup:', err);
+      }
+    }, 2000);
   } catch (err) {
     console.error('Failed to initialize SQLite database:', err);
   }

@@ -10,6 +10,8 @@ import {
   incrementPushedCommentCount,
   incrementPushedStoryCount,
   clearHistory,
+  deleteOldSessions,
+  getDatabase,
 } from '../databaseService';
 
 describe('databaseService', () => {
@@ -125,5 +127,27 @@ describe('databaseService', () => {
 
     clearHistory();
     expect(getHistory().length).toBe(0);
+  });
+
+  it('should support deleting sessions older than specified days', () => {
+    const session1 = createSession('PR Reviewer', 'PR - 1'); // current
+    const session2 = createSession('Story Writer', 'Confluence - 2'); // old
+
+    // Manually set timestamp for session2 to 31 days ago
+    const oldTimestamp = Date.now() - 31 * 24 * 60 * 60 * 1000;
+    const db = getDatabase();
+    db.prepare('UPDATE usage_sessions SET timestamp = ? WHERE id = ?').run(
+      oldTimestamp,
+      session2,
+    );
+
+    expect(getHistory().length).toBe(2);
+
+    const deleted = deleteOldSessions(30);
+    expect(deleted).toBe(1);
+
+    const history = getHistory();
+    expect(history.length).toBe(1);
+    expect(history[0].id).toBe(session1);
   });
 });

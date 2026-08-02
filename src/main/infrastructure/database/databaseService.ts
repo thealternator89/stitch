@@ -219,3 +219,16 @@ export function clearHistory(): void {
   // Clear sessions, cascaded delete handles llm_usages
   db.prepare('DELETE FROM usage_sessions').run();
 }
+
+export function deleteOldSessions(days: number): number {
+  const db = getDatabase();
+  const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000;
+  try {
+    const stmt = db.prepare('DELETE FROM usage_sessions WHERE timestamp < ?');
+    const result = stmt.run(cutoffTime);
+    return result.changes;
+  } catch (err) {
+    console.error(`Failed to delete sessions older than ${days} days:`, err);
+    return 0;
+  }
+}
