@@ -24,6 +24,7 @@ main (Node.js) process from the renderer (Chromium) process.
     The global content area padding has been moved from the root layout to
     individual pages and the `PageLayout` component to allow for truly fixed
     headers that fill the viewport.
+  - **Landing Page & Navigation Menu**: The main menu page is structured into four distinct lifecycle columns: **Ideation** (T-Shirt Size Estimator), **Solution Design** (Story Writer, Test Case Writer), **Build** (Story Elaborator), and **Review** (PR Reviewer). This aligns features with standard software development stages and uses consistent visual treatments and header icons.
 
 ## Configuration Management
 
@@ -91,6 +92,9 @@ locally on the machine.
   - For single-shot operations (Test Case Writer, Story Writer), it uses a transient session.
   - For the **PR Reviewer**, it starts a new transient session per active review phase, executing them in parallel using an asynchronous worker pool (rather than sequentially) to enforce phase isolation.
   - For the **Story Elaborator**, `StoryElaboratorService` maintains a stateful in-memory registry (`activeElaborations = new Map<string, { client: any, session: any }>()`) that keeps the same session alive across multiple user turns/answers.
+  - For the **T-Shirt Size Estimator**, `TShirtEstimatorService` manages stateful Copilot sessions registered by a unique `sessionId` in `activeEstimations = new Map<string, { client: any, session: any, ... }>()` to allow iterative file inspections and stream progress updates until the final estimate is generated.
+- **Session Labels (Telemetry and Tracking):**
+  - To improve diagnostic capabilities and auditability, all Copilot sessions are configured with a descriptive `session.label` (e.g., `'Story Elaborator'`, `'T-Shirt Size Estimator'`, or `'PR Reviewer Phase: <phase>'`). This label is passed to the `@github/copilot-sdk` backend during session creation to tag all telemetry and API requests.
 - **Real-time Streaming & JSONL Protocol:**
   - Does not use a blocking request-response model. Instead, the main process streams generated data progressively to the renderer.
   - For single-shot tools, lines are pushed via `test-case-line` and `story-line` IPC events.
@@ -98,6 +102,9 @@ locally on the machine.
   - For the **Story Elaborator**, lines are emitted via `elaboration-line`. The communication uses a strict JSON Lines (JSONL) protocol, streaming objects of type `status` (thoughts and directory search updates), `question` (with suggested answers for the user), or `plan` (the finalized implementation plan).
   - For the **T-Shirt Size Estimator**, lines are emitted via `tshirt-estimation-line`. The communication uses a strict JSON Lines (JSONL) protocol, streaming objects of type `status` (thoughts and tool progress updates) or `estimate` (the final effort estimate with size and reasoning).
   - Inside `sendAndCollectStream`, a newline buffer fallback processes block-delivered responses when incremental token deltas are skipped during tool executions, ensuring smooth UI status tracking.
+- **Tool Call Status Updates & Report Intent:**
+  - Copilot tool executions (like `grep`, `view`, `bash`, `powershell`) and agent status updates are intercepted by the main process and formatted via `formatToolStatus` to construct clean, user-friendly logging text (e.g., `'grep (pattern)'` or `'view (filename)'`).
+  - Agents communicate their current status, intent, or progress using a custom `report_intent` tool. Tool invocations are captured on execution start and immediately formatted as status logs, which are streamed as JSON objects of `type: "status"` to keep UI status tracking accurate and lightweight.
 - **Usage Metrics Tracking**:
   - For each Copilot session, `CopilotService` listens to the `assistant.usage` event emitted by the Copilot agent.
   - The service tracks token usage metrics, including input tokens (`inputTokens`), output tokens (`outputTokens`), cached tokens (`cacheReadTokens`), model name (`model`), and model multiplier/cost (`cost`), falling back to default values if any metric is missing.
