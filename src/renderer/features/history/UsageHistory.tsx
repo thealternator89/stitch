@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../components/PageLayout';
 import { DbSession } from '../../../types';
 
 const UsageHistory: React.FC = () => {
-  const navigate = useNavigate();
   const [history, setHistory] = useState<DbSession[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -130,23 +128,17 @@ const UsageHistory: React.FC = () => {
   return (
     <PageLayout title="Usage History" maxWidth="100%">
       <div className="container-fluid px-0 animate__animated animate__fadeIn">
-        {/* Back and Clear Actions */}
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <button
-            className="btn btn-outline-secondary d-flex align-items-center gap-2"
-            onClick={() => navigate('/')}
-          >
-            <i className="fas fa-arrow-left"></i> Back to Main Menu
-          </button>
-          {history.length > 0 && (
+        {/* Clear Action */}
+        {history.length > 0 && (
+          <div className="d-flex justify-content-end align-items-center mb-4">
             <button
               className="btn btn-outline-danger d-flex align-items-center gap-2"
               onClick={handleClearHistory}
             >
               <i className="fas fa-trash-can"></i> Clear All History
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Stats Row */}
         <div className="row g-4 mb-4">
@@ -276,11 +268,11 @@ const UsageHistory: React.FC = () => {
               <h5 className="fw-semibold text-secondary">
                 No History Records Found
               </h5>
-              <p className="text-muted mx-auto" style={{ maxWidth: '400px' }}>
-                {history.length === 0
-                  ? 'Run any of the Stitch tools (PR Reviewer, Story Writer, etc.) to start tracking usage statistics automatically.'
-                  : 'No records matched your search query or filter selection.'}
-              </p>
+              {history.length > 0 && (
+                <p className="text-muted mx-auto" style={{ maxWidth: '400px' }}>
+                  No records matched your search query or filter selection.
+                </p>
+              )}
             </div>
           </div>
         ) : (
