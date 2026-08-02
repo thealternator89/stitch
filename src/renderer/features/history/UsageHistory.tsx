@@ -114,7 +114,6 @@ const UsageHistory: React.FC = () => {
     }
   });
 
-  const totalTokens = totalInputTokens + totalOutputTokens;
   const cacheEfficiency =
     totalInputTokens > 0
       ? Math.round((totalCachedTokens / totalInputTokens) * 100)
@@ -138,7 +137,7 @@ const UsageHistory: React.FC = () => {
       <div className="container-fluid px-0 animate__animated animate__fadeIn">
         {/* Stats Row */}
         <div className="row g-4 mb-4">
-          <div className="col-md-4">
+          <div className="col-md-3">
             <div className="card shadow-sm border-0 h-100 bg-gradient-primary text-white">
               <div className="card-body p-4 d-flex align-items-center">
                 <div
@@ -161,7 +160,7 @@ const UsageHistory: React.FC = () => {
             </div>
           </div>
 
-          <div className="col-md-4">
+          <div className="col-md-3">
             <div className="card shadow-sm border-0 h-100 bg-gradient-success text-white">
               <div className="card-body p-4 d-flex align-items-center">
                 <div
@@ -172,21 +171,46 @@ const UsageHistory: React.FC = () => {
                     height: '56px',
                   }}
                 >
-                  <i className="fas fa-microchip fa-lg"></i>
+                  <i className="fas fa-sign-in-alt fa-lg"></i>
                 </div>
                 <div>
                   <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
-                    Total Tokens
+                    Input Tokens
                   </h6>
                   <h3 className="card-title mb-0 fw-bold">
-                    {totalTokens.toLocaleString()}
+                    {totalInputTokens.toLocaleString()}
                   </h3>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="col-md-4">
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 h-100 bg-gradient-info text-white">
+              <div className="card-body p-4 d-flex align-items-center">
+                <div
+                  className="rounded-circle me-3 d-flex align-items-center justify-content-center"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    width: '56px',
+                    height: '56px',
+                  }}
+                >
+                  <i className="fas fa-sign-out-alt fa-lg"></i>
+                </div>
+                <div>
+                  <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
+                    Output Tokens
+                  </h6>
+                  <h3 className="card-title mb-0 fw-bold">
+                    {totalOutputTokens.toLocaleString()}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
             <div className="card shadow-sm border-0 h-100 bg-gradient-warning text-white">
               <div className="card-body p-4 d-flex align-items-center">
                 <div
