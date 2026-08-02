@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { DbSession } from '../../../types';
 
@@ -10,6 +10,9 @@ const UsageHistory: React.FC = () => {
   const [expandedSessions, setExpandedSessions] = useState<
     Record<number, boolean>
   >({});
+
+  const [clearConfirm, setClearConfirm] = useState<boolean>(false);
+  const clearTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load history from SQLite
   const loadHistory = async () => {
@@ -26,21 +29,34 @@ const UsageHistory: React.FC = () => {
 
   useEffect(() => {
     loadHistory();
+    return () => {
+      if (clearTimerRef.current) {
+        clearTimeout(clearTimerRef.current);
+      }
+    };
   }, []);
 
   const handleClearHistory = async () => {
-    if (
-      window.confirm(
-        'Are you sure you want to permanently clear all usage history? This cannot be undone.',
-      )
-    ) {
-      try {
-        await window.electronAPI.clearHistory();
-        setHistory([]);
-        setExpandedSessions({});
-      } catch (err) {
-        console.error('Failed to clear history:', err);
-      }
+    if (!clearConfirm) {
+      setClearConfirm(true);
+      clearTimerRef.current = setTimeout(() => {
+        setClearConfirm(false);
+      }, 3000);
+      return;
+    }
+
+    if (clearTimerRef.current) {
+      clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
+    }
+    setClearConfirm(false);
+
+    try {
+      await window.electronAPI.clearHistory();
+      setHistory([]);
+      setExpandedSessions({});
+    } catch (err) {
+      console.error('Failed to clear history:', err);
     }
   };
 
@@ -125,10 +141,19 @@ const UsageHistory: React.FC = () => {
   const actions =
     history.length > 0 ? (
       <button
-        className="btn btn-outline-danger d-flex align-items-center gap-2"
+        className={
+          clearConfirm
+            ? 'btn btn-danger d-flex align-items-center gap-2 animate__animated animate__pulse animate__infinite'
+            : 'btn btn-outline-danger d-flex align-items-center gap-2'
+        }
         onClick={handleClearHistory}
       >
-        <i className="fas fa-trash-can"></i> Clear All History
+        <i
+          className={
+            clearConfirm ? 'fas fa-exclamation-triangle' : 'fas fa-trash-can'
+          }
+        ></i>{' '}
+        {clearConfirm ? 'Click again to confirm!' : 'Clear All History'}
       </button>
     ) : undefined;
 
