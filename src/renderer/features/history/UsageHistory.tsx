@@ -141,8 +141,15 @@ const UsageHistory: React.FC = () => {
           <div className="col-md-4">
             <div className="card shadow-sm border-0 h-100 bg-gradient-primary text-white">
               <div className="card-body p-4 d-flex align-items-center">
-                <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
-                  <i className="fas fa-history fa-2x"></i>
+                <div
+                  className="rounded-circle me-3 d-flex align-items-center justify-content-center"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    width: '56px',
+                    height: '56px',
+                  }}
+                >
+                  <i className="fas fa-history fa-lg"></i>
                 </div>
                 <div>
                   <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
@@ -157,8 +164,15 @@ const UsageHistory: React.FC = () => {
           <div className="col-md-4">
             <div className="card shadow-sm border-0 h-100 bg-gradient-success text-white">
               <div className="card-body p-4 d-flex align-items-center">
-                <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
-                  <i className="fas fa-microchip fa-2x"></i>
+                <div
+                  className="rounded-circle me-3 d-flex align-items-center justify-content-center"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    width: '56px',
+                    height: '56px',
+                  }}
+                >
+                  <i className="fas fa-microchip fa-lg"></i>
                 </div>
                 <div>
                   <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
@@ -175,8 +189,15 @@ const UsageHistory: React.FC = () => {
           <div className="col-md-4">
             <div className="card shadow-sm border-0 h-100 bg-gradient-warning text-white">
               <div className="card-body p-4 d-flex align-items-center">
-                <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
-                  <i className="fas fa-bolt fa-2x"></i>
+                <div
+                  className="rounded-circle me-3 d-flex align-items-center justify-content-center"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    width: '56px',
+                    height: '56px',
+                  }}
+                >
+                  <i className="fas fa-bolt fa-lg"></i>
                 </div>
                 <div>
                   <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
