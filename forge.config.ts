@@ -97,6 +97,7 @@ const config: ForgeConfig = {
         dependencies: {
           // Explicitly type assert or safely access the dependency
           '@github/copilot-sdk': appPkg.dependencies?.['@github/copilot-sdk'],
+          'better-sqlite3': appPkg.dependencies?.['better-sqlite3'],
         },
       };
 

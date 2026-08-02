@@ -32,6 +32,9 @@ export const mainConfig: Configuration = {
     ],
   },
   target: 'electron-main',
+  externals: {
+    'better-sqlite3': 'commonjs better-sqlite3',
+  },
   plugins,
   resolve: {
     extensions: ['.js', '.ts', '.jsx', '.tsx', '.css', '.json'],
