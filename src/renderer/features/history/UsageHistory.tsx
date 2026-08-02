@@ -389,8 +389,8 @@ const UsageHistory: React.FC = () => {
                         </div>
 
                         <div
-                          className="flex-grow-1 min-w-150"
-                          style={{ maxWidth: '240px' }}
+                          className="flex-shrink-0 min-w-150"
+                          style={{ width: '200px' }}
                         >
                           <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
                             <h6 className="mb-0 fw-bold text-body">
@@ -411,7 +411,7 @@ const UsageHistory: React.FC = () => {
                         {/* Context Size Relative Visualizer */}
                         <div
                           className="d-none d-lg-flex flex-column justify-content-center flex-grow-1 mx-4"
-                          style={{ maxWidth: '180px' }}
+                          style={{ minWidth: '120px' }}
                         >
                           <span className="text-muted small mb-1">
                             Context Size
@@ -450,15 +450,6 @@ const UsageHistory: React.FC = () => {
                               </div>
                             )}
                           </div>
-                        </div>
-
-                        <div className="me-4 text-start min-w-100">
-                          <span className="text-muted small d-block">
-                            Tokens
-                          </span>
-                          <strong className="text-secondary-emphasis">
-                            {(sessInput + sessOutput).toLocaleString()}
-                          </strong>
                         </div>
 
                         <div className="me-4 text-start min-w-120">
