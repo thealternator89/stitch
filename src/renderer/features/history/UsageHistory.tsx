@@ -348,6 +348,13 @@ const UsageHistory: React.FC = () => {
                         </div>
                       </div>
 
+                      <div className="me-4 text-start min-w-100">
+                        <span className="text-muted small d-block">Tokens</span>
+                        <strong className="text-secondary-emphasis">
+                          {(sessInput + sessOutput).toLocaleString()}
+                        </strong>
+                      </div>
+
                       <div className="me-4 text-start min-w-120">
                         <span className="text-muted small d-block">
                           AI Output
