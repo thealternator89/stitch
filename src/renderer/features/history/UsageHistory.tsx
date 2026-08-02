@@ -123,21 +123,19 @@ const UsageHistory: React.FC = () => {
   // Curate unique tool names for filter dropdown
   const uniqueTools = Array.from(new Set(history.map((s) => s.toolName)));
 
-  return (
-    <PageLayout title="Usage History" maxWidth="100%">
-      <div className="container-fluid px-0 animate__animated animate__fadeIn">
-        {/* Clear Action */}
-        {history.length > 0 && (
-          <div className="d-flex justify-content-end align-items-center mb-4">
-            <button
-              className="btn btn-outline-danger d-flex align-items-center gap-2"
-              onClick={handleClearHistory}
-            >
-              <i className="fas fa-trash-can"></i> Clear All History
-            </button>
-          </div>
-        )}
+  const actions =
+    history.length > 0 ? (
+      <button
+        className="btn btn-outline-danger d-flex align-items-center gap-2"
+        onClick={handleClearHistory}
+      >
+        <i className="fas fa-trash-can"></i> Clear All History
+      </button>
+    ) : undefined;
 
+  return (
+    <PageLayout title="Usage History" actions={actions} maxWidth="100%">
+      <div className="container-fluid px-0 animate__animated animate__fadeIn">
         {/* Stats Row */}
         <div className="row g-4 mb-4">
           <div className="col-md-4">
