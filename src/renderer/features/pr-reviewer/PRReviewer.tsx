@@ -64,6 +64,7 @@ const PRReviewer: React.FC = () => {
   const [lastStatusTime, setLastStatusTime] = useState<Date | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
   const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
+  const [dbSessionId, setDbSessionId] = useState<number | null>(null);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedPersona, setSelectedPersona] = useState<string>('None');
   const { models, selectedModel, setSelectedModel, loadingModels } =
@@ -561,6 +562,7 @@ const PRReviewer: React.FC = () => {
 
     try {
       setUsageStats(null);
+      setDbSessionId(null);
       const enabledPhaseIds = activePhases.map((p) => p.id);
       const res = await window.electronAPI.reviewPR(
         repoPath,
@@ -576,6 +578,9 @@ const PRReviewer: React.FC = () => {
       );
 
       let currentUsage = res && res.usage ? res.usage : null;
+      if (res && typeof res.dbSessionId === 'number') {
+        setDbSessionId(res.dbSessionId);
+      }
 
       if (isCriticEnabled) {
         setPhaseProgress((prev) =>
@@ -597,6 +602,7 @@ const PRReviewer: React.FC = () => {
             selectedPR.description,
             selectedModel,
             selectedPersona,
+            res.dbSessionId || undefined,
           );
           if (criticRes && criticRes.result) {
             const critiquedWithIds = criticRes.result.map(
@@ -738,13 +744,18 @@ const PRReviewer: React.FC = () => {
       const isEdited =
         updatedText !== undefined && updatedText !== comment.comment;
 
-      await window.electronAPI.postPRComment(repoPath, prIdentifier, {
-        type: comment.type,
-        file: comment.file,
-        line: comment.line,
-        comment: commentText,
-        edited: isEdited,
-      });
+      await window.electronAPI.postPRComment(
+        repoPath,
+        prIdentifier,
+        {
+          type: comment.type,
+          file: comment.file,
+          line: comment.line,
+          comment: commentText,
+          edited: isEdited,
+        },
+        dbSessionId || undefined,
+      );
 
       // Mark as posted in both lists
       const updateList = (prev: ReviewComment[]) =>

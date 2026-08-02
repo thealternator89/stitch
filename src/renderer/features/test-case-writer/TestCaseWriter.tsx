@@ -56,6 +56,7 @@ const TestCaseWriter: React.FC = () => {
   const [taskType, setTaskType] = useState('Task');
   const [testTaskTitle, setTestTaskTitle] = useState('Testing');
   const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
+  const [dbSessionId, setDbSessionId] = useState<number | null>(null);
   const [issueSource, setIssueSource] = useState('azureDevOps');
 
   useEffect(() => {
@@ -171,6 +172,7 @@ const TestCaseWriter: React.FC = () => {
       const text = generateTicketOrCommentText(mdTable);
       await window.electronAPI.addComment(ticketId, text, {
         edited: testCasesModified,
+        dbSessionId: dbSessionId || undefined,
       });
       alert('Comment added successfully!');
     } catch (err: unknown) {
@@ -198,6 +200,7 @@ const TestCaseWriter: React.FC = () => {
         },
         {
           edited: testCasesModified,
+          dbSessionId: dbSessionId || undefined,
         },
       );
       alert('Task created successfully!');
@@ -264,14 +267,20 @@ const TestCaseWriter: React.FC = () => {
       setTicketData(fetchedTicket);
 
       setUsageStats(null);
+      setDbSessionId(null);
       // 2. Generate Test Cases using Copilot SDK (this will stream lines via event listeners)
       const res = await window.electronAPI.generateTestCases(
         fetchedTicket,
         context,
         selectedModel,
       );
-      if (res && res.usage) {
-        setUsageStats(res.usage);
+      if (res) {
+        if (res.usage) {
+          setUsageStats(res.usage);
+        }
+        if (typeof res.dbSessionId === 'number') {
+          setDbSessionId(res.dbSessionId);
+        }
       }
       triggerNotification(
         'Test Case Generation Complete',

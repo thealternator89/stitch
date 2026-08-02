@@ -1,0 +1,493 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import PageLayout from '../../components/PageLayout';
+import { DbSession } from '../../../types';
+
+const UsageHistory: React.FC = () => {
+  const navigate = useNavigate();
+  const [history, setHistory] = useState<DbSession[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [toolFilter, setToolFilter] = useState<string>('all');
+  const [expandedSessions, setExpandedSessions] = useState<
+    Record<number, boolean>
+  >({});
+
+  // Load history from SQLite
+  const loadHistory = async () => {
+    setLoading(true);
+    try {
+      const data = await window.electronAPI.getHistory();
+      setHistory(data || []);
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const handleClearHistory = async () => {
+    if (
+      window.confirm(
+        'Are you sure you want to permanently clear all usage history? This cannot be undone.',
+      )
+    ) {
+      try {
+        await window.electronAPI.clearHistory();
+        setHistory([]);
+        setExpandedSessions({});
+      } catch (err) {
+        console.error('Failed to clear history:', err);
+      }
+    }
+  };
+
+  const toggleExpand = (id: number) => {
+    setExpandedSessions((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  // Helper to format timestamps
+  const formatTimestamp = (ts: number): string => {
+    const date = new Date(ts);
+    return date.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Helper to get tool icons
+  const getToolIcon = (toolName: string): string => {
+    switch (toolName) {
+      case 'PR Reviewer':
+        return 'fa-code-pull-request text-primary';
+      case 'Story Writer':
+        return 'fa-book-open text-success';
+      case 'Test Case Writer':
+        return 'fa-pen-to-square text-info';
+      case 'Story Elaborator':
+        return 'fa-brain text-warning';
+      case 'T-Shirt Size Estimator':
+        return 'fa-shirt text-indigo';
+      default:
+        return 'fa-chart-bar text-secondary';
+    }
+  };
+
+  // Filter history
+  const filteredHistory = history.filter((session) => {
+    const matchesSearch =
+      (session.contextReference || '')
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      (session.aiOutput || '')
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      (session.pushed || '').toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesTool = toolFilter === 'all' || session.toolName === toolFilter;
+
+    return matchesSearch && matchesTool;
+  });
+
+  // Calculate aggregated stats
+  const totalSessions = history.length;
+
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCachedTokens = 0;
+  let totalCost = 0;
+
+  history.forEach((session) => {
+    if (session.llmUsages) {
+      session.llmUsages.forEach((usage) => {
+        totalInputTokens += usage.inputTokens;
+        totalOutputTokens += usage.outputTokens;
+        totalCachedTokens += usage.cacheReadTokens;
+        totalCost += usage.cost;
+      });
+    }
+  });
+
+  const totalTokens = totalInputTokens + totalOutputTokens;
+  const cacheEfficiency =
+    totalInputTokens > 0
+      ? Math.round((totalCachedTokens / totalInputTokens) * 100)
+      : 0;
+
+  // Curate unique tool names for filter dropdown
+  const uniqueTools = Array.from(new Set(history.map((s) => s.toolName)));
+
+  return (
+    <PageLayout title="Usage History" maxWidth="100%">
+      <div className="container-fluid px-0 animate__animated animate__fadeIn">
+        {/* Back and Clear Actions */}
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <button
+            className="btn btn-outline-secondary d-flex align-items-center gap-2"
+            onClick={() => navigate('/')}
+          >
+            <i className="fas fa-arrow-left"></i> Back to Main Menu
+          </button>
+          {history.length > 0 && (
+            <button
+              className="btn btn-outline-danger d-flex align-items-center gap-2"
+              onClick={handleClearHistory}
+            >
+              <i className="fas fa-trash-can"></i> Clear All History
+            </button>
+          )}
+        </div>
+
+        {/* Stats Row */}
+        <div className="row g-4 mb-4">
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 h-100 bg-gradient-primary text-white">
+              <div className="card-body p-4 d-flex align-items-center">
+                <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
+                  <i className="fas fa-history fa-2x"></i>
+                </div>
+                <div>
+                  <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
+                    Total Runs
+                  </h6>
+                  <h3 className="card-title mb-0 fw-bold">{totalSessions}</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 h-100 bg-gradient-success text-white">
+              <div className="card-body p-4 d-flex align-items-center">
+                <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
+                  <i className="fas fa-microchip fa-2x"></i>
+                </div>
+                <div>
+                  <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
+                    Total Tokens
+                  </h6>
+                  <h3 className="card-title mb-0 fw-bold">
+                    {totalTokens.toLocaleString()}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 h-100 bg-gradient-info text-white">
+              <div className="card-body p-4 d-flex align-items-center">
+                <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
+                  <i className="fas fa-dollar-sign fa-2x"></i>
+                </div>
+                <div>
+                  <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
+                    Estimated Cost
+                  </h6>
+                  <h3 className="card-title mb-0 fw-bold">
+                    $
+                    {totalCost.toLocaleString(undefined, {
+                      minimumFractionDigits: 3,
+                      maximumFractionDigits: 4,
+                    })}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 h-100 bg-gradient-warning text-white">
+              <div className="card-body p-4 d-flex align-items-center">
+                <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
+                  <i className="fas fa-bolt fa-2x"></i>
+                </div>
+                <div>
+                  <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
+                    Cache Savings
+                  </h6>
+                  <h3 className="card-title mb-0 fw-bold">
+                    {cacheEfficiency}%
+                  </h3>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Bar */}
+        <div className="card shadow-sm border-0 mb-4">
+          <div className="card-body p-3">
+            <div className="row g-3">
+              <div className="col-md-8">
+                <div className="input-group">
+                  <span className="input-group-text bg-body-secondary border-end-0">
+                    <i className="fas fa-search text-muted"></i>
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control ps-1"
+                    placeholder="Search by ID, output details, or push status..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="col-md-4">
+                <select
+                  className="form-select"
+                  value={toolFilter}
+                  onChange={(e) => setToolFilter(e.target.value)}
+                >
+                  <option value="all">All Tools</option>
+                  {uniqueTools.map((tool) => (
+                    <option key={tool} value={tool}>
+                      {tool}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Loading / Empty States */}
+        {loading ? (
+          <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="text-muted mt-2">Loading usage logs...</p>
+          </div>
+        ) : filteredHistory.length === 0 ? (
+          <div className="card shadow-sm border-0 text-center py-5">
+            <div className="card-body">
+              <i className="fas fa-history text-muted fa-4x mb-3 opacity-50"></i>
+              <h5 className="fw-semibold text-secondary">
+                No History Records Found
+              </h5>
+              <p className="text-muted mx-auto" style={{ maxWidth: '400px' }}>
+                {history.length === 0
+                  ? 'Run any of the Stitch tools (PR Reviewer, Story Writer, etc.) to start tracking usage statistics automatically.'
+                  : 'No records matched your search query or filter selection.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* History Accordion List */
+          <div className="d-flex flex-column gap-3">
+            {filteredHistory.map((session) => {
+              const isExpanded = !!expandedSessions[session.id];
+
+              // Calculate cache stats for this session
+              let sessInput = 0;
+              let sessCached = 0;
+              let sessCost = 0;
+              if (session.llmUsages) {
+                session.llmUsages.forEach((u) => {
+                  sessInput += u.inputTokens;
+                  sessCached += u.cacheReadTokens;
+                  sessCost += u.cost;
+                });
+              }
+              const sessCachePercent =
+                sessInput > 0 ? Math.round((sessCached / sessInput) * 100) : 0;
+
+              return (
+                <div
+                  key={session.id}
+                  className="card shadow-sm border-0 overflow-hidden history-card"
+                >
+                  <div
+                    className="card-header bg-body p-3 d-flex align-items-center justify-content-between cursor-pointer border-0"
+                    onClick={() => toggleExpand(session.id)}
+                    style={{ userSelect: 'none' }}
+                  >
+                    <div className="d-flex align-items-center gap-3 flex-grow-1 flex-wrap">
+                      <div className="history-tool-icon-wrapper">
+                        <i
+                          className={`fas ${getToolIcon(session.toolName)} fs-5`}
+                        ></i>
+                      </div>
+
+                      <div className="flex-grow-1 min-w-150">
+                        <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                          <h6 className="mb-0 fw-bold text-body">
+                            {session.toolName}
+                          </h6>
+                          {session.contextReference && (
+                            <span className="badge bg-secondary-subtle text-secondary-emphasis border px-2 py-1 small">
+                              {session.contextReference}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-muted small">
+                          <i className="far fa-clock me-1"></i>{' '}
+                          {formatTimestamp(session.timestamp)}
+                        </div>
+                      </div>
+
+                      <div className="me-4 text-start min-w-120">
+                        <span className="text-muted small d-block">
+                          AI Output
+                        </span>
+                        <strong className="text-secondary-emphasis">
+                          {session.aiOutput || '-'}
+                        </strong>
+                      </div>
+
+                      <div className="me-4 text-start min-w-120">
+                        <span className="text-muted small d-block">Pushed</span>
+                        {session.pushed ? (
+                          <span className="text-success fw-semibold">
+                            <i className="fas fa-circle-check me-1"></i>{' '}
+                            {session.pushed}
+                          </span>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </div>
+
+                      <div className="me-4 text-start min-w-80">
+                        <span className="text-muted small d-block">
+                          Session Cost
+                        </span>
+                        <strong className="text-secondary-emphasis">
+                          $
+                          {sessCost.toLocaleString(undefined, {
+                            minimumFractionDigits: 3,
+                            maximumFractionDigits: 4,
+                          })}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <button className="btn btn-sm btn-link text-secondary-emphasis px-2">
+                      <i
+                        className={`fas fa-chevron-${isExpanded ? 'up' : 'down'} transition-transform`}
+                      ></i>
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="card-body bg-body-tertiary border-top p-4 animate__animated animate__fadeIn">
+                      <h6 className="fw-semibold text-secondary mb-3">
+                        <i className="fas fa-chart-pie me-2"></i>LLM Usage
+                        Breakdown
+                      </h6>
+
+                      <div className="table-responsive">
+                        <table className="table table-sm table-hover align-middle mb-0 text-start bg-body border rounded">
+                          <thead>
+                            <tr className="table-light">
+                              <th>Phase / Label</th>
+                              <th>Model</th>
+                              <th className="text-end">Input Tokens</th>
+                              <th className="text-end">Output Tokens</th>
+                              <th className="text-end">Cached Tokens</th>
+                              <th className="text-end">% Cached</th>
+                              <th className="text-end">Estimated Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {session.llmUsages &&
+                            session.llmUsages.length > 0 ? (
+                              session.llmUsages.map((usage, index) => {
+                                const usageCachePercent =
+                                  usage.inputTokens > 0
+                                    ? Math.round(
+                                        (usage.cacheReadTokens /
+                                          usage.inputTokens) *
+                                          100,
+                                      )
+                                    : 0;
+                                return (
+                                  <tr key={`${usage.id}-${index}`}>
+                                    <td className="fw-semibold">
+                                      {usage.label}
+                                    </td>
+                                    <td>
+                                      <span className="badge bg-secondary-subtle text-secondary border">
+                                        {usage.model}
+                                      </span>
+                                    </td>
+                                    <td className="text-end font-monospace">
+                                      {usage.inputTokens.toLocaleString()}
+                                    </td>
+                                    <td className="text-end font-monospace">
+                                      {usage.outputTokens.toLocaleString()}
+                                    </td>
+                                    <td className="text-end font-monospace">
+                                      {usage.cacheReadTokens.toLocaleString()}
+                                    </td>
+                                    <td className="text-end font-monospace text-muted">
+                                      {usageCachePercent}%
+                                    </td>
+                                    <td className="text-end font-monospace text-muted-emphasis">
+                                      $
+                                      {usage.cost.toLocaleString(undefined, {
+                                        minimumFractionDigits: 3,
+                                        maximumFractionDigits: 4,
+                                      })}
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            ) : (
+                              <tr>
+                                <td
+                                  colSpan={7}
+                                  className="text-center text-muted py-3"
+                                >
+                                  No LLM usage records found for this session.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {sessInput > 0 && (
+                        <div className="d-flex justify-content-between align-items-center mt-3 pt-2 border-top text-muted small">
+                          <span>
+                            Cache performance:{' '}
+                            <strong>{sessCachePercent}%</strong> of input tokens
+                            served from cache.
+                          </span>
+                          <span>
+                            Total session tokens:{' '}
+                            <strong>
+                              {(
+                                sessInput +
+                                (session.llmUsages?.reduce(
+                                  (acc, u) => acc + u.outputTokens,
+                                  0,
+                                ) || 0)
+                              ).toLocaleString()}
+                            </strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </PageLayout>
+  );
+};
+
+export default UsageHistory;

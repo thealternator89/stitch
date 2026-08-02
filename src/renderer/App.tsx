@@ -7,6 +7,7 @@ import StoryElaborator from './features/story-elaborator/StoryElaborator';
 import PRReviewer from './features/pr-reviewer/PRReviewer';
 import TShirtEstimator from './features/tshirt-estimator/TShirtEstimator';
 import Settings from './features/settings/components/Settings';
+import UsageHistory from './features/history/UsageHistory';
 import { TimeoutProvider } from './context/TimeoutContext';
 import { UpdateStatus, EnvironmentCheckResult, CopilotAuth } from '../types';
 
@@ -185,6 +186,7 @@ const App: React.FC = () => {
             <Route path="/settings" element={<Settings />} />
             <Route path="/pr-reviewer" element={<PRReviewer />} />
             <Route path="/tshirt-estimator" element={<TShirtEstimator />} />
+            <Route path="/history" element={<UsageHistory />} />
           </Routes>
         </div>
 

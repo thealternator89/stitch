@@ -8,6 +8,7 @@ import {
   ReviewPhase,
   ReviewComment,
   CopilotResult,
+  DbSession,
 } from '../types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -57,13 +58,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addComment: (
     ticketId: string,
     text: string,
-    options?: { edited?: boolean },
+    options?: { edited?: boolean; dbSessionId?: number },
   ) => ipcRenderer.invoke('add-comment', ticketId, text, options),
   createTicket: (
     type: string,
     parentTicketId: string,
     data: TicketData,
-    options?: { edited?: boolean },
+    options?: { edited?: boolean; dbSessionId?: number },
   ) => ipcRenderer.invoke('create-ticket', type, parentTicketId, data, options),
   checkCopilotAuth: () => ipcRenderer.invoke('check-copilot-auth'),
   checkEnvironment: () => ipcRenderer.invoke('check-environment'),
@@ -233,12 +234,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       comment: string;
       edited?: boolean;
     },
+    dbSessionId?: number,
   ): Promise<void> =>
     ipcRenderer.invoke(
       'pr-reviewer:post-comment',
       repoPath,
       prUrlOrId,
       comment,
+      dbSessionId,
     ),
   critiquePRComments: (
     repoPath: string,
@@ -246,6 +249,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     prDescription?: string,
     modelOverride?: string,
     persona?: string,
+    dbSessionId?: number,
   ): Promise<CopilotResult<ReviewComment[]>> =>
     ipcRenderer.invoke(
       'pr-reviewer:critique-comments',
@@ -254,7 +258,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       prDescription,
       modelOverride,
       persona,
+      dbSessionId,
     ),
+
+  getHistory: (): Promise<DbSession[]> => ipcRenderer.invoke('get-history'),
+  clearHistory: (): Promise<void> => ipcRenderer.invoke('clear-history'),
 
   showNotification: (title: string, body: string): Promise<void> =>
     ipcRenderer.invoke('show-notification', title, body),

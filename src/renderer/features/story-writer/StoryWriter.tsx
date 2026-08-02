@@ -21,6 +21,7 @@ const StoryWriter: React.FC = () => {
   const [featureType, setFeatureType] = useState('Feature');
   const [storyType, setStoryType] = useState('Product Backlog Item');
   const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
+  const [dbSessionId, setDbSessionId] = useState<number | null>(null);
   const [issueSource, setIssueSource] = useState('azureDevOps');
 
   useEffect(() => {
@@ -224,14 +225,20 @@ const StoryWriter: React.FC = () => {
       setPageData(fetchedPage);
 
       setUsageStats(null);
+      setDbSessionId(null);
       // 2. Generate Stories using Copilot SDK (this will stream lines via event listeners)
       const res = await window.electronAPI.generateStories(
         fetchedPage,
         context,
         selectedModel,
       );
-      if (res && res.usage) {
-        setUsageStats(res.usage);
+      if (res) {
+        if (res.usage) {
+          setUsageStats(res.usage);
+        }
+        if (typeof res.dbSessionId === 'number') {
+          setDbSessionId(res.dbSessionId);
+        }
       }
       triggerNotification(
         'Story Generation Complete',
@@ -278,11 +285,18 @@ const StoryWriter: React.FC = () => {
 
     setCreatingStories((prev) => ({ ...prev, [index]: true }));
     try {
-      await window.electronAPI.createTicket(storyType, featureId, {
-        title: story.title,
-        description: story.description,
-        acceptanceCriteria: story.acceptanceCriteria,
-      });
+      await window.electronAPI.createTicket(
+        storyType,
+        featureId,
+        {
+          title: story.title,
+          description: story.description,
+          acceptanceCriteria: story.acceptanceCriteria,
+        },
+        {
+          dbSessionId: dbSessionId || undefined,
+        },
+      );
 
       setCreatedStories((prev) => ({ ...prev, [index]: true }));
       setCollapsedStories((prev) => ({ ...prev, [index]: true }));

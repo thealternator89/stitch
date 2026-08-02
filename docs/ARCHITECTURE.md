@@ -35,6 +35,16 @@ locally on the machine.
 - **IPC Access:** The renderer fetches and saves settings through the
   `get-settings` and `save-settings` IPC handlers.
 
+## Usage History & Local Database
+
+We use a local SQLite database (`better-sqlite3`) to persist the usage history of the application.
+
+- **Storage Location:** The database file (`history.db`) is stored in the application's user data directory (retrieved via `app.getPath('userData')`). During automated testing, it falls back to an in-memory database to prevent side effects.
+- **Database Schema:**
+  - `usage_sessions`: Records the overall usage session, tracking the tool name, external context reference (e.g., `"PR - 123"`, `"Ticket - 456"`), AI output summary, pushed items status, session cost, and completion timestamp.
+  - `llm_usages`: Records phase-by-phase or turn-by-turn LLM usage (linked to `usage_sessions` via a foreign key with cascade deletion), tracking the specific model used, input tokens, output tokens, cached tokens, cost, and multiplier.
+- **IPC Access:** The renderer queries history logs through `get-history` and deletes records via `clear-history`. When external tools push comment or ticket changes to remote repositories (Azure DevOps or GitHub), the frontend updates the associated database session using the `dbSessionId` key.
+
 ## External Integrations
 
 ### Azure DevOps

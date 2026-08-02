@@ -981,3 +981,84 @@ tr.is-dragging {
     flex-grow: 1;
   }
 }
+
+/* Usage History Dashboard Styles */
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6) !important;
+}
+
+.bg-gradient-success {
+  background: linear-gradient(135deg, #047857, #10b981) !important;
+}
+
+.bg-gradient-info {
+  background: linear-gradient(135deg, #0369a1, #0ea5e9) !important;
+}
+
+.bg-gradient-warning {
+  background: linear-gradient(135deg, #b45309, #f59e0b) !important;
+}
+
+.bg-gradient-primary,
+.bg-gradient-success,
+.bg-gradient-info,
+.bg-gradient-warning {
+  color: #ffffff !important;
+}
+
+.bg-gradient-primary .text-white-50,
+.bg-gradient-success .text-white-50,
+.bg-gradient-info .text-white-50,
+.bg-gradient-warning .text-white-50 {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.history-card {
+  transition: all 0.2s ease-in-out;
+  border: 1px solid var(--bs-border-color) !important;
+}
+
+.history-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08) !important;
+  border-color: var(--bs-primary-border-subtle) !important;
+}
+
+[data-bs-theme='dark'] .history-card:hover {
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.25) !important;
+}
+
+.history-tool-icon-wrapper {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background-color: var(--bs-secondary-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--bs-border-color);
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.transition-transform {
+  transition: transform 0.2s ease-in-out;
+}
+
+.cursor-pointer:hover .transition-transform {
+  color: var(--bs-primary);
+}
+
+.min-w-150 {
+  min-width: 150px;
+}
+
+.min-w-120 {
+  min-width: 120px;
+}
+
+.min-w-80 {
+  min-width: 80px;
+}
