@@ -40,6 +40,8 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+        env:
+          npm_config_msvs_version: '2022'
 
       - name: Run Linter
         run: npm run lint
@@ -67,11 +69,14 @@ jobs:
       - name: Build Electron App
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.publish == true) }}
         run: npm run make
+        env:
+          npm_config_msvs_version: '2022'
 
       - name: Publish Electron App
         if: github.event_name == 'workflow_dispatch' && inputs.publish == true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_msvs_version: '2022'
         run: npm run publish
 
       - name: Upload Artifacts
