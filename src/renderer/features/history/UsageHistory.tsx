@@ -278,7 +278,7 @@ const UsageHistory: React.FC = () => {
                   <input
                     type="text"
                     className="form-control ps-1"
-                    placeholder="Search by ID, output details, or push status..."
+                    placeholder="Search by ID, produced details, or accepted status..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -454,7 +454,7 @@ const UsageHistory: React.FC = () => {
 
                         <div className="me-4 text-start min-w-120">
                           <span className="text-muted small d-block">
-                            AI Output
+                            Produced
                           </span>
                           <strong className="text-secondary-emphasis">
                             {session.aiOutput || '-'}
@@ -463,7 +463,7 @@ const UsageHistory: React.FC = () => {
 
                         <div className="me-4 text-start min-w-120">
                           <span className="text-muted small d-block">
-                            Pushed
+                            Accepted
                           </span>
                           {session.pushed ? (
                             <span className="text-success fw-semibold">
