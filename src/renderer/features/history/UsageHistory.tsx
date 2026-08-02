@@ -160,6 +160,11 @@ const UsageHistory: React.FC = () => {
   return (
     <PageLayout title="Usage History" actions={actions} maxWidth="100%">
       <div className="container-fluid px-0 animate__animated animate__fadeIn">
+        <div className="text-muted small mb-3 text-start">
+          <i className="fas fa-info-circle me-1"></i> Showing history
+          accumulated in the last 30 days.
+        </div>
+
         {/* Stats Row */}
         <div className="row g-4 mb-4">
           <div className="col-md-3">
