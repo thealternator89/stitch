@@ -103,7 +103,6 @@ const UsageHistory: React.FC = () => {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let totalCachedTokens = 0;
-  let totalCost = 0;
 
   history.forEach((session) => {
     if (session.llmUsages) {
@@ -111,7 +110,6 @@ const UsageHistory: React.FC = () => {
         totalInputTokens += usage.inputTokens;
         totalOutputTokens += usage.outputTokens;
         totalCachedTokens += usage.cacheReadTokens;
-        totalCost += usage.cost;
       });
     }
   });
@@ -142,7 +140,7 @@ const UsageHistory: React.FC = () => {
 
         {/* Stats Row */}
         <div className="row g-4 mb-4">
-          <div className="col-md-3">
+          <div className="col-md-4">
             <div className="card shadow-sm border-0 h-100 bg-gradient-primary text-white">
               <div className="card-body p-4 d-flex align-items-center">
                 <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
@@ -158,7 +156,7 @@ const UsageHistory: React.FC = () => {
             </div>
           </div>
 
-          <div className="col-md-3">
+          <div className="col-md-4">
             <div className="card shadow-sm border-0 h-100 bg-gradient-success text-white">
               <div className="card-body p-4 d-flex align-items-center">
                 <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
@@ -176,29 +174,7 @@ const UsageHistory: React.FC = () => {
             </div>
           </div>
 
-          <div className="col-md-3">
-            <div className="card shadow-sm border-0 h-100 bg-gradient-info text-white">
-              <div className="card-body p-4 d-flex align-items-center">
-                <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
-                  <i className="fas fa-dollar-sign fa-2x"></i>
-                </div>
-                <div>
-                  <h6 className="card-subtitle mb-1 text-white text-opacity-75 text-uppercase fw-semibold small">
-                    Estimated Cost
-                  </h6>
-                  <h3 className="card-title mb-0 fw-bold">
-                    $
-                    {totalCost.toLocaleString(undefined, {
-                      minimumFractionDigits: 3,
-                      maximumFractionDigits: 4,
-                    })}
-                  </h3>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="col-md-3">
+          <div className="col-md-4">
             <div className="card shadow-sm border-0 h-100 bg-gradient-warning text-white">
               <div className="card-body p-4 d-flex align-items-center">
                 <div className="rounded-circle bg-white bg-opacity-20 p-3 me-3">
@@ -284,12 +260,10 @@ const UsageHistory: React.FC = () => {
               // Calculate cache stats for this session
               let sessInput = 0;
               let sessCached = 0;
-              let sessCost = 0;
               if (session.llmUsages) {
                 session.llmUsages.forEach((u) => {
                   sessInput += u.inputTokens;
                   sessCached += u.cacheReadTokens;
-                  sessCost += u.cost;
                 });
               }
               const sessCachePercent =
@@ -349,19 +323,6 @@ const UsageHistory: React.FC = () => {
                           <span className="text-muted">-</span>
                         )}
                       </div>
-
-                      <div className="me-4 text-start min-w-80">
-                        <span className="text-muted small d-block">
-                          Session Cost
-                        </span>
-                        <strong className="text-secondary-emphasis">
-                          $
-                          {sessCost.toLocaleString(undefined, {
-                            minimumFractionDigits: 3,
-                            maximumFractionDigits: 4,
-                          })}
-                        </strong>
-                      </div>
                     </div>
 
                     <button className="btn btn-sm btn-link text-secondary-emphasis px-2">
@@ -388,7 +349,6 @@ const UsageHistory: React.FC = () => {
                               <th className="text-end">Output Tokens</th>
                               <th className="text-end">Cached Tokens</th>
                               <th className="text-end">% Cached</th>
-                              <th className="text-end">Estimated Cost</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -425,20 +385,13 @@ const UsageHistory: React.FC = () => {
                                     <td className="text-end font-monospace text-muted">
                                       {usageCachePercent}%
                                     </td>
-                                    <td className="text-end font-monospace text-muted-emphasis">
-                                      $
-                                      {usage.cost.toLocaleString(undefined, {
-                                        minimumFractionDigits: 3,
-                                        maximumFractionDigits: 4,
-                                      })}
-                                    </td>
                                   </tr>
                                 );
                               })
                             ) : (
                               <tr>
                                 <td
-                                  colSpan={7}
+                                  colSpan={6}
                                   className="text-center text-muted py-3"
                                 >
                                   No LLM usage records found for this session.
