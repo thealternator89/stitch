@@ -44,6 +44,8 @@ jobs:
 
       - name: Set Version
         shell: bash
+        env:
+          IS_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true }}
         run: |
           VERSION=$(date +'%Y.%-m.%-d')
           if [ "${GITHUB_REF_NAME}" != "main" ]; then
@@ -51,6 +53,8 @@ jobs:
             # Squirrel for Windows limits the 'special version' part to 20 characters.
             BRANCH_LABEL=$(echo ${GITHUB_REF_NAME} | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | cut -c 1-20 | sed 's/-*$//')
             VERSION="${VERSION}-${BRANCH_LABEL}"
+          elif [ "${IS_PUBLISH}" != "true" ]; then
+            VERSION="${VERSION}-prerelease"
           fi
           echo "Setting version to: $VERSION"
           npm version $VERSION --no-git-tag-version
