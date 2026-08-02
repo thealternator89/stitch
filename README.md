@@ -27,107 +27,64 @@ automate reviews without losing focus or context.
 - **Accelerate Planning and Testing**: Generate comprehensive user stories and
   test cases from tickets in seconds, then instantly push them back to Azure
   DevOps or GitHub as stories or child tasks/sub-issues.
+- **Rapid T-Shirt Effort Estimation**: Automatically estimate the size (XS, S, M, L, XL)
+  and complexity of a proposed change by letting Copilot inspect the files in your
+  repository safely via isolated git worktrees.
 
 ## Core Features
 
-- **PR Reviewer (Automated local reviews)**:
-  - Automatically conducts code reviews divided into customizable, isolated
-    review phases.
-  - **Parallel Review Execution**: Run review phases in parallel using an
-    asynchronous worker pool, with configurable worker counts via a UI slider.
-  - **Git Worktree Isolation**: Reviews can run in a separate git worktree
-    directory instead of directly on your active working directory, avoiding any
-    disruption to your current staging area/unstaged changes. Includes a cleanup
-    utility to prune stale worktree directories.
-  - Features **Git Workspace Safety**: requires zero uncommitted changes (when
-    running directly in the repository), captures original branch reference,
-    checks out the PR branch, and safely restores your original branch state.
-  - Dynamically filters eligible phases based on modified file paths using glob
-    patterns (e.g., only run C# analysis on `.cs` files).
-  - Employs shared templates to enforce consistent roles, instructions, or
-    response formats across phases.
-  - Optionally attaches full pull request descriptions for richer target and
-    requirement context.
-  - **Linked Work Item & Documentation Context**: Optionally attaches linked
-    Azure DevOps or GitHub user stories/issues. This automatically extracts Confluence
-    documentation links and equips the Copilot session with a custom
-    `request_documentation` tool to fetch and read their contents.
-  - **Critic Phase**: Run a manual "Check Comments" evaluation pass after review phases finish. The AI Critic approves, edits, merges, or rejects comments with explicit reasons (e.g. "False positive", "Out of scope"), allowing toggling between Critiqued and Unvalidated comment views.
-  - Displays real-time streaming status logs, phase success indicators, general
-    review feedback, and line-specific comments enriched with local code
-    context.
-  - Publishes review feedback directly to Azure DevOps or GitHub as active, line-anchored
-    discussion threads/comments.
-  - For configuration details, see
-    [docs/pr-reviewer/README.md](./docs/pr-reviewer/README.md).
-- **Story Elaborator (Interactive planning)**:
-  - Interactive, multi-turn dialog with GitHub Copilot to analyze an Azure
-    DevOps or GitHub ticket and elaborate it into a detailed markdown implementation
-    plan.
-  - **Git Worktree Isolation & Branch Selection**: Automatically fetches the
-    latest target branch reference from origin and spins up an isolated git
-    worktree for elaboration sessions, allowing the AI to safely perform code
-    analysis and write the plan to the filesystem without interrupting your
-    working directory.
-  - **Dual Operating Modes**:
-    - _With Repository_: Initializes the Copilot session using the local
-      directory (or the isolated worktree path) as the workspace context,
-      allowing the model to use built-in tools (reading files, browsing
-      directories) to analyze code and write the final implementation plan file.
-    - _Without Repository_: Disables LLM filesystem tools and runs entirely
-      context-free, building the plan solely from ticket details and user
-      replies.
-  - **Context-Aware Documentation Retrieval**: In either operating mode, if the
-    ticket details contain Confluence page links, the Story Elaborator
-    automatically identifies them, fetches their titles, and provides the custom
-    `request_documentation` tool to the Copilot session so that the AI can fetch
-    and read their contents to enrich the implementation plan.
-  - Interactive Q&A chat interface with quick-select suggested answer pill
-    buttons.
-  - Streams real-time logging status updates from the Copilot session.
-  - Option to post the final plan as an Azure DevOps or GitHub comment.
-- **Test Case Writer (Automatic test case generation)**:
-  - Integration with **Azure DevOps / GitHub Search** via an autocomplete dropdown,
-    supporting debounced queries to search work items/issues by matching title or ID
-    text, with automatic prioritized exact-ID fetching.
-  - **Basic Test Case Editing**: Includes a drag-and-drop table for reordering
-    generated rows, a visual indicator during generation, and the ability to
-    delete and restore test cases directly inside the application.
-  - Ability to seamlessly write generated test cases back to Azure DevOps or GitHub as
-    **Comments** or new **Child Tasks / Sub-issues** (created as linked 'Task' or sub-issue items with an
-    AI disclaimer).
-  - Integration with **GitHub Copilot SDK** to automatically generate
-    comprehensive test cases based on ticket context, with the ability to
-    **select specific models** (e.g., GPT-4o, Claude 3.5 Sonnet).
-  - Markdown support with GFM (tables, lists, etc.) for rendered results.
+Stitch's features are organized into columns on the landing page representing key stages of the software development lifecycle:
+
+### Ideation
+
+- **T-Shirt Size Estimator (Complexity & Effort Estimator)**:
+  - Automatically estimates the effort size (XS, S, M, L, XL) and complexity of a proposed change.
+  - Leverages GitHub Copilot SDK with local repository access to search, analyze, and inspect the codebase structure and existing implementations before formulating the estimate.
+  - Uses **Git Worktree Isolation** to fetch the remote target branch and spin up an isolated, temporary worktree to inspect code files and construct the estimate without modifying your workspace files.
+  - Streams real-time streaming status updates via a custom status protocol, detailing LLM tool execution steps and intermediate thoughts.
+
+### Solution Design
+
 - **Story Writer (Requirements generator)**:
-  - **Card-Based UI**: Modernized card layout for navigating and configuring
-    user story generation.
-  - Integration with **Confluence Page Search** via an autocomplete dropdown,
-    supporting debounced queries to search space pages by matching title or Page
-    ID.
-  - **Feature ID Autocomplete Search**: Quickly search Azure DevOps or GitHub Features with
-    automatic project/type/label filtering, moving configuration to Settings.
-  - Prompts **GitHub Copilot SDK** to generate structured JSON containing user
-    stories with Titles, Descriptions, and Acceptance Criteria, using your
-    **chosen AI model**.
-  - Ability to selectively choose generated stories and write them back to Azure
-    DevOps or GitHub as new **Stories / Issues** linked under a specific
-    Feature.
+  - **Card-Based UI**: Modernized card layout for navigating and configuring user story generation.
+  - Integration with **Confluence Page Search** via an autocomplete dropdown, supporting CQL query searches to retrieve page content for rich ticket context.
+  - **Feature ID Autocomplete Search**: Quickly search Azure DevOps or GitHub Features with automatic project/type/label filtering.
+  - Prompts GitHub Copilot SDK to generate structured JSON containing user stories (Titles, Descriptions, Acceptance Criteria) using your **chosen AI model**.
+  - Ability to selectively choose generated stories and write them back to Azure DevOps or GitHub as new stories or issues linked under the Feature.
+- **Test Case Writer (Automatic test case generation)**:
+  - Search Azure DevOps work items or GitHub issues to use as context via autocomplete dropdowns.
+  - Automatically generates comprehensive test cases based on ticket context using selectable models (e.g., GPT-4o, Claude 3.5 Sonnet).
+  - **Basic Test Case Editing**: Includes a drag-and-drop table for reordering generated rows, deleting, and restoring test cases.
+  - Write test cases back to Azure DevOps/GitHub as comments or new child tasks/sub-issues.
+
+### Build
+
+- **Story Elaborator (Interactive planning)**:
+  - Interactive, multi-turn chat with Copilot to analyze tickets and elaborate them into detailed markdown implementation plans.
+  - **Git Worktree Isolation & Branch Selection**: Spins up isolated git worktrees at the latest branch target to analyze code and write plans to the repository without interrupting your working directory.
+  - **Dual Operating Modes**: Can run with full repository file access (utilizing LLM filesystem tools to read files and find files) or without repository (text context only).
+  - Retrieve Confluence pages automatically if referenced in ticket links to enrich the implementation planning.
+  - Option to save the plan directly to the repository (e.g., `implementation_plan.md`) and/or post it as a comment on the ticket.
+
+### Review
+
+- **PR Reviewer (Automated local reviews)**:
+  - Conducts automated multi-phase reviews based on local guidelines (`~/.stitch/pr-reviewer`).
+  - **Parallel Review Execution**: Run review phases concurrently using an asynchronous worker pool, speeding up execution.
+  - **Git Worktree Isolation**: Run reviews in temporary worktrees to prevent changes or dirty workdirs from interfering.
+  - **Git Workspace Safety**: Restores the repository to your original checkout state when done.
+  - Dynamic file filtering per phase using include/exclude glob patterns.
+  - **Critic Phase**: Evaluation pass allowing users to approve, edit, or reject AI comments before posting.
+  - Streams real-time feedback and line-anchored comments directly back to Azure DevOps/GitHub.
+  - For configuration details, see [docs/pr-reviewer/README.md](./docs/pr-reviewer/README.md).
+
+### Settings & Customization
+
 - **Persistent Settings & Prompt Customization**:
-  - **Prompt Customization**: Fine-tune the base and detail prompt templates
-    used by the **Test Case Writer**, **Story Writer**, and **Story
-    Elaborator**. Includes an integrated **Prompt Complexity Check** powered by
-    Copilot to validate templates, estimate token complexity, detect rule
-    contradictions, and catch safety issues.
-  - Securely store Azure DevOps or GitHub credentials, Confluence tokens, and project
-    configurations locally. Select a default Copilot model and actively check
-    the status of local GitHub Copilot CLI authentication.
-  - **Copilot CLI Authentication Status Checks**: Monitors GitHub Copilot connection
-    on startup, alerts the user with an interactive setup and troubleshooting
-    overlay if credentials are not found, and displays a clickable connection
-    status icon in the application footer for quick status verification.
-  - Features a fixed top panel for quick access to save and back actions.
+  - Securely store Azure DevOps/GitHub PATs, Confluence tokens, and project configurations locally.
+  - Customise base prompts and check prompt complexity using Copilot check tool.
+  - Local Copilot CLI dependency wizard to automatically manage CLI installations.
+  - Monitors GitHub Copilot connection on startup, alerts the user with an interactive setup and troubleshooting overlay if credentials are not found, and displays a clickable connection status icon in the application footer.
 
 ## Tech Stack
 
