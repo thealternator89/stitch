@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/logo-full.png" alt="Stitch Logo" width="600" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-full-dark.png">
+    <img alt="Stitch Logo" src="assets/logo-full.png" width="600">
+  </picture>
 </p>
 
 Stitch is an AI-powered desktop assistant designed for senior engineers, along
