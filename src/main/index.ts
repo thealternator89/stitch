@@ -31,6 +31,7 @@ import {
   encryptSettings,
   migrateStoredSettings,
 } from './infrastructure/settingsSecureStorage';
+import * as databaseService from './infrastructure/database/databaseService';
 
 // Initialize auto-updates
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -118,6 +119,10 @@ if (require('electron-squirrel-startup')) {
   app.quit();
 }
 
+// Maps to associate interactive session IDs with SQLite database session IDs
+const elaborationsDbSessions = new Map<string, number>();
+const estimationsDbSessions = new Map<string, number>();
+
 async function getDecryptedSettings(): Promise<AppSettings> {
   const s = await initStore();
   const rawSettings = (s.get('settings') ?? {}) as AppSettings;
@@ -133,6 +138,14 @@ async function saveEncryptedSettings(settings: AppSettings): Promise<void> {
 // IPC Handlers
 ipcMain.handle('get-settings', async () => {
   return getDecryptedSettings();
+});
+
+ipcMain.handle('get-history', async () => {
+  return databaseService.getHistory();
+});
+
+ipcMain.handle('clear-history', async () => {
+  return databaseService.clearHistory();
 });
 
 ipcMain.handle('get-version-status', async () => {
@@ -276,7 +289,7 @@ ipcMain.handle(
   'generate-test-cases',
   async (event, ticketData, additionalContext, modelOverride) => {
     const settings = await getDecryptedSettings();
-    return testCaseWriterService.generateTestCases(
+    const res = await testCaseWriterService.generateTestCases(
       ticketData,
       additionalContext,
       modelOverride,
@@ -285,6 +298,44 @@ ipcMain.handle(
         event.sender.send('test-case-line', line);
       },
     );
+    let dbSessionId: number | undefined;
+    try {
+      const lines = res.result
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('```'));
+      let testCaseCount = 0;
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed && typeof parsed === 'object') {
+            testCaseCount++;
+          }
+        } catch (_e) {
+          // Ignore invalid JSON lines from LLM stream
+        }
+      }
+      const aiOutput = `${testCaseCount} test case${testCaseCount !== 1 ? 's' : ''}`;
+      const contextRef = ticketData.id ? `Ticket - ${ticketData.id}` : null;
+      dbSessionId = databaseService.createSession(
+        'Test Case Writer',
+        contextRef,
+        aiOutput,
+      );
+      databaseService.addLlmUsage(
+        dbSessionId,
+        'Test Case Generation',
+        res.usage.model || modelOverride || 'Unknown',
+        res.usage.inputTokens,
+        res.usage.outputTokens,
+        res.usage.cacheReadTokens,
+        res.usage.cost,
+        res.usage.cost,
+      );
+    } catch (dbErr) {
+      console.error('Failed to save test case usage to DB:', dbErr);
+    }
+    return { ...res, dbSessionId };
   },
 );
 
@@ -320,7 +371,7 @@ ipcMain.handle(
   'generate-stories',
   async (event, pageData, additionalContext, modelOverride) => {
     const settings = await getDecryptedSettings();
-    return storyWriterService.generateStories(
+    const res = await storyWriterService.generateStories(
       pageData,
       additionalContext,
       modelOverride,
@@ -329,6 +380,44 @@ ipcMain.handle(
         event.sender.send('story-line', line);
       },
     );
+    let dbSessionId: number | undefined;
+    try {
+      const lines = res.result
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('```'));
+      let storyCount = 0;
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed && typeof parsed === 'object') {
+            storyCount++;
+          }
+        } catch (_e) {
+          // Ignore invalid JSON lines from LLM stream
+        }
+      }
+      const aiOutput = `${storyCount} stor${storyCount !== 1 ? 'ies' : 'y'}`;
+      const contextRef = pageData.id ? `Confluence - ${pageData.id}` : null;
+      dbSessionId = databaseService.createSession(
+        'Story Writer',
+        contextRef,
+        aiOutput,
+      );
+      databaseService.addLlmUsage(
+        dbSessionId,
+        'Story Generation',
+        res.usage.model || modelOverride || 'Unknown',
+        res.usage.inputTokens,
+        res.usage.outputTokens,
+        res.usage.cacheReadTokens,
+        res.usage.cost,
+        res.usage.cost,
+      );
+    } catch (dbErr) {
+      console.error('Failed to save story usage to DB:', dbErr);
+    }
+    return { ...res, dbSessionId };
   },
 );
 
@@ -376,7 +465,21 @@ ipcMain.handle(
     branch,
   ) => {
     const settings = await getDecryptedSettings();
-    return storyElaboratorService.startStoryElaboration(
+    let dbSessionId: number | undefined;
+    try {
+      const contextRef = ticketData.id ? `Ticket - ${ticketData.id}` : null;
+      dbSessionId = databaseService.createSession(
+        'Story Elaborator',
+        contextRef,
+        'Elaboration Plan',
+      );
+      if (ticketData.id) {
+        elaborationsDbSessions.set(ticketData.id, dbSessionId);
+      }
+    } catch (dbErr) {
+      console.error('Failed to create story elaborator session in DB:', dbErr);
+    }
+    const result = await storyElaboratorService.startStoryElaboration(
       ticketData,
       repoPath,
       additionalContext,
@@ -387,6 +490,7 @@ ipcMain.handle(
         event.sender.send('elaboration-line', line);
       },
     );
+    return { result, dbSessionId };
   },
 );
 
@@ -401,14 +505,43 @@ ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
 });
 
 ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
-  return storyElaboratorService.stopStoryElaboration(ticketId);
+  const dbSessionId = elaborationsDbSessions.get(ticketId);
+  const usage = await storyElaboratorService.stopStoryElaboration(ticketId);
+  if (usage && typeof dbSessionId === 'number') {
+    try {
+      databaseService.addLlmUsage(
+        dbSessionId,
+        'Story Elaboration Session',
+        usage.model || 'Unknown',
+        usage.inputTokens,
+        usage.outputTokens,
+        usage.cacheReadTokens,
+        usage.cost,
+        usage.cost,
+      );
+    } catch (dbErr) {
+      console.error('Failed to log elaboration usage to DB:', dbErr);
+    }
+    elaborationsDbSessions.delete(ticketId);
+  }
+  return usage;
 });
 
 ipcMain.handle(
   'start-tshirt-estimation',
   async (event, description, repoPath, modelOverride, branch) => {
     const settings = await getDecryptedSettings();
-    return tShirtEstimatorService.startTShirtEstimation(
+    let dbSessionId: number | undefined;
+    try {
+      dbSessionId = databaseService.createSession(
+        'T-Shirt Size Estimator',
+        null,
+        'T-Shirt Estimate',
+      );
+    } catch (dbErr) {
+      console.error('Failed to create tshirt estimation session in DB:', dbErr);
+    }
+    const resultStr = await tShirtEstimatorService.startTShirtEstimation(
       description,
       repoPath,
       modelOverride,
@@ -418,11 +551,43 @@ ipcMain.handle(
         event.sender.send('tshirt-estimation-line', line);
       },
     );
+    try {
+      const parsed = JSON.parse(resultStr);
+      if (parsed && parsed.sessionId && typeof dbSessionId === 'number') {
+        estimationsDbSessions.set(parsed.sessionId, dbSessionId);
+        return JSON.stringify({
+          ...parsed,
+          dbSessionId,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to parse tshirt estimation result JSON:', err);
+    }
+    return resultStr;
   },
 );
 
 ipcMain.handle('stop-tshirt-estimation', async (event, sessionId) => {
-  return tShirtEstimatorService.stopTShirtEstimation(sessionId);
+  const dbSessionId = estimationsDbSessions.get(sessionId);
+  const usage = await tShirtEstimatorService.stopTShirtEstimation(sessionId);
+  if (usage && typeof dbSessionId === 'number') {
+    try {
+      databaseService.addLlmUsage(
+        dbSessionId,
+        'T-Shirt Estimation Session',
+        usage.model || 'Unknown',
+        usage.inputTokens,
+        usage.outputTokens,
+        usage.cacheReadTokens,
+        usage.cost,
+        usage.cost,
+      );
+    } catch (dbErr) {
+      console.error('Failed to log tshirt estimation usage to DB:', dbErr);
+    }
+    estimationsDbSessions.delete(sessionId);
+  }
+  return usage;
 });
 
 ipcMain.handle(
@@ -496,7 +661,6 @@ ipcMain.handle(
     return prReviewerService.cleanWorktrees(baseDir);
   },
 );
-
 ipcMain.handle('get-cpu-count', () => {
   return os.cpus().length;
 });
@@ -517,45 +681,133 @@ ipcMain.handle(
     skipCleanup,
   ) => {
     const settings = await getDecryptedSettings();
-    return prReviewerService.reviewPR(repoPath, targetBranch, settings, {
-      modelOverride,
-      customInstructions,
-      enabledPhaseIds,
-      prDescription,
-      prId,
-      maxParallelism,
-      persona,
-      skipCleanup,
-      onLine: (line: string) => {
-        event.sender.send('pr-reviewer:review-line', line);
+    const res = await prReviewerService.reviewPR(
+      repoPath,
+      targetBranch,
+      settings,
+      {
+        modelOverride,
+        customInstructions,
+        enabledPhaseIds,
+        prDescription,
+        prId,
+        maxParallelism,
+        persona,
+        skipCleanup,
+        onLine: (line: string) => {
+          event.sender.send('pr-reviewer:review-line', line);
+        },
       },
-    });
+    );
+
+    let dbSessionId: number | undefined;
+    try {
+      const lines = res.result
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('```'));
+      let commentCount = 0;
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed && (parsed.type === 'general' || parsed.type === 'line')) {
+            commentCount++;
+          }
+        } catch (_e) {
+          // Ignore invalid JSON lines from LLM stream
+        }
+      }
+
+      const aiOutput = `${commentCount} PR comment${commentCount !== 1 ? 's' : ''}`;
+      const contextRef = prId ? `PR - ${prId}` : 'PR - manual';
+      dbSessionId = databaseService.createSession(
+        'PR Reviewer',
+        contextRef,
+        aiOutput,
+      );
+
+      if (res.usage && res.usage.phases) {
+        for (const phase of res.usage.phases) {
+          databaseService.addLlmUsage(
+            dbSessionId,
+            `PR Reviewer Phase: ${phase.phaseTitle}`,
+            phase.model,
+            phase.inputTokens,
+            phase.outputTokens,
+            phase.cacheReadTokens,
+            phase.cost,
+            phase.multiplier,
+          );
+        }
+      }
+    } catch (dbErr) {
+      console.error('Failed to save PR review usage to DB:', dbErr);
+    }
+
+    return { ...res, dbSessionId };
   },
 );
 
 ipcMain.handle(
   'pr-reviewer:post-comment',
-  async (event, repoPath, prUrlOrId, comment) => {
+  async (event, repoPath, prUrlOrId, comment, dbSessionId) => {
     const settings = await getDecryptedSettings();
-    return prReviewerService.postPRComment(
+    const result = await prReviewerService.postPRComment(
       repoPath,
       prUrlOrId,
       comment,
       settings,
     );
+    if (typeof dbSessionId === 'number') {
+      databaseService.incrementPushedCommentCount(dbSessionId);
+    }
+    return result;
   },
 );
 
 ipcMain.handle(
   'pr-reviewer:critique-comments',
-  async (event, repoPath, comments, prDescription, modelOverride, persona) => {
+  async (
+    event,
+    repoPath,
+    comments,
+    prDescription,
+    modelOverride,
+    persona,
+    dbSessionId,
+  ) => {
     const settings = await getDecryptedSettings();
-    return prReviewerService.critiqueComments(comments, settings, {
+    const res = await prReviewerService.critiqueComments(comments, settings, {
       modelOverride,
       prDescription,
       repoPath,
       persona,
     });
+
+    if (typeof dbSessionId === 'number') {
+      try {
+        const usage = res.usage;
+        databaseService.addLlmUsage(
+          dbSessionId,
+          'PR Reviewer: Critique Comments',
+          usage.model || modelOverride || 'Unknown',
+          usage.inputTokens,
+          usage.outputTokens,
+          usage.cacheReadTokens,
+          usage.cost,
+          usage.cost, // use cost as multiplier
+        );
+
+        // Update overall session output with the critique result count
+        const commentCount = res.result ? res.result.length : 0;
+        const aiOutput = `${commentCount} PR comment${commentCount !== 1 ? 's' : ''} (critiqued)`;
+        databaseService.updateSessionAiOutput(dbSessionId, aiOutput);
+      } catch (dbErr) {
+        console.error('Failed to log critic usage to DB:', dbErr);
+      }
+    }
+
+    return res;
   },
 );
 
@@ -634,14 +886,32 @@ ipcMain.handle(
 
 ipcMain.handle('add-comment', async (event, ticketId, text, options) => {
   const service = await getIssueTrackerService();
-  return service.addComment(ticketId, text, options);
+  const res = await service.addComment(ticketId, text, options);
+  if (options && typeof options.dbSessionId === 'number') {
+    databaseService.recordPush(options.dbSessionId, '1 comment');
+  }
+  return res;
 });
 
 ipcMain.handle(
   'create-ticket',
   async (event, type, parentTicketId, data, options) => {
     const service = await getIssueTrackerService();
-    return service.createTicket(type, parentTicketId, data, options);
+    const res = await service.createTicket(type, parentTicketId, data, options);
+    if (options && typeof options.dbSessionId === 'number') {
+      const history = databaseService.getHistory();
+      const session = history.find((s) => s.id === options.dbSessionId);
+      if (session) {
+        if (session.toolName === 'Story Writer') {
+          databaseService.incrementPushedStoryCount(options.dbSessionId);
+        } else if (session.toolName === 'Test Case Writer') {
+          databaseService.recordPush(options.dbSessionId, '1 task');
+        } else {
+          databaseService.recordPush(options.dbSessionId, '1 ticket');
+        }
+      }
+    }
+    return res;
   },
 );
 
@@ -747,6 +1017,26 @@ app.on('ready', async () => {
     app.setAppUserModelId('com.squirrel.stitch.Stitch');
   }
 
+  // Initialize SQLite Database
+  try {
+    databaseService.initializeDatabase();
+    // Non-blocking cleanup of sessions older than 30 days (delayed to prevent startup contention)
+    setTimeout(() => {
+      try {
+        const deletedCount = databaseService.deleteOldSessions(30);
+        if (deletedCount > 0) {
+          console.log(
+            `Cleaned up ${deletedCount} database sessions older than 30 days.`,
+          );
+        }
+      } catch (err) {
+        console.error('Failed to run automated database history cleanup:', err);
+      }
+    }, 2000);
+  } catch (err) {
+    console.error('Failed to initialize SQLite database:', err);
+  }
+
   const s = await initStore();
 
   // Migrate any existing plain text credentials to secure storage
@@ -785,6 +1075,11 @@ app.on('activate', () => {
 // code. You can also put them in separate files and import them here.
 
 app.on('will-quit', async () => {
+  try {
+    databaseService.closeDatabase();
+  } catch (err) {
+    console.error('Failed to close database:', err);
+  }
   await storyElaboratorService.cleanup();
   await tShirtEstimatorService.cleanup();
 });

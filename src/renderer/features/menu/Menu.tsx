@@ -25,10 +25,16 @@ const Menu: React.FC<MenuProps> = ({
           className="img-fluid"
           style={{ maxHeight: '96px', objectFit: 'contain' }}
         />
-        <Link to="/settings" className="btn btn-outline-secondary">
-          <i className="fas fa-cog me-2"></i>
-          Settings
-        </Link>
+        <div className="d-flex gap-2">
+          <Link to="/history" className="btn btn-outline-secondary">
+            <i className="fas fa-history me-2"></i>
+            Usage History
+          </Link>
+          <Link to="/settings" className="btn btn-outline-secondary">
+            <i className="fas fa-cog me-2"></i>
+            Settings
+          </Link>
+        </div>
       </div>
 
       <div className="row g-4 menu-row">

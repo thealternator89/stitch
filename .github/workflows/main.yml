@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - windows-latest
+          - windows-2022
           #- macos-latest
 
     steps:
@@ -32,6 +32,11 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Install Dependencies
         run: npm ci

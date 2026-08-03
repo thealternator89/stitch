@@ -208,3 +208,25 @@ export interface PRReviewerConfig {
   groups?: string[];
   criticInstruction?: string;
 }
+
+export interface DbLlmUsage {
+  id?: number;
+  sessionId: number;
+  label: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cost: number;
+  multiplier?: number;
+}
+
+export interface DbSession {
+  id: number;
+  toolName: string;
+  contextReference: string | null;
+  timestamp: number;
+  aiOutput: string | null;
+  pushed: string | null;
+  llmUsages?: DbLlmUsage[];
+}

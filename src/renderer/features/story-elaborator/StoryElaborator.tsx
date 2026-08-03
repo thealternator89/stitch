@@ -54,6 +54,7 @@ const StoryElaborator: React.FC = () => {
   const [isWaitingForUser, setIsWaitingForUser] = useState(false);
   const [error, setError] = useState<string>('');
   const [usageStats, setUsageStats] = useState<CopilotUsage | null>(null);
+  const [dbSessionId, setDbSessionId] = useState<number | null>(null);
 
   // Elaboration Content
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -170,6 +171,7 @@ const StoryElaborator: React.FC = () => {
 
     setError('');
     setUsageStats(null);
+    setDbSessionId(null);
     setStage('elaborating');
     setIsGenerating(true);
     setIsWaitingForUser(false);
@@ -240,13 +242,16 @@ const StoryElaborator: React.FC = () => {
       if (!isMountedRef.current) return;
 
       // 2. Start session
-      await window.electronAPI.startStoryElaboration(
+      const startRes = await window.electronAPI.startStoryElaboration(
         fetchedTicket,
         repoPath.trim() ? repoPath : null,
         context,
         selectedModel,
         gitWorktreeEnabled ? branch.trim() || 'develop' : undefined,
       );
+      if (startRes && typeof startRes.dbSessionId === 'number') {
+        setDbSessionId(startRes.dbSessionId);
+      }
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       console.error(err);
@@ -360,7 +365,9 @@ const StoryElaborator: React.FC = () => {
     if (!planMarkdown) return;
     setIsPosting(true);
     try {
-      await window.electronAPI.addComment(ticketId, planMarkdown);
+      await window.electronAPI.addComment(ticketId, planMarkdown, {
+        dbSessionId: dbSessionId || undefined,
+      });
       alert('Plan added to the ticket comment successfully!');
     } catch (err: unknown) {
       console.error(err);

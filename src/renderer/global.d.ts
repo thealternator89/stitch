@@ -12,6 +12,7 @@ import {
   ReviewComment,
   CopilotResult,
   CopilotUsage,
+  DbSession,
 } from '../types';
 
 export interface IElectronAPI {
@@ -28,7 +29,7 @@ export interface IElectronAPI {
     ticketData: TicketData,
     context: string,
     modelOverride: string,
-  ) => Promise<CopilotResult<string>>;
+  ) => Promise<CopilotResult<string> & { dbSessionId?: number }>;
   onTestCaseLine: (callback: (line: string) => void) => () => void;
   fetchConfluencePage: (pageId: string) => Promise<DocPageData>;
   searchConfluencePages: (query: string) => Promise<DocPageData[]>;
@@ -36,18 +37,18 @@ export interface IElectronAPI {
     pageData: DocPageData,
     context: string,
     modelOverride: string,
-  ) => Promise<CopilotResult<string>>;
+  ) => Promise<CopilotResult<string> & { dbSessionId?: number }>;
   onStoryLine: (callback: (line: string) => void) => () => void;
   addComment: (
     ticketId: string,
     text: string,
-    options?: { edited?: boolean },
+    options?: { edited?: boolean; dbSessionId?: number },
   ) => Promise<void>;
   createTicket: (
     type: string,
     parentTicketId: string,
     data: TicketData,
-    options?: { edited?: boolean },
+    options?: { edited?: boolean; dbSessionId?: number },
   ) => Promise<void>;
 
   checkCopilotAuth: () => Promise<CopilotAuth>;
@@ -67,7 +68,7 @@ export interface IElectronAPI {
     additionalContext: string,
     modelOverride: string,
     branch?: string,
-  ) => Promise<string>;
+  ) => Promise<{ result: string; dbSessionId?: number }>;
   sendElaborationAnswer: (ticketId: string, answer: string) => Promise<string>;
   stopStoryElaboration: (ticketId: string) => Promise<CopilotUsage | null>;
   onElaborationLine: (callback: (line: string) => void) => () => void;
@@ -128,7 +129,7 @@ export interface IElectronAPI {
     maxParallelism?: number,
     persona?: string,
     skipCleanup?: boolean,
-  ) => Promise<CopilotResult<string>>;
+  ) => Promise<CopilotResult<string> & { dbSessionId?: number }>;
   onPRReviewLine: (callback: (line: string) => void) => () => void;
   postPRComment: (
     repoPath: string,
@@ -140,6 +141,7 @@ export interface IElectronAPI {
       comment: string;
       edited?: boolean;
     },
+    dbSessionId?: number,
   ) => Promise<void>;
   critiquePRComments: (
     repoPath: string,
@@ -147,7 +149,10 @@ export interface IElectronAPI {
     prDescription?: string,
     modelOverride?: string,
     persona?: string,
+    dbSessionId?: number,
   ) => Promise<CopilotResult<ReviewComment[]>>;
+  getHistory: () => Promise<DbSession[]>;
+  clearHistory: () => Promise<void>;
   showNotification: (title: string, body: string) => Promise<void>;
   setWindowProgress: (
     progress: number,
