@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import logo from '../../../../assets/logo-full.png';
+import logoDark from '../../../../assets/logo-full-dark.png';
 import UpdateToast from '../../components/UpdateToast';
 import { UpdateStatus } from '../../../types';
 
@@ -22,7 +23,13 @@ const Menu: React.FC<MenuProps> = ({
         <img
           src={logo}
           alt="Stitch Logo"
-          className="img-fluid"
+          className="img-fluid logo-light"
+          style={{ maxHeight: '96px', objectFit: 'contain' }}
+        />
+        <img
+          src={logoDark}
+          alt="Stitch Logo"
+          className="img-fluid logo-dark"
           style={{ maxHeight: '96px', objectFit: 'contain' }}
         />
         <div className="d-flex gap-2">

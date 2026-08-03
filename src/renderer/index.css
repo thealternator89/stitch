@@ -1062,3 +1062,16 @@ tr.is-dragging {
 .min-w-80 {
   min-width: 80px;
 }
+
+/* Theme-dependent logos */
+.logo-dark {
+  display: none !important;
+}
+
+[data-bs-theme='dark'] .logo-light {
+  display: none !important;
+}
+
+[data-bs-theme='dark'] .logo-dark {
+  display: block !important;
+}
