@@ -223,6 +223,7 @@ const StoryElaborator: React.FC = () => {
             'Elaboration Plan Completed',
             `The agent has successfully written the plan for ticket #${ticketId}.`,
           );
+        } else if (data.type === 'usage') {
           if (data.usage) {
             setUsageStats(data.usage);
           }

@@ -21,6 +21,7 @@ export class StoryElaboratorService {
         repoRoot: string;
         worktreePath: string;
       };
+      cumulativeUsage?: CopilotUsage;
     }
   >();
 
@@ -140,6 +141,12 @@ export class StoryElaboratorService {
         session,
         onLine,
         worktreeInfo,
+        cumulativeUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cost: 0,
+        },
       });
 
       // Find links and fetch titles for knownDocs
@@ -214,7 +221,21 @@ export class StoryElaboratorService {
 
   getActiveSessionUsage(ticketId: string): CopilotUsage | null {
     const data = this.activeElaborations.get(ticketId);
-    return data?.session?.usage || null;
+    if (!data) return null;
+    const sessionUsage = data.session?.usage;
+    const cumulative = data.cumulativeUsage;
+    if (sessionUsage && cumulative) {
+      return {
+        inputTokens: cumulative.inputTokens + (sessionUsage.inputTokens || 0),
+        outputTokens:
+          cumulative.outputTokens + (sessionUsage.outputTokens || 0),
+        cacheReadTokens:
+          cumulative.cacheReadTokens + (sessionUsage.cacheReadTokens || 0),
+        cost: (cumulative.cost || 0) + (sessionUsage.cost || 0),
+        model: sessionUsage.model || cumulative.model,
+      };
+    }
+    return cumulative || null;
   }
 
   private async runElaborationTurn(
@@ -250,12 +271,33 @@ export class StoryElaboratorService {
       }
     };
 
-    return await this.copilotService.sendAndCollectStream(
+    const result = await this.copilotService.sendAndCollectStream(
       session,
       inputContent,
       onLine,
       onToolCallback,
     );
+
+    const turnUsage = session.usage;
+    if (turnUsage && data.cumulativeUsage) {
+      data.cumulativeUsage.inputTokens += turnUsage.inputTokens || 0;
+      data.cumulativeUsage.outputTokens += turnUsage.outputTokens || 0;
+      data.cumulativeUsage.cacheReadTokens += turnUsage.cacheReadTokens || 0;
+      data.cumulativeUsage.cost =
+        (data.cumulativeUsage.cost || 0) + (turnUsage.cost || 0);
+      if (turnUsage.model) {
+        data.cumulativeUsage.model = turnUsage.model;
+      }
+      // Reset session.usage to prevent double counting
+      session.usage = {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cost: 0,
+      };
+    }
+
+    return result;
   }
 
   private extractUrls(text: string): string[] {
@@ -280,8 +322,21 @@ export class StoryElaboratorService {
     if (!data) return null;
 
     this.activeElaborations.delete(ticketId);
-    const { client, session, worktreeInfo } = data;
-    const usage = session.usage || null;
+    const { client, session, worktreeInfo, cumulativeUsage } = data;
+
+    // Collect any final/unaccumulated usage
+    const sessionUsage = session?.usage;
+    if (sessionUsage && cumulativeUsage) {
+      cumulativeUsage.inputTokens += sessionUsage.inputTokens || 0;
+      cumulativeUsage.outputTokens += sessionUsage.outputTokens || 0;
+      cumulativeUsage.cacheReadTokens += sessionUsage.cacheReadTokens || 0;
+      cumulativeUsage.cost =
+        (cumulativeUsage.cost || 0) + (sessionUsage.cost || 0);
+      if (sessionUsage.model) {
+        cumulativeUsage.model = sessionUsage.model;
+      }
+    }
+
     try {
       await session.disconnect();
     } catch (e) {
@@ -302,7 +357,7 @@ export class StoryElaboratorService {
         console.error('Error removing worktree in stopStoryElaboration:', e);
       }
     }
-    return usage;
+    return cumulativeUsage || null;
   }
 
   async cleanup() {

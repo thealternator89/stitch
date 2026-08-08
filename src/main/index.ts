@@ -487,47 +487,42 @@ ipcMain.handle(
       settings,
       branch,
       (line: string) => {
-        try {
-          const parsed = JSON.parse(line.trim());
-          if (parsed.type === 'plan') {
-            const usage = storyElaboratorService.getActiveSessionUsage(
-              ticketData.id || '',
-            );
-            if (usage) {
-              parsed.usage = usage;
-            }
-            line = JSON.stringify(parsed);
-          }
-        } catch {
-          // ignore
-        }
         event.sender.send('elaboration-line', line);
       },
     );
+
+    const usage = storyElaboratorService.getActiveSessionUsage(
+      ticketData.id || '',
+    );
+    if (usage) {
+      event.sender.send(
+        'elaboration-line',
+        JSON.stringify({ type: 'usage', usage }),
+      );
+    }
+
     return { result, dbSessionId };
   },
 );
 
 ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
-  return storyElaboratorService.sendElaborationAnswer(
+  const result = await storyElaboratorService.sendElaborationAnswer(
     ticketId,
     answer,
     (line: string) => {
-      try {
-        const parsed = JSON.parse(line.trim());
-        if (parsed.type === 'plan') {
-          const usage = storyElaboratorService.getActiveSessionUsage(ticketId);
-          if (usage) {
-            parsed.usage = usage;
-          }
-          line = JSON.stringify(parsed);
-        }
-      } catch {
-        // ignore
-      }
       event.sender.send('elaboration-line', line);
     },
   );
+
+  const usage = storyElaboratorService.getActiveSessionUsage(ticketId);
+  if (usage) {
+    event.sender.send(
+      'elaboration-line',
+      JSON.stringify({ type: 'usage', usage }),
+    );
+  }
+
+  return result;
 });
 
 ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {
