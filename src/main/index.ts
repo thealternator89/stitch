@@ -490,18 +490,39 @@ ipcMain.handle(
         event.sender.send('elaboration-line', line);
       },
     );
+
+    const usage = storyElaboratorService.getActiveSessionUsage(
+      ticketData.id || '',
+    );
+    if (usage) {
+      event.sender.send(
+        'elaboration-line',
+        JSON.stringify({ type: 'usage', usage }),
+      );
+    }
+
     return { result, dbSessionId };
   },
 );
 
 ipcMain.handle('send-elaboration-answer', async (event, ticketId, answer) => {
-  return storyElaboratorService.sendElaborationAnswer(
+  const result = await storyElaboratorService.sendElaborationAnswer(
     ticketId,
     answer,
     (line: string) => {
       event.sender.send('elaboration-line', line);
     },
   );
+
+  const usage = storyElaboratorService.getActiveSessionUsage(ticketId);
+  if (usage) {
+    event.sender.send(
+      'elaboration-line',
+      JSON.stringify({ type: 'usage', usage }),
+    );
+  }
+
+  return result;
 });
 
 ipcMain.handle('stop-story-elaboration', async (event, ticketId) => {

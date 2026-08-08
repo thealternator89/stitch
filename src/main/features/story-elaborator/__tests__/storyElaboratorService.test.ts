@@ -155,6 +155,21 @@ describe('StoryElaborator feature', () => {
         expect.any(Function),
       );
 
+      // Check active session usage
+      mockSession.usage = {
+        inputTokens: 10,
+        outputTokens: 20,
+        cacheReadTokens: 0,
+        cost: 0,
+      };
+      const usage = service.getActiveSessionUsage('US-1');
+      expect(usage).toEqual({
+        inputTokens: 10,
+        outputTokens: 20,
+        cacheReadTokens: 0,
+        cost: 0,
+      });
+
       // Stop story elaboration
       await service.stopStoryElaboration('US-1');
       expect(mockSession.disconnect).toHaveBeenCalled();
