@@ -75,6 +75,7 @@ const StoryElaborator: React.FC = () => {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const shouldShowUsageToastRef = useRef(false);
 
   const { models, selectedModel, setSelectedModel, loadingModels } =
     useCopilotModels();
@@ -179,6 +180,7 @@ const StoryElaborator: React.FC = () => {
     setError('');
     setUsageStats(null);
     setDbSessionId(null);
+    shouldShowUsageToastRef.current = false;
     setStage('elaborating');
     setIsGenerating(true);
     setIsWaitingForUser(false);
@@ -223,9 +225,11 @@ const StoryElaborator: React.FC = () => {
             'Elaboration Plan Completed',
             `The agent has successfully written the plan for ticket #${ticketId}.`,
           );
+          shouldShowUsageToastRef.current = true;
         } else if (data.type === 'usage') {
-          if (data.usage) {
+          if (data.usage && shouldShowUsageToastRef.current) {
             setUsageStats(data.usage);
+            shouldShowUsageToastRef.current = false;
           }
         }
       } catch (err) {
