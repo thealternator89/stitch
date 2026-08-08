@@ -9,7 +9,7 @@ import { useTimeoutModal, isTimeoutError } from '../../context/TimeoutContext';
 import UsageStatsToast from '../../components/UsageStatsToast';
 
 interface FeedItem {
-  type: 'chat' | 'status';
+  type: 'chat' | 'status' | 'plan';
   sender?: 'copilot' | 'user';
   text: string;
 }
@@ -64,6 +64,13 @@ const StoryElaborator: React.FC = () => {
 
   const [isPosting, setIsPosting] = useState(false);
   const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+
+  // Plan Refinement States
+  const [isRefining, setIsRefining] = useState(false);
+  const [refinementText, setRefinementText] = useState('');
+  const [expandedPlans, setExpandedPlans] = useState<Record<number, boolean>>(
+    {},
+  );
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -216,19 +223,9 @@ const StoryElaborator: React.FC = () => {
             'Elaboration Plan Completed',
             `The agent has successfully written the plan for ticket #${ticketId}.`,
           );
-          window.electronAPI
-            .stopStoryElaboration(ticketId)
-            .then((usage) => {
-              if (usage) {
-                setUsageStats(usage);
-              }
-            })
-            .catch((err) => {
-              console.error(
-                'Error stopping story elaboration on plan complete:',
-                err,
-              );
-            });
+          if (data.usage) {
+            setUsageStats(data.usage);
+          }
         }
       } catch (err) {
         console.warn('Failed to parse JSONL line:', trimmed, err);
@@ -376,6 +373,46 @@ const StoryElaborator: React.FC = () => {
       alert(errMsg);
     } finally {
       setIsPosting(false);
+    }
+  };
+
+  const handleSubmitRefinement = async () => {
+    if (!refinementText.trim()) return;
+
+    const instructions = refinementText.trim();
+    const currentPlan = planMarkdown;
+
+    setFeed((prev) => [
+      ...prev,
+      { type: 'plan', text: currentPlan },
+      { type: 'chat', sender: 'user', text: instructions },
+    ]);
+
+    setRefinementText('');
+    setIsRefining(false);
+    setStage('elaborating');
+    setIsGenerating(true);
+    setIsWaitingForUser(false);
+
+    try {
+      await window.electronAPI.sendElaborationAnswer(ticketId, instructions);
+    } catch (err: unknown) {
+      if (!isMountedRef.current) return;
+      console.error(err);
+      const errMsg = sanitizeErrorMessage(
+        err,
+        'An error occurred sending refinement instructions.',
+      );
+      if (isTimeoutError(err)) {
+        showTimeout(err);
+      } else {
+        setError(errMsg);
+      }
+      setIsGenerating(false);
+      triggerNotification(
+        'Elaboration Error',
+        `Failed to send refinement: ${errMsg}`,
+      );
     }
   };
 
@@ -707,6 +744,62 @@ const StoryElaborator: React.FC = () => {
                           );
                         }
 
+                        if (item.type === 'plan') {
+                          const isExpanded = expandedPlans[idx] || false;
+                          return (
+                            <div
+                              key={idx}
+                              className="d-flex justify-content-start my-2 animate__animated animate__fadeIn"
+                              style={{ width: '100%' }}
+                            >
+                              <div className="card shadow-sm border rounded-4 w-100 bg-body text-body">
+                                <div
+                                  className="card-header bg-body-secondary d-flex justify-content-between align-items-center py-2 px-3 rounded-top-4"
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() =>
+                                    setExpandedPlans((prev) => ({
+                                      ...prev,
+                                      [idx]: !isExpanded,
+                                    }))
+                                  }
+                                >
+                                  <span className="fw-semibold text-secondary small d-flex align-items-center gap-2">
+                                    <i className="fas fa-clipboard-list text-indigo"></i>
+                                    <span>Generated Plan (Refined)</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-xs btn-outline-secondary py-0.5 px-2 text-xs rounded-pill"
+                                  >
+                                    {isExpanded ? (
+                                      <>
+                                        <i className="fas fa-chevron-up me-1"></i>
+                                        Collapse
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="fas fa-chevron-down me-1"></i>
+                                        Expand
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                                {isExpanded && (
+                                  <div className="card-body p-3 overflow-auto max-h-300 border-top">
+                                    <div className="markdown-content">
+                                      <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                      >
+                                        {item.text}
+                                      </ReactMarkdown>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+
                         // Chat message (user or copilot)
                         return (
                           <div
@@ -835,6 +928,42 @@ const StoryElaborator: React.FC = () => {
                   </div>
                 </div>
 
+                {isRefining && (
+                  <div className="p-3 border-top bg-body-secondary animate__animated animate__slideInUp">
+                    <label className="form-label fw-semibold text-secondary small">
+                      What changes would you like to make to the plan?
+                    </label>
+                    <textarea
+                      className="form-control border-2 mb-2"
+                      rows={3}
+                      placeholder="Describe what changes you want to make (e.g. 'Use Redux instead of React Context' or 'Add tests for the handler method')..."
+                      value={refinementText}
+                      onChange={(e) => setRefinementText(e.target.value)}
+                      disabled={isPosting}
+                    />
+                    <div className="d-flex justify-content-end gap-2">
+                      <button
+                        className="btn btn-sm btn-outline-secondary px-3 py-1.5 fw-semibold"
+                        onClick={() => {
+                          setIsRefining(false);
+                          setRefinementText('');
+                        }}
+                        disabled={isPosting}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="btn btn-sm text-white px-3 py-1.5 fw-semibold"
+                        style={{ backgroundColor: '#4f46e5' }}
+                        onClick={handleSubmitRefinement}
+                        disabled={!refinementText.trim() || isPosting}
+                      >
+                        Submit Refinement
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Footer Controls */}
                 <div className="card-footer bg-body-tertiary py-3 d-flex justify-content-between align-items-center border-top flex-shrink-0">
                   <button
@@ -858,31 +987,44 @@ const StoryElaborator: React.FC = () => {
                       }
                       setStage('idle');
                     }}
+                    disabled={isRefining}
                   >
                     <i className="fas fa-rotate-left me-2"></i>
                     Start Over
                   </button>
-                  <button
-                    className="btn text-white px-4 py-2 fw-semibold shadow-sm hover-grow"
-                    style={{ backgroundColor: '#4f46e5' }}
-                    onClick={handlePostComment}
-                    disabled={isPosting}
-                  >
-                    {isPosting ? (
-                      <>
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                        ></span>
-                        Posting...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-comment-dots me-2"></i>
-                        Post Plan as Comment
-                      </>
+                  <div className="d-flex gap-2">
+                    {!isRefining && (
+                      <button
+                        className="btn btn-outline-indigo px-4 py-2 fw-semibold shadow-sm hover-grow animate__animated animate__fadeIn"
+                        onClick={() => setIsRefining(true)}
+                        disabled={isPosting}
+                      >
+                        <i className="fas fa-edit me-2"></i>
+                        Refine
+                      </button>
                     )}
-                  </button>
+                    <button
+                      className="btn text-white px-4 py-2 fw-semibold shadow-sm hover-grow"
+                      style={{ backgroundColor: '#4f46e5' }}
+                      onClick={handlePostComment}
+                      disabled={isPosting || isRefining}
+                    >
+                      {isPosting ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-2"
+                            role="status"
+                          ></span>
+                          Posting...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-comment-dots me-2"></i>
+                          Post Plan as Comment
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

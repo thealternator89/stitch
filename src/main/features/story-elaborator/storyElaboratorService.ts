@@ -212,6 +212,11 @@ export class StoryElaboratorService {
     return await this.runElaborationTurn(ticketId, answer, onLine);
   }
 
+  getActiveSessionUsage(ticketId: string): CopilotUsage | null {
+    const data = this.activeElaborations.get(ticketId);
+    return data?.session?.usage || null;
+  }
+
   private async runElaborationTurn(
     ticketId: string,
     inputContent: string,
