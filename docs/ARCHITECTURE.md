@@ -61,7 +61,8 @@ We use a local SQLite database (`better-sqlite3`) to persist the usage history o
   - Creates new user stories/work items (e.g. Product Backlog Items) linked to a parent Feature ID using customizable work item type settings.
   - Fetches details of a specific Pull Request (`gitApi.getPullRequestById`) or lists active pull requests for the project (`gitApi.getPullRequestsByProject`).
   - Fetches work item references linked to a Pull Request (`gitApi.getPullRequestWorkItemRefs`) to attach user stories as additional code review context.
-  - Posts code review findings (both general and line-specific comments) to the PR as new active comment threads (`gitApi.createThread`) targeting precise file paths and line offsets with an AI disclaimer.
+  - Fetches existing PR comment threads (`gitApi.getThreads`) with resolution state and discussion context, enabling the Critic phase to inspect existing discussions via the `get_existing_comments` tool and suggest replies.
+  - Posts code review findings (both general and line-specific comments) to the PR as new active comment threads (`gitApi.createThread`) targeting precise file paths and line offsets with an AI disclaimer, or replies to existing comment threads (`gitApi.createComment`) while reactivating them (`gitApi.updateThread({ status: 1 })`).
 
 ### GitHub
 

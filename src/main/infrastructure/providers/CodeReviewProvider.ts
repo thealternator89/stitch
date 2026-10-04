@@ -1,4 +1,4 @@
-import { PRMetadata } from '../../../types';
+import { PRMetadata, ExistingPRCommentThread } from '../../../types';
 
 export interface CodeReviewProvider {
   parsePRUrl(url: string): {
@@ -26,6 +26,12 @@ export interface CodeReviewProvider {
 
   getLinkedTickets(prId: string, repositoryId?: string): Promise<string[]>;
 
+  getPRCommentThreads?(
+    repoPath: string,
+    prUrlOrId: string,
+    remoteUrl?: string | null,
+  ): Promise<ExistingPRCommentThread[]>;
+
   postPRComment(
     repoPath: string,
     prUrlOrId: string,
@@ -35,6 +41,7 @@ export interface CodeReviewProvider {
       line?: number;
       comment: string;
       edited?: boolean;
+      threadId?: number;
     },
     remoteUrl?: string | null,
   ): Promise<void>;

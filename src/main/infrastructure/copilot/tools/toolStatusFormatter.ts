@@ -46,6 +46,11 @@ export function formatToolStatus(
   } else if (tool === 'bash' || tool === 'powershell') {
     const commandNames = extractCommandNames(args?.command);
     detail = ` (${commandNames})`;
+  } else if (tool === 'get_existing_comments') {
+    const parts: string[] = [];
+    if (args?.file) parts.push(path.basename(args.file));
+    if (args?.keywords) parts.push(`"${args.keywords}"`);
+    detail = parts.length > 0 ? ` (${parts.join(', ')})` : '';
   } else {
     // For other tools, we show the tool name as is (or can add more details)
   }

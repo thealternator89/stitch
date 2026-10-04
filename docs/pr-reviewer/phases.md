@@ -102,3 +102,16 @@ performs multi-phase reviews, you should keep guidelines highly focused:
 > Keep your guidelines narrow. Stitch instructs the LLM to ignore any issues
 > that do not fall directly under the current phase guidelines. Doing so
 > prevents duplicate, noisy comments from multiple phases.
+
+---
+
+## The Critic Phase
+
+When enabled, the **Critic Phase** acts as a lead reviewer and consolidation step after all automated review phases complete.
+
+- **Deduplication & Scope Validation**: Evaluates all proposed comments to verify that they are within PR scope, sound, and not duplicates.
+- **Inspect Existing PR Comments (`get_existing_comments`)**: For Azure DevOps PRs, the Critic has access to the `get_existing_comments` tool to query existing discussions:
+  - Line comments can be queried by file and line range.
+  - General PR comments can be queried by keywords (keywords strictly search general comments only).
+  - Inspects whether existing threads are active or marked as resolved.
+- **Reply Suggestions**: Rather than proposing a new duplicate thread, the Critic can suggest replying to an existing thread (`action: "reply"`). Replying to a thread in Azure DevOps automatically reactivates it if it was previously resolved.

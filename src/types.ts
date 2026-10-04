@@ -176,9 +176,30 @@ export interface ReviewComment {
   posted?: boolean;
   phase?: string;
   phaseId?: string;
-  status?: 'approved' | 'rejected' | 'edited' | 'merged';
+  status?: 'approved' | 'rejected' | 'edited' | 'merged' | 'reply';
   reason?: string;
   mergedFromIndices?: number[];
+  threadId?: number;
+}
+
+export interface ExistingPRComment {
+  id?: number;
+  author?: string;
+  content: string;
+  publishedDate?: Date | string;
+}
+
+export interface ExistingPRCommentThread {
+  id: number;
+  status?: string;
+  isResolved: boolean;
+  type: 'general' | 'line';
+  file?: string;
+  lineRange?: {
+    startLine?: number;
+    endLine?: number;
+  };
+  comments: ExistingPRComment[];
 }
 
 export interface PhaseUsage {

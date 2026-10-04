@@ -5,7 +5,7 @@ import {
   GitPullRequestCommentThread,
 } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { CodeReviewProvider } from '../providers/CodeReviewProvider';
-import { PRMetadata } from '../../../types';
+import { PRMetadata, ExistingPRCommentThread } from '../../../types';
 import { getAttributionStatement } from '../constants';
 
 export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
@@ -309,6 +309,156 @@ export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
     }
   }
 
+  async getPRCommentThreads(
+    repoPath: string,
+    prUrlOrId: string,
+    remoteUrl?: string | null,
+  ): Promise<ExistingPRCommentThread[]> {
+    let prNumber = parseInt(prUrlOrId);
+    let org = this.org;
+    let project = this.defaultProject;
+
+    const parsedUrl = this.parsePRUrl(prUrlOrId);
+    if (parsedUrl) {
+      prNumber = parsedUrl.prNumber;
+      org = parsedUrl.org;
+      project = parsedUrl.project;
+    } else if (isNaN(prNumber)) {
+      throw new Error(`Invalid Pull Request URL or ID format: "${prUrlOrId}"`);
+    } else {
+      if (remoteUrl) {
+        const parsedRemote = this.parseRemoteUrl(remoteUrl);
+        if (parsedRemote) {
+          org = org || parsedRemote.org;
+          project = project || parsedRemote.project;
+        }
+      }
+    }
+
+    if (!org) {
+      throw new Error(
+        'Azure DevOps Organization is not configured in settings and could not be detected from git remote.',
+      );
+    }
+    if (!project) {
+      throw new Error(
+        'Azure DevOps Project is not configured in settings and could not be detected from git remote.',
+      );
+    }
+
+    const gitApi = await this.getClientForOrg(org);
+
+    // Fetch the pull request to get the repository ID
+    const prDetails = await gitApi.getPullRequestById(prNumber);
+    if (!prDetails || !prDetails.repository || !prDetails.repository.id) {
+      throw new Error(`Pull Request #${prNumber} not found.`);
+    }
+
+    const repositoryId = prDetails.repository.id;
+
+    try {
+      const threads = await gitApi.getThreads(repositoryId, prNumber, project);
+      if (!threads) return [];
+
+      const result: ExistingPRCommentThread[] = [];
+
+      for (const thread of threads) {
+        if (thread.isDeleted || thread.id === undefined) continue;
+
+        // Map status enum to string
+        let statusStr = 'unknown';
+        let isResolved = false;
+        switch (thread.status) {
+          case 1:
+            statusStr = 'active';
+            break;
+          case 2:
+            statusStr = 'fixed';
+            isResolved = true;
+            break;
+          case 3:
+            statusStr = 'wontFix';
+            isResolved = true;
+            break;
+          case 4:
+            statusStr = 'closed';
+            isResolved = true;
+            break;
+          case 5:
+            statusStr = 'byDesign';
+            isResolved = true;
+            break;
+          case 6:
+            statusStr = 'pending';
+            break;
+          default:
+            statusStr = 'unknown';
+            break;
+        }
+
+        const isLine = Boolean(
+          thread.threadContext && thread.threadContext.filePath,
+        );
+        let filePath: string | undefined;
+        let lineRange: { startLine?: number; endLine?: number } | undefined;
+
+        if (isLine && thread.threadContext) {
+          filePath = thread.threadContext.filePath?.replace(/\\/g, '/');
+          if (filePath?.startsWith('/')) {
+            filePath = filePath.substring(1);
+          }
+          const startLine =
+            thread.threadContext.rightFileStart?.line ??
+            thread.threadContext.leftFileStart?.line;
+          const endLine =
+            thread.threadContext.rightFileEnd?.line ??
+            thread.threadContext.leftFileEnd?.line;
+
+          lineRange = {
+            startLine,
+            endLine,
+          };
+        }
+
+        const comments = (thread.comments || [])
+          .filter(
+            (c) =>
+              !c.isDeleted &&
+              typeof c.content === 'string' &&
+              c.content.trim().length > 0,
+          )
+          .map((c) => ({
+            id: c.id,
+            author: c.author?.displayName || 'Unknown',
+            content: c.content || '',
+            publishedDate: c.publishedDate,
+          }));
+
+        if (comments.length === 0) continue;
+
+        result.push({
+          id: thread.id,
+          status: statusStr,
+          isResolved,
+          type: isLine ? 'line' : 'general',
+          file: filePath,
+          lineRange,
+          comments,
+        });
+      }
+
+      return result;
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to fetch comment threads from Azure DevOps: ${errMsg}`,
+        {
+          cause: error,
+        },
+      );
+    }
+  }
+
   async postPRComment(
     repoPath: string,
     prUrlOrId: string,
@@ -318,6 +468,7 @@ export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
       line?: number;
       comment: string;
       edited?: boolean;
+      threadId?: number;
     },
     remoteUrl?: string | null,
   ): Promise<void> {
@@ -366,6 +517,43 @@ export class AzureDevOpsCodeReviewService implements CodeReviewProvider {
     const disclaimer = ['', getAttributionStatement(comment.edited)].join('\n');
 
     const contentWithDisclaimer = comment.comment + disclaimer;
+
+    // If threadId is provided, reply to existing thread and reactivate it
+    if (comment.threadId) {
+      try {
+        await gitApi.createComment(
+          {
+            parentCommentId: 1,
+            content: contentWithDisclaimer,
+            commentType: 1, // Text comment
+          },
+          repositoryId,
+          prNumber,
+          comment.threadId,
+          project,
+        );
+
+        // Reactivate the thread
+        await gitApi.updateThread(
+          {
+            status: 1, // Active
+          },
+          repositoryId,
+          prNumber,
+          comment.threadId,
+          project,
+        );
+      } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Failed to reply to comment thread #${comment.threadId}: ${errMsg}`,
+          {
+            cause: error,
+          },
+        );
+      }
+      return;
+    }
 
     // Define the thread
     const thread: GitPullRequestCommentThread = {

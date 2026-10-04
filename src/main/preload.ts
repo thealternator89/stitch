@@ -233,6 +233,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       line?: number;
       comment: string;
       edited?: boolean;
+      threadId?: number;
     },
     dbSessionId?: number,
   ): Promise<void> =>
@@ -250,6 +251,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     modelOverride?: string,
     persona?: string,
     dbSessionId?: number,
+    prUrlOrId?: string,
   ): Promise<CopilotResult<ReviewComment[]>> =>
     ipcRenderer.invoke(
       'pr-reviewer:critique-comments',
@@ -259,6 +261,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       modelOverride,
       persona,
       dbSessionId,
+      prUrlOrId,
     ),
 
   getHistory: (): Promise<DbSession[]> => ipcRenderer.invoke('get-history'),

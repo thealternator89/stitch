@@ -140,6 +140,7 @@ export interface IElectronAPI {
       line?: number;
       comment: string;
       edited?: boolean;
+      threadId?: number;
     },
     dbSessionId?: number,
   ) => Promise<void>;
@@ -150,6 +151,7 @@ export interface IElectronAPI {
     modelOverride?: string,
     persona?: string,
     dbSessionId?: number,
+    prUrlOrId?: string,
   ) => Promise<CopilotResult<ReviewComment[]>>;
   getHistory: () => Promise<DbSession[]>;
   clearHistory: () => Promise<void>;

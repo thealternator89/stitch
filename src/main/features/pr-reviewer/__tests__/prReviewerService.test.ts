@@ -2160,6 +2160,8 @@ describe('PRReviewerService', () => {
       expect(prompt).toContain('REJECT');
       expect(prompt).toContain('EDIT');
       expect(prompt).toContain('MERGE');
+      expect(prompt).toContain('REPLY');
+      expect(prompt).toContain('get_existing_comments');
     });
 
     it('should inject criticInstruction when provided to buildCriticPrompt', () => {
@@ -2503,6 +2505,141 @@ describe('PRReviewerService', () => {
       expect(res.result[1].file).toBeUndefined();
       expect(res.result[1].line).toBeUndefined();
       expect(res.result[1].comment).toBe('Merged into general PR feedback');
+    });
+
+    it('should process reply critic decisions with threadId for single and merged comments', async () => {
+      const mockComments = [
+        {
+          type: 'line' as const,
+          file: 'src/main.ts',
+          line: 15,
+          comment: 'Bug in authentication check',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/main.ts',
+          line: 25,
+          comment: 'Duplicate token check issue',
+        },
+        {
+          type: 'line' as const,
+          file: 'src/main.ts',
+          line: 30,
+          comment: 'Another related token issue',
+        },
+      ];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 5,
+          outputTokens: 5,
+          cacheReadTokens: 0,
+          cost: 0.001,
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      mockCopilotService.createClientAndSession.mockResolvedValueOnce({
+        client: mockClient,
+        session: mockSession,
+      });
+
+      const criticStreamOutput = [
+        JSON.stringify({
+          action: 'reply',
+          commentIndex: 1,
+          threadId: 501,
+          comment: 'Revisiting this: still an issue here',
+        }),
+        JSON.stringify({
+          action: 'reply',
+          commentIndices: [2, 3],
+          threadId: 502,
+          comment:
+            'Combined reply to existing thread 502 regarding token validation',
+        }),
+      ].join('\n');
+
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        criticStreamOutput,
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      const res = await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { prDescription: 'Test PR' },
+      );
+
+      expect(res.result).toHaveLength(2);
+
+      // First decision: single reply
+      expect(res.result[0].status).toBe('reply');
+      expect(res.result[0].threadId).toBe(501);
+      expect(res.result[0].comment).toBe(
+        'Revisiting this: still an issue here',
+      );
+
+      // Second decision: merged reply
+      expect(res.result[1].status).toBe('reply');
+      expect(res.result[1].threadId).toBe(502);
+      expect(res.result[1].comment).toBe(
+        'Combined reply to existing thread 502 regarding token validation',
+      );
+      expect(res.result[1].mergedFromIndices).toEqual([1, 2]);
+    });
+
+    it('should register get_existing_comments tool when provider supports getPRCommentThreads and prUrlOrId is provided', async () => {
+      const mockComments = [{ type: 'general' as const, comment: 'Comment 1' }];
+
+      const mockClient = { stop: vi.fn().mockResolvedValue(undefined) };
+      const mockSession = {
+        usage: {
+          inputTokens: 5,
+          outputTokens: 5,
+          cacheReadTokens: 0,
+          cost: 0.001,
+        },
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+
+      let capturedSessionOpts: any = null;
+      mockCopilotService.createClientAndSession.mockImplementationOnce(
+        async (_token: string, _model: string, opts: any) => {
+          capturedSessionOpts = opts;
+          return { client: mockClient, session: mockSession };
+        },
+      );
+
+      mockCodeReviewProvider.getPRCommentThreads = vi
+        .fn()
+        .mockResolvedValue([]);
+      mockGitService.getRemoteUrl.mockResolvedValueOnce(
+        'https://dev.azure.com/org/proj/_git/repo',
+      );
+
+      mockCopilotService.sendAndCollectStream.mockResolvedValueOnce(
+        JSON.stringify({ action: 'approve', commentIndex: 1 }),
+      );
+      mockCopilotService.getCachedModels.mockReturnValue([
+        { id: 'gpt-4o', name: 'GPT-4o' },
+      ]);
+
+      await prReviewerService.critiqueComments(
+        mockComments,
+        { copilotToken: 'test-token', copilotModel: 'gpt-4o' },
+        { repoPath: '/test/repo', prUrlOrId: '123' },
+      );
+
+      expect(capturedSessionOpts).toBeDefined();
+      expect(capturedSessionOpts.tools).toBeDefined();
+      const existingCommentsTool = capturedSessionOpts.tools.find(
+        (t: any) => t.name === 'get_existing_comments',
+      );
+      expect(existingCommentsTool).toBeDefined();
     });
   });
 });

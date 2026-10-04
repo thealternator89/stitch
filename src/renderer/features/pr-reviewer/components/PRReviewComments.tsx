@@ -206,6 +206,14 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                                 Merged by Critic
                               </span>
                             )}
+                            {comment.status === 'reply' && (
+                              <span className="badge bg-info-subtle text-info-emphasis">
+                                <i className="fas fa-reply me-1"></i>
+                                {comment.threadId
+                                  ? `Reply #${comment.threadId}`
+                                  : 'Reply'}
+                              </span>
+                            )}
                             {comment.posted ? (
                               <span className="text-success small fw-semibold">
                                 <i className="fas fa-check-circle me-1"></i>
@@ -271,6 +279,14 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                               <span className="badge bg-primary-subtle text-primary-emphasis">
                                 <i className="fas fa-code-merge me-1"></i>
                                 Merged by Critic
+                              </span>
+                            )}
+                            {comment.status === 'reply' && (
+                              <span className="badge bg-info-subtle text-info-emphasis">
+                                <i className="fas fa-reply me-1"></i>
+                                {comment.threadId
+                                  ? `Reply to Thread #${comment.threadId}`
+                                  : 'Reply by Critic'}
                               </span>
                             )}
                           </div>
@@ -371,12 +387,18 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                               {commentId && isPostingComment[commentId] ? (
                                 <>
                                   <span className="spinner-border spinner-border-sm me-1"></span>
-                                  Posting...
+                                  {comment.status === 'reply'
+                                    ? 'Replying...'
+                                    : 'Posting...'}
                                 </>
                               ) : (
                                 <>
-                                  <i className="fas fa-paper-plane me-1"></i>
-                                  Post
+                                  <i
+                                    className={`fas ${comment.status === 'reply' ? 'fa-reply' : 'fa-paper-plane'} me-1`}
+                                  ></i>
+                                  {comment.status === 'reply'
+                                    ? 'Reply'
+                                    : 'Post'}
                                 </>
                               )}
                             </button>
@@ -386,7 +408,11 @@ const PRReviewComments: React.FC<PRReviewCommentsProps> = ({
                               disabled={
                                 commentId ? isPostingComment[commentId] : false
                               }
-                              title="Edit comment before posting"
+                              title={
+                                comment.status === 'reply'
+                                  ? 'Edit reply before posting'
+                                  : 'Edit comment before posting'
+                              }
                             >
                               <i className="fas fa-edit"></i>
                             </button>
