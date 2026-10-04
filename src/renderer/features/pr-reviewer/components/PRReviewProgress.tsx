@@ -7,6 +7,7 @@ export interface PhaseProgress {
   reason?: string;
   statusText?: string;
   group?: string;
+  commentCount?: number;
 }
 
 interface PRReviewProgressProps {
@@ -66,7 +67,7 @@ const PRReviewProgress: React.FC<PRReviewProgressProps> = ({
             let statusTextClass = 'text-muted';
             let badgeColor = 'bg-secondary-subtle text-secondary-emphasis';
             let displayStatus = 'Pending';
-            let statusMsg = p.statusText || '';
+            let statusMsg: React.ReactNode = p.statusText || '';
             let inlineStyle: React.CSSProperties = {};
 
             if (p.status === 'in-progress') {
@@ -88,7 +89,19 @@ const PRReviewProgress: React.FC<PRReviewProgressProps> = ({
               badgeColor =
                 'bg-success-subtle text-success-emphasis border border-success-subtle';
               displayStatus = 'Complete';
-              statusMsg = 'Phase complete';
+              if (p.id === 'critic-phase') {
+                statusMsg = p.statusText || 'Critic phase complete.';
+              } else {
+                const count = p.commentCount ?? 0;
+                statusMsg = (
+                  <>
+                    <span className="d-block fw-semibold">Phase complete</span>
+                    <span className="text-muted small d-block">
+                      {count} draft comment{count === 1 ? '' : 's'} written
+                    </span>
+                  </>
+                );
+              }
             } else if (p.id === 'critic-phase' && p.status === 'pending') {
               cardBg = 'bg-body-tertiary opacity-75';
               borderClass = 'border-secondary-subtle';
@@ -137,12 +150,12 @@ const PRReviewProgress: React.FC<PRReviewProgressProps> = ({
                     <div className="mt-2 border-top pt-2">
                       <div className="d-flex align-items-start gap-2">
                         <div className="mt-1 flex-shrink-0">{icon}</div>
-                        <p
+                        <div
                           className={`small mb-0 flex-grow-1 ${statusTextClass}`}
                           style={{ minHeight: '40px', fontSize: '0.8rem' }}
                         >
                           {statusMsg}
-                        </p>
+                        </div>
                       </div>
                     </div>
                   </div>

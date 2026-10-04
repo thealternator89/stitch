@@ -555,6 +555,56 @@ describe('PRReviewerService', () => {
       );
     });
 
+    it('should count draft comments and emit phase-end with commentCount', async () => {
+      mockGitService.getDiffFiles.mockResolvedValue([
+        { path: 'src/index.ts', status: 'modified' },
+      ]);
+
+      const mockSession = {
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockClient = {
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCopilotService.createClientAndSession.mockResolvedValue({
+        client: mockClient,
+        session: mockSession,
+      });
+
+      mockCopilotService.sendAndCollectStream.mockImplementation(
+        async (
+          _session: any,
+          _prompt: string,
+          onLine?: (line: string) => void,
+        ) => {
+          if (onLine) {
+            onLine('{"type":"status","status":"Starting review"}');
+            onLine('{"type":"general","comment":"General comment 1"}');
+            onLine(
+              '{"type":"line","file":"src/index.ts","line":10,"comment":"Line comment 1"}',
+            );
+            onLine('{"type":"general","comment":"General comment 2"}');
+          }
+          return 'done';
+        },
+      );
+
+      const onLineCallback = vi.fn();
+      await prReviewerService.reviewPR('/mock/repo', 'main', settings, {
+        onLine: onLineCallback,
+        enabledPhaseIds: ['010-definition-of-done.md'],
+      });
+
+      expect(onLineCallback).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'phase-end',
+          phaseId: '010-definition-of-done.md',
+          phaseTitle: 'Definition of Done',
+          commentCount: 3,
+        }),
+      );
+    });
+
     it('should throw an error if no review phases are selected', async () => {
       await expect(
         prReviewerService.reviewPR('/mock/repo', 'main', settings, {
