@@ -524,9 +524,19 @@ const PRReviewer: React.FC = () => {
           );
           setLastStatusTime(new Date());
         } else if (commentObj && commentObj.type === 'phase-end') {
+          const count =
+            typeof commentObj.commentCount === 'number'
+              ? commentObj.commentCount
+              : localComments.filter(
+                  (c) =>
+                    c.phaseId === commentObj.phaseId ||
+                    c.phase === commentObj.phaseTitle,
+                ).length;
           setPhaseProgress((prev) =>
             prev.map((p) =>
-              p.id === commentObj.phaseId ? { ...p, status: 'completed' } : p,
+              p.id === commentObj.phaseId
+                ? { ...p, status: 'completed', commentCount: count }
+                : p,
             ),
           );
           setLastStatusTime(new Date());

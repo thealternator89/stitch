@@ -996,6 +996,7 @@ export class PRReviewerService {
             );
           }
 
+          let phaseCommentCount = 0;
           const wrappedOnLine = (line: string) => {
             if (!options.onLine) return;
             try {
@@ -1003,6 +1004,10 @@ export class PRReviewerService {
               if (obj) {
                 obj.phase = phase.title;
                 obj.phaseId = phase.id;
+
+                if (obj.type === 'general' || obj.type === 'line') {
+                  phaseCommentCount++;
+                }
 
                 if (obj.type === 'status' && obj.text && !obj.status) {
                   obj.status = obj.text;
@@ -1180,6 +1185,7 @@ export class PRReviewerService {
                   type: 'phase-end',
                   phaseId: phase.id,
                   phaseTitle: phase.title,
+                  commentCount: phaseCommentCount,
                 }),
               );
             }

@@ -175,6 +175,7 @@ export interface ReviewComment {
   codeLines?: { line: number; text: string; isTarget: boolean }[];
   posted?: boolean;
   phase?: string;
+  phaseId?: string;
   status?: 'approved' | 'rejected' | 'edited' | 'merged';
   reason?: string;
   mergedFromIndices?: number[];
