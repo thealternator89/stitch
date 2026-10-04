@@ -14,19 +14,19 @@ export function createViewExistingCommentsTool(
   return {
     name: 'get_existing_comments',
     description:
-      'Fetch and search existing comment threads already posted on this Pull Request. You can search line-based comments by specifying "file" and optional line ranges ("startLine", "endLine"). You can search general comments by providing "keywords". NOTE: Keywords ONLY match general (not file/line-based) comments. Use this tool to check if an issue has already been reported or resolved on the PR, and consider suggesting a reply to the existing thread instead of creating a duplicate comment.',
+      'Fetch and search existing comment threads already posted on this Pull Request. File-based search can be either line-based (by specifying "file" and optional "startLine"/"endLine") or keyword-based (by specifying "file" and "keywords"). You can also search general PR comments by providing "keywords" without a "file". Use this tool to check if an issue has already been reported or resolved on the PR, and consider suggesting a reply to the existing thread instead of creating a duplicate comment.',
     parameters: {
       type: 'object',
       properties: {
         keywords: {
           type: 'string',
           description:
-            'Keywords to search for in general PR comments (e.g. "auth", "testing", "formatting"). NOTE: Keywords only match general comments, never file/line-specific comments.',
+            'Keywords to search for in comment threads. When "file" is provided, searches comments on that file matching these keywords. When "file" is omitted, searches general PR comments.',
         },
         file: {
           type: 'string',
           description:
-            'File path to filter line comments (e.g. "src/auth/login.ts"). Matches line-based comments targeting this file.',
+            'File path to filter comments (e.g. "src/auth/login.ts"). Can be combined with line ranges ("startLine", "endLine") for line-based search, or with "keywords" for file-specific keyword search.',
         },
         startLine: {
           type: 'number',
@@ -86,20 +86,9 @@ export function createViewExistingCommentsTool(
         typeof args.keywords === 'string' && args.keywords.trim().length > 0;
       const hasFile =
         typeof args.file === 'string' && args.file.trim().length > 0;
-
-      if (hasKeywords) {
-        const queryTerms = args.keywords!.toLowerCase().trim().split(/\s+/);
-        // Keywords MUST ONLY match general (not file/line-based) comments
-        const generalMatches = cachedThreads.filter((t) => {
-          if (t.type !== 'general') return false;
-          const commentsContent = t.comments
-            .map((c) => c.content)
-            .join(' ')
-            .toLowerCase();
-          return queryTerms.every((term) => commentsContent.includes(term));
-        });
-        results.push(...generalMatches);
-      }
+      const queryTerms = hasKeywords
+        ? args.keywords!.toLowerCase().trim().split(/\s+/)
+        : [];
 
       if (hasFile) {
         const targetFile = args
@@ -109,7 +98,7 @@ export function createViewExistingCommentsTool(
         const start = args.startLine;
         const end = args.endLine ?? start;
 
-        const lineMatches = cachedThreads.filter((t) => {
+        const fileMatches = cachedThreads.filter((t) => {
           if (t.type !== 'line' || !t.file) return false;
           const threadFile = t.file
             .replace(/\\/g, '/')
@@ -122,6 +111,7 @@ export function createViewExistingCommentsTool(
             return false;
           }
 
+          // Line range filtering (if startLine or endLine specified)
           if (start !== undefined && t.lineRange) {
             const threadStart = t.lineRange.startLine ?? 0;
             const threadEnd = t.lineRange.endLine ?? threadStart;
@@ -135,13 +125,35 @@ export function createViewExistingCommentsTool(
               }
             }
           }
+
+          // Keyword filtering specific to this file (if keywords specified)
+          if (hasKeywords) {
+            const commentsContent = t.comments
+              .map((c) => c.content)
+              .join(' ')
+              .toLowerCase();
+            if (!queryTerms.every((term) => commentsContent.includes(term))) {
+              return false;
+            }
+          }
+
           return true;
         });
-        results.push(...lineMatches);
-      }
 
-      // If neither filter is provided, return all threads
-      if (!hasKeywords && !hasFile) {
+        results.push(...fileMatches);
+      } else if (hasKeywords) {
+        // General keyword-based search (when no file specified)
+        const generalMatches = cachedThreads.filter((t) => {
+          if (t.type !== 'general') return false;
+          const commentsContent = t.comments
+            .map((c) => c.content)
+            .join(' ')
+            .toLowerCase();
+          return queryTerms.every((term) => commentsContent.includes(term));
+        });
+        results.push(...generalMatches);
+      } else {
+        // Neither file nor keywords specified: return all threads
         results = [...cachedThreads];
       }
 

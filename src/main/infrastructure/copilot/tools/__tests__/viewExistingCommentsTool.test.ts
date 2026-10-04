@@ -106,15 +106,15 @@ describe('createViewExistingCommentsTool', () => {
     expect(result).toContain('does not support fetching existing PR comments');
   });
 
-  it('should filter general comments by keywords and NEVER match line comments', async () => {
+  it('should filter general comments by keywords when file is omitted', async () => {
     const tool = createViewExistingCommentsTool(
       mockProvider as CodeReviewProvider,
       '/repo/path',
       '123',
     );
 
-    // Searching for "tokens" - only thread 101 is general and contains "tokens".
-    // Thread 102 also contains "Token", but it is a line comment, so it MUST NOT match!
+    // Searching for "tokens" without a file - only thread 101 is general and contains "tokens".
+    // Thread 102 also contains "Token", but it is a line comment, so it MUST NOT match when file is omitted!
     const result = await tool.handler({ keywords: 'tokens' });
 
     expect(result).toContain('Thread #101');
@@ -122,6 +122,28 @@ describe('createViewExistingCommentsTool', () => {
     expect(result).toContain('Please check auth flow and security tokens.');
     // Must NOT contain thread 102
     expect(result).not.toContain('Thread #102');
+  });
+
+  it('should filter line comments by file and keywords (file-based keyword search)', async () => {
+    const tool = createViewExistingCommentsTool(
+      mockProvider as CodeReviewProvider,
+      '/repo/path',
+      '123',
+    );
+
+    // Searching for "validation" on "src/auth/service.ts"
+    const result = await tool.handler({
+      file: 'src/auth/service.ts',
+      keywords: 'validation',
+    });
+
+    expect(result).toContain('Thread #102');
+    expect(result).toContain('Line Comment on src/auth/service.ts:10-15');
+    expect(result).toContain('Token validation is missing here.');
+    // Must NOT contain general thread 101
+    expect(result).not.toContain('Thread #101');
+    // Must NOT contain other files (thread 104)
+    expect(result).not.toContain('Thread #104');
   });
 
   it('should filter line comments by file and line range', async () => {
