@@ -114,4 +114,7 @@ When enabled, the **Critic Phase** acts as a lead reviewer and consolidation ste
   - File-based comments can be queried by file with either line ranges or keywords.
   - General PR comments can be queried by keywords (without specifying a file).
   - Inspects whether existing threads are active or marked as resolved.
-- **Reply Suggestions**: Rather than proposing a new duplicate thread, the Critic can suggest replying to an existing thread (`action: "reply"`). Replying to a thread in Azure DevOps automatically reactivates it if it was previously resolved.
+- **Reply Suggestions & Deduplication Rules**: Rather than proposing a new duplicate thread, the Critic inspects existing discussions and only suggests replying to an existing thread (`action: "reply"`) if:
+  1. The issue persists and the existing thread is marked as resolved (replying automatically reactivates the thread in Azure DevOps), OR
+  2. The Critic can add further useful information or new context not already covered in an active thread.
+     Otherwise, if the issue has already been raised in an active thread and no new information is being added (or if it was resolved and already addressed), the Critic discards the proposed comment by rejecting it with the reason `"Already raised"`.

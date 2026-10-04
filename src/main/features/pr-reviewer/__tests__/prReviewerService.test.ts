@@ -2162,6 +2162,9 @@ describe('PRReviewerService', () => {
       expect(prompt).toContain('MERGE');
       expect(prompt).toContain('REPLY');
       expect(prompt).toContain('get_existing_comments');
+      expect(prompt).toContain('Already raised');
+      expect(prompt).toContain('The issue persists and the thread is resolved');
+      expect(prompt).toContain('add further useful information or context');
     });
 
     it('should inject criticInstruction when provided to buildCriticPrompt', () => {

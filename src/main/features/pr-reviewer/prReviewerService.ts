@@ -55,7 +55,9 @@ When evaluating each proposed comment:
 (a) Check the code: Inspect the actual source code files in the working directory to verify whether the issue, bug, or suggestion in the proposed comment is accurate and technically sound.
 (b) Verify scope: Ensure the comment is directly relevant and within the scope of the current Pull Request changes. If a comment addresses code or suggestions outside the scope of the PR, REJECT it with reason "Out of scope".
 (c) Strict Duplicate Prevention: You MUST NOT allow two or more comments to exist on the exact same line of the same file. If multiple comments target the same file and line, you MUST merge them into a single consolidated comment or reject the redundant ones.
-(d) Check Existing PR Comments: Use "get_existing_comments" to see if the issue is already raised in a previous discussion on the PR. If so, choose to reply to that existing thread instead of creating a duplicate thread.
+(d) Check Existing PR Comments: Use "get_existing_comments" to see if the issue is already raised or discussed in a previous comment thread on the PR. If an existing thread already covers the issue:
+    - Only suggest a REPLY if the issue persists and the thread is resolved (replying will reactivate the thread), OR if you are able to add further useful information or context not already present in the thread.
+    - Otherwise (if the issue is already raised in an active thread and you have no new information to add, or if it was resolved and already fixed), do NOT reply; discard the comment by choosing REJECT with reason "Already raised".
 
 ${criticInstruction ? `--- ADDITIONAL CRITIC INSTRUCTIONS ---\n${criticInstruction}\n---------------------------------------\n\n` : ''}${prDescription ? `--- PULL REQUEST DESCRIPTION ---\n${prDescription}\n-----------------------------------\n` : ''}${personaInstruction}
 Here are the ${comments.length} proposed review comments to evaluate:
@@ -65,9 +67,12 @@ ${commentsFormatted}
 Your goal is to decide for EACH proposed comment (or group of related comments) whether to:
 1. APPROVE: The comment is accurate, actionable, directly relevant to changed code, within the scope of the PR, and worth addressing.
 2. EDIT: The comment is valid and useful, but its wording, explanation, or formatting can be improved for clarity or constructiveness. You may edit both general comments and line comments, convert a line comment to a general PR comment ("type": "general"), or relocate a line comment to a different "file" and/or "line" (e.g. anchoring to a method signature or class declaration).
-3. REJECT: The comment is invalid, false positive, out of scope, overly pedantic/nitpicky, inaccurate, or redundant. You MUST provide an extremely terse reason for rejection (such as "False positive", "Out of scope", "Duplicate", or "Pedantic nitpick"). Keep it to a few words maximum; do not write long explanations.
+3. REJECT: The comment is invalid, false positive, out of scope, overly pedantic/nitpicky, inaccurate, or redundant (including issues already raised in existing threads without adding new information). You MUST provide an extremely terse reason for rejection (such as "False positive", "Out of scope", "Duplicate", "Pedantic nitpick", or "Already raised"). Keep it to a few words maximum; do not write long explanations.
 4. MERGE: Two or more comments refer to the same root issue, file section, or redundant points. Combine them into a single clear comment (either a general PR comment or a line-specific comment with target "file" and "line" placement). You MUST merge comments if they target the same line of the same file.
-5. REPLY: If a proposed comment addresses an issue that has already been raised or discussed in an existing comment thread on the Pull Request (which you can check using "get_existing_comments"), do NOT create a new duplicate comment thread. Instead, suggest to reply to the existing comment thread. Replying to a thread will automatically reactivate it if it was previously marked as resolved (you do not need to take any action to reactivate it yourself; simply suggesting a reply will reactivate the thread). You can specify the threadId and an appropriate reply comment.
+5. REPLY: If a proposed comment addresses an issue that has already been raised or discussed in an existing comment thread on the Pull Request (which you can check using "get_existing_comments"), do NOT create a new duplicate comment thread. Only suggest to reply to the existing comment thread if:
+   - The issue persists and the thread is resolved (replying to a thread will automatically reactivate it; you do not need to take any action to reactivate it yourself; simply suggesting a reply will reactivate the thread), OR
+   - You are able to add further useful information or context not already covered in the existing discussion.
+   Otherwise, if the issue is already raised in an active thread and no new information is added, or if it was resolved and already addressed, do NOT reply; REJECT the comment with reason "Already raised". When replying, specify the threadId and an appropriate reply comment.
 
 Your output must strictly consist of JSON Lines (JSONL).
 Every line of your response MUST be a single, standalone, valid JSON object.
@@ -87,7 +92,7 @@ For each decision, output a JSON object on its own line matching one of these sc
 {"action": "edit", "commentIndex": 2, "type": "general", "comment": "Updated general PR comment text..."}
 
 - For rejecting an existing comment:
-{"action": "reject", "commentIndex": 3, "reason": "Reason for rejection, e.g. False positive or Out of scope"}
+{"action": "reject", "commentIndex": 3, "reason": "Reason for rejection, e.g. False positive, Out of scope, or Already raised"}
 
 - For merging multiple comments into a line-specific comment:
 {"action": "merge", "commentIndices": [4, 5], "type": "line", "file": "path/to/file", "line": 42, "comment": "Combined merged line comment text..."}
