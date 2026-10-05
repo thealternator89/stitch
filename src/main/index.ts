@@ -796,6 +796,7 @@ ipcMain.handle(
     modelOverride,
     persona,
     dbSessionId,
+    prUrlOrId,
   ) => {
     const settings = await getDecryptedSettings();
     const res = await prReviewerService.critiqueComments(comments, settings, {
@@ -803,6 +804,10 @@ ipcMain.handle(
       prDescription,
       repoPath,
       persona,
+      prUrlOrId,
+      onLine: (line: string) => {
+        event.sender.send('pr-reviewer:review-line', line);
+      },
     });
 
     if (typeof dbSessionId === 'number') {

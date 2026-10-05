@@ -604,7 +604,8 @@ const PRReviewer: React.FC = () => {
               : p,
           ),
         );
-        setIsCritiquing(true);
+        const prIdentifier =
+          activeTab === 'manual' ? manualPrUrlOrId : selectedPR.id;
         try {
           const criticRes = await window.electronAPI.critiquePRComments(
             repoPath,
@@ -613,6 +614,7 @@ const PRReviewer: React.FC = () => {
             selectedModel,
             selectedPersona,
             res.dbSessionId || undefined,
+            prIdentifier,
           );
           if (criticRes && criticRes.result) {
             const critiquedWithIds = criticRes.result.map(
@@ -763,6 +765,7 @@ const PRReviewer: React.FC = () => {
           line: comment.line,
           comment: commentText,
           edited: isEdited,
+          threadId: comment.threadId,
         },
         dbSessionId || undefined,
       );

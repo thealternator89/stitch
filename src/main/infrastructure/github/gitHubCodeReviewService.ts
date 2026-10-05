@@ -276,6 +276,7 @@ export class GitHubCodeReviewService implements CodeReviewProvider {
       line?: number;
       comment: string;
       edited?: boolean;
+      threadId?: number;
     },
     remoteUrl?: string | null,
   ): Promise<void> {

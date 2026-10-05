@@ -9,12 +9,18 @@ const mockGetPullRequestById = vi.fn();
 const mockGetPullRequestsByProject = vi.fn();
 const mockCreateThread = vi.fn();
 const mockGetPullRequestWorkItemRefs = vi.fn();
+const mockGetThreads = vi.fn();
+const mockCreateComment = vi.fn();
+const mockUpdateThread = vi.fn();
 
 const mockGitApi = {
   getPullRequestById: mockGetPullRequestById,
   getPullRequestsByProject: mockGetPullRequestsByProject,
   createThread: mockCreateThread,
   getPullRequestWorkItemRefs: mockGetPullRequestWorkItemRefs,
+  getThreads: mockGetThreads,
+  createComment: mockCreateComment,
+  updateThread: mockUpdateThread,
 };
 
 const mockConnect = vi.fn().mockResolvedValue({
@@ -444,6 +450,202 @@ describe('AzureDevOpsCodeReviewService', () => {
         123,
         'conf-proj',
       );
+    });
+
+    it('should reply to an existing thread and reactivate it when threadId is provided', async () => {
+      mockGetPullRequestById.mockResolvedValue({
+        repository: { id: 'mock-repo-id' },
+      });
+      mockCreateComment.mockResolvedValue({});
+      mockUpdateThread.mockResolvedValue({});
+
+      await service.postPRComment(
+        '/mock/repo',
+        '123',
+        {
+          type: 'line',
+          file: 'src/main.ts',
+          line: 10,
+          comment: 'Still an issue here',
+          threadId: 999,
+        },
+        'https://dev.azure.com/conf-org/conf-proj/_git/my-repo',
+      );
+
+      // Verify createComment was called
+      expect(mockCreateComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parentCommentId: 1,
+          commentType: 1,
+          content: expect.stringContaining('Still an issue here'),
+        }),
+        'mock-repo-id',
+        123,
+        999,
+        'conf-proj',
+      );
+
+      // Verify updateThread was called to reactivate (status: 1)
+      expect(mockUpdateThread).toHaveBeenCalledWith(
+        { status: 1 },
+        'mock-repo-id',
+        123,
+        999,
+        'conf-proj',
+      );
+
+      // Verify createThread was NOT called
+      expect(mockCreateThread).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getPRCommentThreads', () => {
+    it('should fetch and correctly format PR comment threads', async () => {
+      mockGetPullRequestById.mockResolvedValue({
+        repository: { id: 'mock-repo-id' },
+      });
+
+      mockGetThreads.mockResolvedValue([
+        {
+          id: 101,
+          status: 1, // Active
+          threadContext: null, // General comment
+          comments: [
+            {
+              id: 1,
+              author: { displayName: 'Alice' },
+              content: 'Please check auth flow.',
+              publishedDate: new Date('2026-10-01T10:00:00Z'),
+            },
+          ],
+        },
+        {
+          id: 102,
+          status: 2, // Fixed -> Resolved
+          threadContext: {
+            filePath: '/src/auth.ts',
+            rightFileStart: { line: 20 },
+            rightFileEnd: { line: 25 },
+          },
+          comments: [
+            {
+              id: 1,
+              author: { displayName: 'Bob' },
+              content: 'Null check needed.',
+              publishedDate: new Date('2026-10-01T11:00:00Z'),
+            },
+          ],
+        },
+        {
+          id: 103,
+          isDeleted: true, // Should be ignored
+          comments: [{ id: 1, content: 'Deleted thread' }],
+        },
+        {
+          id: 104,
+          status: 4, // Closed -> Resolved
+          comments: [], // No comments, should be ignored
+        },
+      ]);
+
+      const result = await service.getPRCommentThreads(
+        '/mock/repo',
+        '123',
+        'https://dev.azure.com/conf-org/conf-proj/_git/my-repo',
+      );
+
+      expect(result).toHaveLength(2);
+
+      // Thread 101: General comment, Active, not resolved
+      expect(result[0]).toEqual({
+        id: 101,
+        status: 'active',
+        isResolved: false,
+        type: 'general',
+        file: undefined,
+        lineRange: undefined,
+        comments: [
+          {
+            id: 1,
+            author: 'Alice',
+            content: 'Please check auth flow.',
+            publishedDate: new Date('2026-10-01T10:00:00Z'),
+          },
+        ],
+      });
+
+      // Thread 102: Line comment, Fixed, is resolved
+      expect(result[1]).toEqual({
+        id: 102,
+        status: 'fixed',
+        isResolved: true,
+        type: 'line',
+        file: 'src/auth.ts',
+        lineRange: {
+          startLine: 20,
+          endLine: 25,
+        },
+        comments: [
+          {
+            id: 1,
+            author: 'Bob',
+            content: 'Null check needed.',
+            publishedDate: new Date('2026-10-01T11:00:00Z'),
+          },
+        ],
+      });
+    });
+
+    it('should handle different resolution statuses (wontFix, closed, byDesign, pending, unknown)', async () => {
+      mockGetPullRequestById.mockResolvedValue({
+        repository: { id: 'mock-repo-id' },
+      });
+
+      mockGetThreads.mockResolvedValue([
+        {
+          id: 1,
+          status: 3, // wontFix
+          comments: [{ id: 1, content: 'test 1' }],
+        },
+        {
+          id: 2,
+          status: 4, // closed
+          comments: [{ id: 1, content: 'test 2' }],
+        },
+        {
+          id: 3,
+          status: 5, // byDesign
+          comments: [{ id: 1, content: 'test 3' }],
+        },
+        {
+          id: 4,
+          status: 6, // pending
+          comments: [{ id: 1, content: 'test 4' }],
+        },
+        {
+          id: 5,
+          status: 0, // unknown
+          comments: [{ id: 1, content: 'test 5' }],
+        },
+      ]);
+
+      const result = await service.getPRCommentThreads(
+        '/mock/repo',
+        '123',
+        'https://dev.azure.com/conf-org/conf-proj/_git/my-repo',
+      );
+
+      expect(result).toHaveLength(5);
+      expect(result[0].status).toBe('wontFix');
+      expect(result[0].isResolved).toBe(true);
+      expect(result[1].status).toBe('closed');
+      expect(result[1].isResolved).toBe(true);
+      expect(result[2].status).toBe('byDesign');
+      expect(result[2].isResolved).toBe(true);
+      expect(result[3].status).toBe('pending');
+      expect(result[3].isResolved).toBe(false);
+      expect(result[4].status).toBe('unknown');
+      expect(result[4].isResolved).toBe(false);
     });
   });
 });
